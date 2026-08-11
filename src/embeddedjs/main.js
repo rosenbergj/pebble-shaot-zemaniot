@@ -6,17 +6,19 @@ import { hebrewForNow, monthName } from "hebdate";
 // Hardcoded until phone-side location plumbing lands; likewise settings.
 const LAT = 39.95;
 const LON = -75.17;
-const settings = { offset6: false, withMinutes: true, hebrewScript: false };
+const settings = { offset6: false, withMinutes: true };
 
 const render = new Poco(screen);
 const bg = render.makeColor(0, 0, 0);
 const fg = render.makeColor(255, 255, 255);
-const dim = render.makeColor(170, 170, 170);
+const dim = render.makeColor(150, 150, 150);
 
 // Family+size must match the system font table exactly (xsHost.c gFonts);
-// an unlisted combination aborts the script rather than throwing.
-const shaotFont = new render.Font("Bitham-Black", 30);
-const smallFont = new render.Font("Gothic-Regular", 24);
+// an unlisted pair aborts the script rather than throwing. The Leco faces are
+// digit subsets but do carry "." and ":".
+const shaotFont = new render.Font("Leco-Bold", 38);
+const civilFont = new render.Font("Leco-Bold", 20);
+const textFont = new render.Font("Gothic-Regular", 24);
 
 let br = null;
 let hebLine = "";
@@ -49,23 +51,23 @@ function draw() {
 			hour: d.getHours(),
 			sunIsUp: br.isDay,
 		});
-		hebLine = h.day + " " + monthName(h.year, h.month, settings.hebrewScript);
+		hebLine = h.day + " " + monthName(h.year, h.month);
 	}
 
 	render.begin();
 	render.fillRectangle(bg, 0, 0, render.width, render.height);
 
 	if (!br) {
-		centerText("no sun data", smallFont, dim, 100);
+		centerText("no sun data", textFont, dim, 100);
 	} else {
-		centerText(hebLine, smallFont, dim, 40);
+		centerText(hebLine, textFont, dim, 44);
 		centerText(
 			formatShaot(chalakimNow(now, br.start, br.end), settings),
-			shaotFont, fg, 94
+			shaotFont, fg, 92
 		);
 		centerText(
 			((d.getHours() % 12) || 12) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()),
-			smallFont, dim, 158
+			civilFont, dim, 152
 		);
 	}
 
