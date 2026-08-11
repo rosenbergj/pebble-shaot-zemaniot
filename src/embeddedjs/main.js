@@ -1,5 +1,5 @@
 import Poco from "commodetto/Poco";
-import { bracket, nextEvent, TZEIT_ANGLE } from "zmanim";
+import { bracket } from "zmanim";
 import { chalakimNow, formatShaot } from "shaot";
 import { hebrewForNow, monthName } from "hebdate";
 import { LAYOUTS, makeStyle } from "layouts";
@@ -10,7 +10,7 @@ const LON = -75.17;
 const settings = { offset6: false, withMinutes: true };
 
 // Layout under review; see layouts.js.
-const LAYOUT = 3;
+const LAYOUT = 5;
 
 const render = new Poco(screen);
 const style = makeStyle(render);
@@ -52,23 +52,14 @@ function draw() {
 		});
 	}
 
-	// Countdown to nightfall, shown only between sunset and tzeit.
-	let tilNight = "--:--";
-	if (!br.isDay) {
-		const tzeit = nextEvent(br.start, LAT, LON, TZEIT_ANGLE, false);
-		if (tzeit && tzeit > now) {
-			const secs = Math.round((tzeit - now) / 1000);
-			tilNight = Math.floor(secs / 60) + ":" + pad2(secs % 60);
-		}
-	}
-
+	const hebMonth = monthName(heb.year, heb.month);
 	const data = {
 		shaot: formatShaot(chalakimNow(now, br.start, br.end), settings),
 		hebDay: "" + heb.day,
-		hebMonth: monthName(heb.year, heb.month),
-		civil: ((d.getHours() % 12) || 12) + ":" + pad2(d.getMinutes()),
+		hebMonth,
+		hebFull: heb.day + " " + hebMonth,
+		civilSec: ((d.getHours() % 12) || 12) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()),
 		sunset: sunsetStr,
-		tilNight,
 		battery: "78",
 	};
 

@@ -2,58 +2,97 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Shaot watchface — layout review</title>
+<title>Shaot watchface — layout review, round 2</title>
 <meta http-equiv="refresh" content="30">
 <style>
   body { background: #1a1a1c; color: #ddd; font-family: system-ui, sans-serif;
          margin: 0; padding: 2em; }
   h1 { font-size: 1.3em; font-weight: 600; }
-  p.note { color: #999; max-width: 46em; line-height: 1.5; }
+  p.note { color: #999; max-width: 52em; line-height: 1.55; }
+  table.fonts { border-collapse: collapse; margin: 1em 0; font-size: .9em; }
+  table.fonts td, table.fonts th { border: 1px solid #444; padding: .3em .8em;
+                                   text-align: left; }
+  table.fonts th { color: #6cf; }
   .row { display: flex; flex-wrap: wrap; gap: 2em; margin-top: 2em; }
-  figure { margin: 0; }
+  figure { margin: 0; width: 300px; }
   img { image-rendering: pixelated; width: 300px; border: 1px solid #444;
         border-radius: 10px; display: block; }
   figcaption { margin-top: .6em; font-size: .95em; }
   figcaption b { color: #6cf; }
-  figcaption span { color: #999; display: block; font-size: .85em; margin-top: .2em; }
+  figcaption span { color: #999; display: block; font-size: .85em; margin-top: .3em;
+                    line-height: 1.45; }
+  .actual { margin-top: 3em; }
+  .actual img { width: 200px; }
   a { color: #6cf; }
 </style>
 </head>
 <body>
-<h1>Shaot zemaniot — layout candidates (Emery, 200×228, shown 1.5×)</h1>
-<p class="note">Real emulator screenshots with live values. Same palette across all four
-so the comparison is about layout, not color. Sample data fills the secondary slots;
-"till night" reads --:-- because the sun is up.</p>
+<h1>Layout candidates, round 2 — civil time largest, with seconds</h1>
+<p class="note">Real emulator screenshots, live values, one palette throughout so the
+comparison is about size and structure. Shown at 1.5× below; there is a
+<a href="#actual">true-size strip at the bottom</a> for judging real legibility.</p>
+
+<p class="note">The type is constrained by what the system fonts contain. Widths are for
+the worst case (8 characters, e.g. <code>12:27:16</code> or <code>12.00.08</code>):</p>
+<table class="fonts">
+<tr><th>Face</th><th>Width @ 8 chars</th><th>Has "." ?</th><th>Usable for</th></tr>
+<tr><td>Roboto-Bold 49</td><td>196px of 200</td><td>no — drops it silently</td><td>civil only</td></tr>
+<tr><td>Leco-Regular 42</td><td>176px</td><td>yes</td><td>either</td></tr>
+<tr><td>Leco-Bold 38</td><td>162px</td><td>yes</td><td>either</td></tr>
+<tr><td>Leco-Bold 32</td><td>~146px</td><td>yes</td><td>either</td></tr>
+</table>
+<p class="note">So the largest possible civil time (Roboto 49) can never be matched by the
+shaot line, which must be Leco — meaning maximum size costs you a mixed pair of
+typefaces. Variants 1, 4 and 6 keep one family; 2, 3 and 5 go for maximum size.</p>
 
 <div class="row">
   <figure>
-    <img src="layout-0-sidebar.png" alt="sidebar layout">
-    <figcaption><b>A — Sidebar</b>
-      <span>TimeStyle-style. Secondary items stack in a colored rail; main area
-      holds the shaot time. Rail fits ~3 items.</span></figcaption>
+    <img src="layout-0-twin-leco.png" alt="twin Leco">
+    <figcaption><b>1 — Twin, one family</b>
+      <span>Civil Leco 42, shaot Leco 38. Consistent type, civil slightly larger.
+      Nothing else but the date.</span></figcaption>
   </figure>
   <figure>
-    <img src="layout-1-bands.png" alt="bands layout">
-    <figcaption><b>B — Bands</b>
-      <span>Accent header for the Hebrew date, hero number, footer row of three.
-      Biggest shaot digits of the four.</span></figcaption>
+    <img src="layout-1-twin-max.png" alt="twin max">
+    <figcaption><b>2 — Twin, maximum size</b>
+      <span>Civil Roboto 49 (the largest the screen allows), shaot Leco 42.
+      Biggest both-numbers option; two different typefaces.</span></figcaption>
   </figure>
   <figure>
-    <img src="layout-2-grid.png" alt="grid layout">
-    <figcaption><b>C — Grid</b>
-      <span>Flatface-style density. Four labelled cells, so the most configurable
-      slots, at the cost of a smaller hero number.</span></figcaption>
+    <img src="layout-2-twin-slots.png" alt="twin with slots">
+    <figcaption><b>3 — Twin + three slots</b>
+      <span>Same big pair, pushed up to make room for a configurable footer row.
+      Keeps full size and adds the boxes.</span></figcaption>
   </figure>
   <figure>
-    <img src="layout-3-minimal.png" alt="minimal layout">
-    <figcaption><b>D — Minimal</b>
-      <span>Hero number, date, civil time. Largest, cleanest type; no room for
-      configurable boxes.</span></figcaption>
+    <img src="layout-3-band-twin.png" alt="band and twin">
+    <figcaption><b>4 — Header band + twin</b>
+      <span>Date moves into an accent band, so both numbers sit centred below with
+      more breathing room. One type family.</span></figcaption>
+  </figure>
+  <figure>
+    <img src="layout-4-halves.png" alt="labelled halves">
+    <figcaption><b>5 — Labelled halves</b>
+      <span>Small "time" / "shaot" labels remove any ambiguity about which number
+      is which, at the cost of vertical space.</span></figcaption>
+  </figure>
+  <figure>
+    <img src="layout-5-rail-twin.png" alt="rail and twin">
+    <figcaption><b>6 — Sidebar rail</b>
+      <span>TimeStyle's shape. Shows what the rail costs: both numbers drop to
+      Leco 32 to fit the narrower main area.</span></figcaption>
   </figure>
 </div>
 
-<p class="note" style="margin-top:2em">
-Live view of whatever is currently installed: <a href="latest.png">latest.png</a>
-</p>
+<h2 id="actual" class="actual">True size (200×228, as on the watch)</h2>
+<p class="note">This is the row to judge readability from — view it at roughly arm's length.</p>
+<div class="row actual">
+  <figure><img src="layout-0-twin-leco.png"><figcaption>1</figcaption></figure>
+  <figure><img src="layout-1-twin-max.png"><figcaption>2</figcaption></figure>
+  <figure><img src="layout-2-twin-slots.png"><figcaption>3</figcaption></figure>
+  <figure><img src="layout-3-band-twin.png"><figcaption>4</figcaption></figure>
+  <figure><img src="layout-4-halves.png"><figcaption>5</figcaption></figure>
+  <figure><img src="layout-5-rail-twin.png"><figcaption>6</figcaption></figure>
+</div>
 </body>
 </html>
