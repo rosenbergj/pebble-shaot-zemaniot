@@ -1,5 +1,5 @@
 import Poco from "commodetto/Poco";
-import { bracket } from "zmanim";
+import { bracket, nextEvent, TZEIT_ANGLE } from "zmanim";
 import { chalakimNow, formatShaot } from "shaot";
 import { hebrewForNow, monthName } from "hebdate";
 import { LAYOUTS, makeStyle } from "layouts";
@@ -10,7 +10,7 @@ const LON = -75.17;
 const settings = { offset6: false, withMinutes: true };
 
 // Layout under review; see layouts.js.
-const LAYOUT = 5;
+const LAYOUT = 3;
 
 const render = new Poco(screen);
 const style = makeStyle(render);
@@ -19,6 +19,7 @@ const layout = LAYOUTS[LAYOUT];
 let br = null;
 let heb = null;
 let sunsetStr = "--:--";
+let tzeitStr = "--:--";
 let lastHebDay = -1;
 
 function pad2(n) {
@@ -37,7 +38,12 @@ function draw() {
 	if (!br || now >= br.end || now < br.start) {
 		br = bracket(now, LAT, LON);
 		lastHebDay = -1; // a bracket flip can roll the Hebrew date
-		if (br) sunsetStr = hhmm(br.isDay ? br.end : br.start);
+		if (br) {
+			const sunsetMs = br.isDay ? br.end : br.start;
+			sunsetStr = hhmm(sunsetMs);
+			const tz = nextEvent(sunsetMs - 1000, LAT, LON, TZEIT_ANGLE, false);
+			tzeitStr = tz ? hhmm(tz) : "--:--";
+		}
 	}
 	if (!br) return;
 
@@ -60,6 +66,7 @@ function draw() {
 		hebFull: heb.day + " " + hebMonth,
 		civilSec: ((d.getHours() % 12) || 12) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()),
 		sunset: sunsetStr,
+		tzeit: tzeitStr,
 		battery: "78",
 	};
 
