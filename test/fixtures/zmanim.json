@@ -1,0 +1,1052 @@
+[
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1767582000000,
+  "prev": 1767563364889,
+  "next": 1767615733775,
+  "prevRising": false,
+  "tzeitNext": 1767652466701
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1767614400000,
+  "prev": 1767563364902,
+  "next": 1767615733799,
+  "prevRising": false,
+  "tzeitNext": 1767652466713
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1767650400000,
+  "prev": 1767649819688,
+  "next": 1767702130893,
+  "prevRising": false,
+  "tzeitNext": 1767652466725
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1773975600000,
+  "prev": 1773961923431,
+  "next": 1774004623771,
+  "prevRising": false,
+  "tzeitNext": 1774050777076
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1774008000000,
+  "prev": 1774004623811,
+  "next": 1774048385226,
+  "prevRising": true,
+  "tzeitNext": 1774050777094
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1774044000000,
+  "prev": 1774004623858,
+  "next": 1774048385243,
+  "prevRising": true,
+  "tzeitNext": 1774050777113
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1782010800000,
+  "prev": 1782001975428,
+  "next": 1782034318938,
+  "prevRising": false,
+  "tzeitNext": 1782091345793
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1782043200000,
+  "prev": 1782034318938,
+  "next": 1782088388199,
+  "prevRising": true,
+  "tzeitNext": 1782091345794
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1782079200000,
+  "prev": 1782034318939,
+  "next": 1782088388200,
+  "prevRising": true,
+  "tzeitNext": 1782091345794
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1786417200000,
+  "prev": 1786406636698,
+  "next": 1786442907679,
+  "prevRising": false,
+  "tzeitNext": 1786495570909
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1786449600000,
+  "prev": 1786442907693,
+  "next": 1786492960351,
+  "prevRising": true,
+  "tzeitNext": 1786495570940
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1786485600000,
+  "prev": 1786442907708,
+  "next": 1786492960380,
+  "prevRising": true,
+  "tzeitNext": 1786495570976
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1790132400000,
+  "prev": 1790117876001,
+  "next": 1790160543793,
+  "prevRising": false,
+  "tzeitNext": 1790206562459
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1790164800000,
+  "prev": 1790160543808,
+  "next": 1790204176777,
+  "prevRising": true,
+  "tzeitNext": 1790206562402
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1790200800000,
+  "prev": 1790160543823,
+  "next": 1790204176825,
+  "prevRising": true,
+  "tzeitNext": 1790206562451
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1797822000000,
+  "prev": 1797802726275,
+  "next": 1797855508958,
+  "prevRising": false,
+  "tzeitNext": 1797891829587
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1797854400000,
+  "prev": 1797802726278,
+  "next": 1797855508962,
+  "prevRising": false,
+  "tzeitNext": 1797891829591
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1797890400000,
+  "prev": 1797889155088,
+  "next": 1797941938399,
+  "prevRising": false,
+  "tzeitNext": 1797891829595
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1809140400000,
+  "prev": 1809129265453,
+  "next": 1809165649192,
+  "prevRising": false,
+  "tzeitNext": 1809218347462
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1809172800000,
+  "prev": 1809165649216,
+  "next": 1809215725950,
+  "prevRising": true,
+  "tzeitNext": 1809218347484
+ },
+ {
+  "name": "philadelphia",
+  "lat": 39.95,
+  "lon": -75.17,
+  "t": 1809208800000,
+  "prev": 1809165649244,
+  "next": 1809215725967,
+  "prevRising": true,
+  "tzeitNext": 1809218347506
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1767582000000,
+  "prev": 1767538124518,
+  "next": 1767587966491,
+  "prevRising": false,
+  "tzeitNext": 1767626920597
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1767614400000,
+  "prev": 1767587966491,
+  "next": 1767624571127,
+  "prevRising": true,
+  "tzeitNext": 1767626920606
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1767650400000,
+  "prev": 1767624571138,
+  "next": 1767674372378,
+  "prevRising": false,
+  "tzeitNext": 1767713365520
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1773975600000,
+  "prev": 1773935398589,
+  "next": 1773978172801,
+  "prevRising": false,
+  "tzeitNext": 1774023993359
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1774008000000,
+  "prev": 1773978172827,
+  "next": 1774021839759,
+  "prevRising": true,
+  "tzeitNext": 1774023993366
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1774044000000,
+  "prev": 1774021839767,
+  "next": 1774064496404,
+  "prevRising": false,
+  "tzeitNext": 1774110435373
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1782010800000,
+  "prev": 1782009226836,
+  "next": 1782060475836,
+  "prevRising": true,
+  "tzeitNext": 1782062996232
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1782043200000,
+  "prev": 1782009226836,
+  "next": 1782060475837,
+  "prevRising": true,
+  "tzeitNext": 1782062996233
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1782079200000,
+  "prev": 1782060475837,
+  "next": 1782095640271,
+  "prevRising": false,
+  "tzeitNext": 1782149407933
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1786417200000,
+  "prev": 1786379287198,
+  "next": 1786417259502,
+  "prevRising": false,
+  "tzeitNext": 1786467931480
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1786449600000,
+  "prev": 1786417259535,
+  "next": 1786465629141,
+  "prevRising": true,
+  "tzeitNext": 1786467931498
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1786485600000,
+  "prev": 1786465629158,
+  "next": 1786503698637,
+  "prevRising": false,
+  "tzeitNext": 1786554266740
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1790132400000,
+  "prev": 1790091373794,
+  "next": 1790134052167,
+  "prevRising": false,
+  "tzeitNext": 1790179844954
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1790164800000,
+  "prev": 1790134052173,
+  "next": 1790177694853,
+  "prevRising": true,
+  "tzeitNext": 1790179844983
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1790200800000,
+  "prev": 1790177694882,
+  "next": 1790220488927,
+  "prevRising": false,
+  "tzeitNext": 1790266165436
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1797822000000,
+  "prev": 1797777546872,
+  "next": 1797827673345,
+  "prevRising": false,
+  "tzeitNext": 1797866343956
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1797854400000,
+  "prev": 1797827673349,
+  "next": 1797863975515,
+  "prevRising": true,
+  "tzeitNext": 1797866343959
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1797890400000,
+  "prev": 1797863975519,
+  "next": 1797914103314,
+  "prevRising": false,
+  "tzeitNext": 1797952774035
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1809140400000,
+  "prev": 1809140021968,
+  "next": 1809188349326,
+  "prevRising": true,
+  "tzeitNext": 1809190655172
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1809172800000,
+  "prev": 1809140021982,
+  "next": 1809188349334,
+  "prevRising": true,
+  "tzeitNext": 1809190655182
+ },
+ {
+  "name": "jerusalem",
+  "lat": 31.778,
+  "lon": 35.235,
+  "t": 1809208800000,
+  "prev": 1809188349342,
+  "next": 1809226365521,
+  "prevRising": false,
+  "tzeitNext": 1809277103262
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1767582000000,
+  "prev": 1767533346129,
+  "next": 1767597643646,
+  "prevRising": false,
+  "tzeitNext": 1767624640050
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1767614400000,
+  "prev": 1767597643657,
+  "next": 1767619848337,
+  "prevRising": true,
+  "tzeitNext": 1767624640080
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1767650400000,
+  "prev": 1767619848391,
+  "next": 1767683991379,
+  "prevRising": false,
+  "tzeitNext": 1767711126090
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1773975600000,
+  "prev": 1773937949155,
+  "next": 1773980510365,
+  "prevRising": false,
+  "tzeitNext": 1774028224956
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1774008000000,
+  "prev": 1773980510387,
+  "next": 1774024497279,
+  "prevRising": true,
+  "tzeitNext": 1774028224891
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1774044000000,
+  "prev": 1774024497385,
+  "next": 1774066727560,
+  "prevRising": false,
+  "tzeitNext": 1774114781256
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1782010800000,
+  "prev": 1782003200134,
+  "next": 1782071444534,
+  "prevRising": true,
+  "tzeitNext": null
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1782043200000,
+  "prev": 1782003200135,
+  "next": 1782071444535,
+  "prevRising": true,
+  "tzeitNext": null
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1782079200000,
+  "prev": 1782071444535,
+  "next": 1782089614326,
+  "prevRising": false,
+  "tzeitNext": null
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1786417200000,
+  "prev": 1786414990311,
+  "next": 1786472762553,
+  "prevRising": true,
+  "tzeitNext": 1786477768171
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1786449600000,
+  "prev": 1786414990403,
+  "next": 1786472762467,
+  "prevRising": true,
+  "tzeitNext": 1786477768170
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1786485600000,
+  "prev": 1786472762600,
+  "next": 1786501536631,
+  "prevRising": false,
+  "tzeitNext": 1786563936876
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1790132400000,
+  "prev": 1790094052850,
+  "next": 1790136364641,
+  "prevRising": false,
+  "tzeitNext": 1790183976594
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1790164800000,
+  "prev": 1790136364728,
+  "next": 1790180269163,
+  "prevRising": true,
+  "tzeitNext": 1790183976499
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1790200800000,
+  "prev": 1790180269326,
+  "next": 1790222906613,
+  "prevRising": false,
+  "tzeitNext": 1790270186441
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1797822000000,
+  "prev": 1797772382113,
+  "next": 1797837784566,
+  "prevRising": false,
+  "tzeitNext": 1797863757212
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1797854400000,
+  "prev": 1797837784570,
+  "next": 1797858807275,
+  "prevRising": true,
+  "tzeitNext": 1797863757215
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1797890400000,
+  "prev": 1797858807279,
+  "next": 1797924214610,
+  "prevRising": false,
+  "tzeitNext": 1797950187933
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1809140400000,
+  "prev": 1809137869444,
+  "next": 1809195520662,
+  "prevRising": true,
+  "tzeitNext": 1809200571003
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1809172800000,
+  "prev": 1809137869434,
+  "next": 1809195520594,
+  "prevRising": true,
+  "tzeitNext": 1809200571004
+ },
+ {
+  "name": "helsinki",
+  "lat": 60.17,
+  "lon": 24.94,
+  "t": 1809208800000,
+  "prev": 1809195520703,
+  "next": 1809224104919,
+  "prevRising": false,
+  "tzeitNext": 1809287192467
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1767582000000,
+  "prev": 1767552617440,
+  "next": 1767604213046,
+  "prevRising": true,
+  "tzeitNext": 1767606791149
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1767614400000,
+  "prev": 1767604213046,
+  "next": 1767639066760,
+  "prevRising": false,
+  "tzeitNext": 1767693189777
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1767650400000,
+  "prev": 1767639066772,
+  "next": 1767690615939,
+  "prevRising": true,
+  "tzeitNext": 1767693189777
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1773975600000,
+  "prev": 1773950261554,
+  "next": 1773994032362,
+  "prevRising": true,
+  "tzeitNext": 1773996234982
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1774008000000,
+  "prev": 1773994032391,
+  "next": 1774036707673,
+  "prevRising": false,
+  "tzeitNext": 1774082552608
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1774044000000,
+  "prev": 1774036707683,
+  "next": 1774080350998,
+  "prevRising": true,
+  "tzeitNext": 1774082552640
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1782010800000,
+  "prev": 1781989181720,
+  "next": 1782024844403,
+  "prevRising": true,
+  "tzeitNext": 1782027278610
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1782043200000,
+  "prev": 1782024844404,
+  "next": 1782075594792,
+  "prevRising": false,
+  "tzeitNext": 1782113692243
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1782079200000,
+  "prev": 1782075594793,
+  "next": 1782111258079,
+  "prevRising": true,
+  "tzeitNext": 1782113692244
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1786417200000,
+  "prev": 1786394311797,
+  "next": 1786432965389,
+  "prevRising": true,
+  "tzeitNext": 1786435248034
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1786449600000,
+  "prev": 1786432965397,
+  "next": 1786480650465,
+  "prevRising": false,
+  "tzeitNext": 1786521686355
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1786485600000,
+  "prev": 1786480650483,
+  "next": 1786519407601,
+  "prevRising": true,
+  "tzeitNext": 1786521686363
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1790132400000,
+  "prev": 1790106222313,
+  "next": 1790149931273,
+  "prevRising": true,
+  "tzeitNext": 1790152137275
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1790164800000,
+  "prev": 1790149931281,
+  "next": 1790192538498,
+  "prevRising": false,
+  "tzeitNext": 1790238580100
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1790200800000,
+  "prev": 1790192538532,
+  "next": 1790236372973,
+  "prevRising": true,
+  "tzeitNext": 1790238580110
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1797822000000,
+  "prev": 1797792018969,
+  "next": 1797843943783,
+  "prevRising": true,
+  "tzeitNext": 1797846554254
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1797854400000,
+  "prev": 1797843943787,
+  "next": 1797878447732,
+  "prevRising": false,
+  "tzeitNext": 1797932983911
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1797890400000,
+  "prev": 1797878447736,
+  "next": 1797930373506,
+  "prevRising": true,
+  "tzeitNext": 1797932983916
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1809140400000,
+  "prev": 1809116943045,
+  "next": 1809155713572,
+  "prevRising": true,
+  "tzeitNext": 1809157991049
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1809172800000,
+  "prev": 1809155713587,
+  "next": 1809203388486,
+  "prevRising": false,
+  "tzeitNext": 1809244335605
+ },
+ {
+  "name": "sydney",
+  "lat": -33.87,
+  "lon": 151.21,
+  "t": 1809208800000,
+  "prev": 1809203388497,
+  "next": 1809242054169,
+  "prevRising": true,
+  "tzeitNext": 1809244335619
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1767582000000,
+  "prev": 1767568991719,
+  "next": 1767611706042,
+  "prevRising": false,
+  "tzeitNext": 1767657397776
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1767614400000,
+  "prev": 1767611706046,
+  "next": 1767655418012,
+  "prevRising": true,
+  "tzeitNext": 1767657397779
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1767650400000,
+  "prev": 1767611706049,
+  "next": 1767655418015,
+  "prevRising": true,
+  "tzeitNext": 1767657397782
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1773975600000,
+  "prev": 1773962701083,
+  "next": 1774005466838,
+  "prevRising": false,
+  "tzeitNext": 1774050909681
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1774008000000,
+  "prev": 1774005466839,
+  "next": 1774049083104,
+  "prevRising": true,
+  "tzeitNext": 1774050909682
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1774044000000,
+  "prev": 1774005466841,
+  "next": 1774049083106,
+  "prevRising": true,
+  "tzeitNext": 1774050909684
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1782010800000,
+  "prev": 1781997546196,
+  "next": 1782040330099,
+  "prevRising": false,
+  "tzeitNext": 1782085952464
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1782043200000,
+  "prev": 1782040330100,
+  "next": 1782083959291,
+  "prevRising": true,
+  "tzeitNext": 1782085952465
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1782079200000,
+  "prev": 1782040330100,
+  "next": 1782083959292,
+  "prevRising": true,
+  "tzeitNext": 1782085952466
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1786417200000,
+  "prev": 1786404158479,
+  "next": 1786446939415,
+  "prevRising": false,
+  "tzeitNext": 1786492440909
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1786449600000,
+  "prev": 1786446939415,
+  "next": 1786490548791,
+  "prevRising": true,
+  "tzeitNext": 1786492440910
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1786485600000,
+  "prev": 1786446939416,
+  "next": 1786490548792,
+  "prevRising": true,
+  "tzeitNext": 1786492440911
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1790132400000,
+  "prev": 1790118598451,
+  "next": 1790161363804,
+  "prevRising": false,
+  "tzeitNext": 1790206804342
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1790164800000,
+  "prev": 1790161363806,
+  "next": 1790204977668,
+  "prevRising": true,
+  "tzeitNext": 1790206804343
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1790200800000,
+  "prev": 1790161363808,
+  "next": 1790204977670,
+  "prevRising": true,
+  "tzeitNext": 1790206804346
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1797822000000,
+  "prev": 1797808552502,
+  "next": 1797851264076,
+  "prevRising": false,
+  "tzeitNext": 1797896975734
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1797854400000,
+  "prev": 1797851264080,
+  "next": 1797894982235,
+  "prevRising": true,
+  "tzeitNext": 1797896975738
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1797890400000,
+  "prev": 1797851264084,
+  "next": 1797894982239,
+  "prevRising": true,
+  "tzeitNext": 1797896975742
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1809140400000,
+  "prev": 1809126871768,
+  "next": 1809169652907,
+  "prevRising": false,
+  "tzeitNext": 1809215158684
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1809172800000,
+  "prev": 1809169652907,
+  "next": 1809213264630,
+  "prevRising": true,
+  "tzeitNext": 1809215158684
+ },
+ {
+  "name": "quito",
+  "lat": -0.18,
+  "lon": -78.47,
+  "t": 1809208800000,
+  "prev": 1809169652907,
+  "next": 1809213264630,
+  "prevRising": true,
+  "tzeitNext": 1809215158684
+ }
+]
