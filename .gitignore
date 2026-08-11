@@ -12,6 +12,9 @@ node_modules/
 __pycache__/
 *.pyc
 
+# Emulator screenshots (dev-loop churn; force-add milestone shots if wanted)
+screenshots/*.png
+
 # Editor/OS noise
 *.swp
 .DS_Store
