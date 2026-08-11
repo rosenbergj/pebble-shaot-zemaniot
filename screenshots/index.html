@@ -2,17 +2,58 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Shaot watchface screenshots</title>
-<meta http-equiv="refresh" content="5">
+<title>Shaot watchface — layout review</title>
+<meta http-equiv="refresh" content="30">
 <style>
-  body { background: #222; color: #ddd; font-family: sans-serif; text-align: center; }
-  img { image-rendering: pixelated; width: 400px; border: 1px solid #555; margin-top: 1em; }
-  a { color: #8cf; }
+  body { background: #1a1a1c; color: #ddd; font-family: system-ui, sans-serif;
+         margin: 0; padding: 2em; }
+  h1 { font-size: 1.3em; font-weight: 600; }
+  p.note { color: #999; max-width: 46em; line-height: 1.5; }
+  .row { display: flex; flex-wrap: wrap; gap: 2em; margin-top: 2em; }
+  figure { margin: 0; }
+  img { image-rendering: pixelated; width: 300px; border: 1px solid #444;
+        border-radius: 10px; display: block; }
+  figcaption { margin-top: .6em; font-size: .95em; }
+  figcaption b { color: #6cf; }
+  figcaption span { color: #999; display: block; font-size: .85em; margin-top: .2em; }
+  a { color: #6cf; }
 </style>
 </head>
 <body>
-<h2>Latest watchface screenshot</h2>
-<img src="latest.png" alt="latest screenshot">
-<p>(auto-refreshes every 5s — <a href=".">all screenshots</a>)</p>
+<h1>Shaot zemaniot — layout candidates (Emery, 200×228, shown 1.5×)</h1>
+<p class="note">Real emulator screenshots with live values. Same palette across all four
+so the comparison is about layout, not color. Sample data fills the secondary slots;
+"till night" reads --:-- because the sun is up.</p>
+
+<div class="row">
+  <figure>
+    <img src="layout-0-sidebar.png" alt="sidebar layout">
+    <figcaption><b>A — Sidebar</b>
+      <span>TimeStyle-style. Secondary items stack in a colored rail; main area
+      holds the shaot time. Rail fits ~3 items.</span></figcaption>
+  </figure>
+  <figure>
+    <img src="layout-1-bands.png" alt="bands layout">
+    <figcaption><b>B — Bands</b>
+      <span>Accent header for the Hebrew date, hero number, footer row of three.
+      Biggest shaot digits of the four.</span></figcaption>
+  </figure>
+  <figure>
+    <img src="layout-2-grid.png" alt="grid layout">
+    <figcaption><b>C — Grid</b>
+      <span>Flatface-style density. Four labelled cells, so the most configurable
+      slots, at the cost of a smaller hero number.</span></figcaption>
+  </figure>
+  <figure>
+    <img src="layout-3-minimal.png" alt="minimal layout">
+    <figcaption><b>D — Minimal</b>
+      <span>Hero number, date, civil time. Largest, cleanest type; no room for
+      configurable boxes.</span></figcaption>
+  </figure>
+</div>
+
+<p class="note" style="margin-top:2em">
+Live view of whatever is currently installed: <a href="latest.png">latest.png</a>
+</p>
 </body>
 </html>

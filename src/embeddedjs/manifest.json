@@ -4,6 +4,6 @@
 		"$(MODDABLE)/examples/manifest_typings.json"
 	],
 	"modules": {
-		"*": ["./main", "./zmanim", "./shaot", "./hebdate"]
+		"*": ["./main", "./zmanim", "./shaot", "./hebdate", "./layouts"]
 	}
 }
