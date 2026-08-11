@@ -1,0 +1,17 @@
+# Pebble build artifacts
+build/
+dist/
+dist.zip
+.lock-waf*
+.wafpickle*
+
+# Node / phone-side JS tooling
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+
+# Editor/OS noise
+*.swp
+.DS_Store
