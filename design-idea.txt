@@ -1,0 +1,24 @@
+I am interested in making a watch face for my Pebble Time 2 that shows shaot zemaniot, Jewish timekeeping. 
+
+References:
+
+* /home/josh/working/lightpi is a project that uses shaot zemaniot in the do_clock() mode
+* /home/josh/working/pebble/pebble-2016/hebwatch is my attempt at this a decade ago with a different Pebble SDK. I don't necessarily want to borrow anything from here except to the extent that it's helpful. (For example, I don't care for the layout anymore.) I also don't remember if this worked in the end or not. Other things in /home/josh/working/pebble/pebble-2016 might also be useful but are also a decade old.
+* Pebble development guide: https://developer.repebble.com/tutorials/alloy-watchface-tutorial/part1/ (We would want Emery.) I would also be happy to do the C-based version at https://developer.repebble.com/tutorials/watchface-tutorial/part1/ , which is probably more similar to my old project, but I want to use JS unless there are advantages to the C approach that I'm not aware of. 
+* My favorite watch face, whose look and feel I wouldn't mind emulating: https://github.com/freakified/TimeStylePebble. I especially like the fonts.
+* Flatface is the name of a watch face that I don't particularly love compared to TimeStyle, but it demonstrates a good use of space when displaying more information than a basic face like TimeStyle. Unfortunately it's not open source as far as I can tell. Link: https://apps.repebble.com/flatface_56d049f7577bffe6ad00001c
+
+I would NOT like my watch face to "tick" more than once per second. That's a fun feature in lightpi, but it would drain a watch battery too much. Instead I just want the correct value of chalakim to be updated on the display every second, when the watch is ticking anyway. In practice, that means the time between chelek "ticks" will be "rounded" up or down, and that's fine. Precision to within a couple of seconds is good enough. 
+
+Settings I want to expose to the user as options: 
+* 6-based or 0-based counting (i.e. is sunset when it flips from 5.59.17 to 6.00.00 or when it flips from 11.59.17 to 0.00.00, and is true noon 12.00.00 or 6.00.00)
+* Minutes or no minutes for chalakim (i.e. right before sunset is it 11.59.17 or is it 11.1079)
+* Tick every second or every minute? If we tick every minute, then the display of chalakim will only be approximate
+* For approximately 45 minutes after sunset, display countdown to nightfall or continue displaying shaot zemaniot? (This might require too much additional code in order to determine nightfall time, so we may drop this feature.)
+* What to display in certain configurable boxes, like the right-hand bar in TimeStyle (the number and location of these boxes will depend on the exact layout we design). One of the options should be the Hebrew calendar date (month and day, not necessarily year).
+* Color palette
+
+Other notes:
+* This development environment is on a headless server, not a laptop. Sample images for watchface appearance will thus be hard to view. Either I'll be SCPing a lot of things back and forth, or maybe it makes sense for you to periodically fire up the simplest possible web server so I can see sample images via the web.
+
+
