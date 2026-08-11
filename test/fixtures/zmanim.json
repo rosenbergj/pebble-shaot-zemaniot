@@ -4,210 +4,210 @@
   "lat": 39.95,
   "lon": -75.17,
   "t": 1767582000000,
-  "prev": 1767563364889,
-  "next": 1767615733775,
+  "prev": 1767563361052,
+  "next": 1767615735198,
   "prevRising": false,
-  "tzeitNext": 1767652466701
+  "tzeitNext": 1767652463569
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1767614400000,
-  "prev": 1767563364902,
-  "next": 1767615733799,
+  "prev": 1767563361066,
+  "next": 1767615735223,
   "prevRising": false,
-  "tzeitNext": 1767652466713
+  "tzeitNext": 1767652463581
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1767650400000,
-  "prev": 1767649819688,
-  "next": 1767702130893,
+  "prev": 1767649815869,
+  "next": 1767702132299,
   "prevRising": false,
-  "tzeitNext": 1767652466725
+  "tzeitNext": 1767652463594
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1773975600000,
-  "prev": 1773961923431,
-  "next": 1774004623771,
+  "prev": 1773961922264,
+  "next": 1774004622518,
   "prevRising": false,
-  "tzeitNext": 1774050777076
+  "tzeitNext": 1774050776484
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1774008000000,
-  "prev": 1774004623811,
-  "next": 1774048385226,
+  "prev": 1774004622558,
+  "next": 1774048384100,
   "prevRising": true,
-  "tzeitNext": 1774050777094
+  "tzeitNext": 1774050776502
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1774044000000,
-  "prev": 1774004623858,
-  "next": 1774048385243,
+  "prev": 1774004622605,
+  "next": 1774048384118,
   "prevRising": true,
-  "tzeitNext": 1774050777113
+  "tzeitNext": 1774050776521
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1782010800000,
-  "prev": 1782001975428,
-  "next": 1782034318938,
+  "prev": 1782001977176,
+  "next": 1782034314789,
   "prevRising": false,
-  "tzeitNext": 1782091345793
+  "tzeitNext": 1782091348605
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1782043200000,
-  "prev": 1782034318938,
-  "next": 1782088388199,
+  "prev": 1782034314790,
+  "next": 1782088389947,
   "prevRising": true,
-  "tzeitNext": 1782091345794
+  "tzeitNext": 1782091348606
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1782079200000,
-  "prev": 1782034318939,
-  "next": 1782088388200,
+  "prev": 1782034314791,
+  "next": 1782088389947,
   "prevRising": true,
-  "tzeitNext": 1782091345794
+  "tzeitNext": 1782091348606
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1786417200000,
-  "prev": 1786406636698,
-  "next": 1786442907679,
+  "prev": 1786406637296,
+  "next": 1786442904695,
   "prevRising": false,
-  "tzeitNext": 1786495570909
+  "tzeitNext": 1786495572186
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1786449600000,
-  "prev": 1786442907693,
-  "next": 1786492960351,
+  "prev": 1786442904709,
+  "next": 1786492960911,
   "prevRising": true,
-  "tzeitNext": 1786495570940
+  "tzeitNext": 1786495572216
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1786485600000,
-  "prev": 1786442907708,
-  "next": 1786492960380,
+  "prev": 1786442904724,
+  "next": 1786492960940,
   "prevRising": true,
-  "tzeitNext": 1786495570976
+  "tzeitNext": 1786495572252
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1790132400000,
-  "prev": 1790117876001,
-  "next": 1790160543793,
+  "prev": 1790117874864,
+  "next": 1790160542550,
   "prevRising": false,
-  "tzeitNext": 1790206562459
+  "tzeitNext": 1790206561810
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1790164800000,
-  "prev": 1790160543808,
-  "next": 1790204176777,
+  "prev": 1790160542565,
+  "next": 1790204175599,
   "prevRising": true,
-  "tzeitNext": 1790206562402
+  "tzeitNext": 1790206561753
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1790200800000,
-  "prev": 1790160543823,
-  "next": 1790204176825,
+  "prev": 1790160542580,
+  "next": 1790204175647,
   "prevRising": true,
-  "tzeitNext": 1790206562451
+  "tzeitNext": 1790206561802
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1797822000000,
-  "prev": 1797802726275,
-  "next": 1797855508958,
+  "prev": 1797802722321,
+  "next": 1797855510512,
   "prevRising": false,
-  "tzeitNext": 1797891829587
+  "tzeitNext": 1797891826341
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1797854400000,
-  "prev": 1797802726278,
-  "next": 1797855508962,
+  "prev": 1797802722324,
+  "next": 1797855510516,
   "prevRising": false,
-  "tzeitNext": 1797891829591
+  "tzeitNext": 1797891826345
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1797890400000,
-  "prev": 1797889155088,
-  "next": 1797941938399,
+  "prev": 1797889151133,
+  "next": 1797941939953,
   "prevRising": false,
-  "tzeitNext": 1797891829595
+  "tzeitNext": 1797891826349
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1809140400000,
-  "prev": 1809129265453,
-  "next": 1809165649192,
+  "prev": 1809129266003,
+  "next": 1809165646229,
   "prevRising": false,
-  "tzeitNext": 1809218347462
+  "tzeitNext": 1809218348778
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1809172800000,
-  "prev": 1809165649216,
-  "next": 1809215725950,
+  "prev": 1809165646253,
+  "next": 1809215726538,
   "prevRising": true,
-  "tzeitNext": 1809218347484
+  "tzeitNext": 1809218348799
  },
  {
   "name": "philadelphia",
   "lat": 39.95,
   "lon": -75.17,
   "t": 1809208800000,
-  "prev": 1809165649244,
-  "next": 1809215725967,
+  "prev": 1809165646280,
+  "next": 1809215726555,
   "prevRising": true,
-  "tzeitNext": 1809218347506
+  "tzeitNext": 1809218348822
  },
  {
   "name": "jerusalem",
