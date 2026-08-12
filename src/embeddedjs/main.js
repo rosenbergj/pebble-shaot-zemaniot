@@ -25,11 +25,24 @@ import {
 	hebrewForNow, monthName,
 } from "core";
 
-const settings = { offset6: false, withMinutes: true, hebrewScript: false };
+// Settings arrive from the phone (Clay page -> AppMessage) and are held as a
+// flat array: cheaper in mod memory than an object with named properties, and
+// it serialises to localStorage as one short string.
+//
+//   0 offset6      1 = sunrise is 6.00, noon 12.00; 0 = sunrise 0.00
+//   1 withMinutes  1 = H.MM.CC; 0 = H.CCCC raw chalakim
+//   2 tickSeconds  1 = tick every second; 0 = every minute (battery)
+//   3 band  4 left  5 mid  6 right   slot content, see SLOT_* below
+//   7 accent       0xRRGGBB
+//   8 civilFont    0 = Roboto 49, 1 = Leco 42 (matches the shaot face)
+const CFG_KEY = "cfg";
+const cfg = [0, 1, 1, 1, 3, 2, 5, 0x007882, 0];
 
-// Four configurable areas: the band plus the three footer slots. Any area can
-// show any content; these are the defaults until the settings page lands.
-const slots = { band: "hebrew", left: "sunset", mid: "secdate", right: "battery" };
+// Slot content kinds. Integers rather than strings to keep the mod small.
+const SLOT_HEBREW = 1, SLOT_SECDATE = 2;
+const SLOT_SUNSET = 3, SLOT_TZEIT = 4, SLOT_BATTERY = 5;
+
+const settings = { offset6: false, withMinutes: true, hebrewScript: false };
 
 const WDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const GMONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -83,19 +96,69 @@ function applyLocation(s) {
 	return true;
 }
 
-function startLocation() {
+// --- settings ---------------------------------------------------------------
+// One channel carries both location and settings. The phone packs every
+// setting into a single comma-separated string: nine separate message keys
+// cost over a kilobyte of mod memory, which we do not have, and the phone has
+// memory to spare for the assembly.
+
+let civilFont = null;
+let tickEvent = "";
+
+function setTick(seconds) {
+	const ev = seconds ? "secondchange" : "minutechange";
+	if (ev === tickEvent) return;
+	if (tickEvent) watch.removeEventListener(tickEvent, draw);
+	watch.addEventListener(ev, draw);
+	tickEvent = ev;
+}
+
+// "0,1,1,1,3,2,5,30850,0" -> cfg. Ignores NaN so a truncated or older string
+// leaves the affected settings at their defaults.
+function parseCfg(s) {
+	const parts = s.split(",");
+	for (let i = 0; i < cfg.length; i++) {
+		const n = parseInt(parts[i]);
+		if (n === n) cfg[i] = n;
+	}
+}
+
+function applyCfg() {
+	settings.offset6 = !!cfg[0];
+	settings.withMinutes = !!cfg[1];
+	style.accent = render.makeColor((cfg[7] >> 16) & 255, (cfg[7] >> 8) & 255, cfg[7] & 255);
+	// Reusing the shaot face costs no extra font object.
+	civilFont = cfg[8] ? fonts.shaot : fonts.civil;
+	setTick(cfg[2]);
+}
+
+function startChannel() {
 	const cached = localStorage.getItem(LOC_KEY);
 	if (cached) applyLocation(cached);
 
+	const saved = localStorage.getItem(CFG_KEY);
+	if (saved) parseCfg(saved);
+	applyCfg();
+
 	return new Message({
-		keys: ["LAT", "LON"],
+		keys: ["LAT", "LON", "CFG"],
 		onReadable() {
 			const m = this.read();
+
 			const lat = m.get("LAT");
 			const lon = m.get("LON");
-			if (undefined === lat || undefined === lon) return;
-			const s = lat + "," + lon;
-			if (applyLocation(s)) localStorage.setItem(LOC_KEY, s);
+			if (undefined !== lat && undefined !== lon) {
+				const s = lat + "," + lon;
+				if (applyLocation(s)) localStorage.setItem(LOC_KEY, s);
+			}
+
+			const c = m.get("CFG");
+			if (undefined !== c) {
+				parseCfg(c);
+				localStorage.setItem(CFG_KEY, c);
+				applyCfg();
+				draw();
+			}
 		},
 	});
 }
@@ -135,17 +198,17 @@ function center(str, font, color, y, x0 = 0, w = render.width) {
 // Returns [label, value]. The band draws the value only, so content whose label
 // carries meaning (the weekday) folds it into the value when forBand is set.
 function slotContent(kind, d, forBand) {
-	if (kind === "hebrew") {
+	if (kind === SLOT_HEBREW) {
 		return ["hebrew",
 			heb.day + " " + monthName(heb.year, heb.month, settings.hebrewScript)];
 	}
-	if (kind === "secdate") {
+	if (kind === SLOT_SECDATE) {
 		const md = GMONTHS[d.getMonth()] + " " + d.getDate();
 		return forBand ? ["", WDAYS[d.getDay()] + " " + md] : [WDAYS[d.getDay()], md];
 	}
-	if (kind === "sunset") return ["sunset", sunsetStr];
-	if (kind === "tzeit") return ["tzeit", tzeitStr];
-	if (kind === "battery") return ["batt", batteryPct + "%"];
+	if (kind === SLOT_SUNSET) return ["sunset", sunsetStr];
+	if (kind === SLOT_TZEIT) return ["tzeit", tzeitStr];
+	if (kind === SLOT_BATTERY) return ["batt", batteryPct + "%"];
 	return ["", ""];
 }
 
@@ -180,11 +243,11 @@ function draw() {
 		});
 	}
 
-	const band = slotContent(slots.band, d, true);
+	const band = slotContent(cfg[3], d, true);
 	const cells = [
-		slotContent(slots.left, d),
-		slotContent(slots.mid, d),
-		slotContent(slots.right, d),
+		slotContent(cfg[4], d),
+		slotContent(cfg[5], d),
+		slotContent(cfg[6], d),
 	];
 
 	render.begin();
@@ -192,7 +255,7 @@ function draw() {
 	render.fillRectangle(style.accent, 0, 0, render.width, BAND_H);
 	center(band[1], fonts.band, style.onAccent, 5);
 	center(((d.getHours() % 12) || 12) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()),
-		fonts.civil, style.fg, 46);
+		civilFont, style.fg, 46);
 	center(formatShaot(chalakimNow(now, br.start, br.end), settings),
 		fonts.shaot, style.fg, 112);
 
@@ -216,6 +279,6 @@ function draw() {
 }
 
 // Held in bindings so these are not collected while the face runs.
-const locationChannel = startLocation();
+// startChannel() applies the saved settings, which registers the tick listener.
 const batterySensor = startBattery();
-watch.addEventListener("secondchange", draw);
+const channel = startChannel();
