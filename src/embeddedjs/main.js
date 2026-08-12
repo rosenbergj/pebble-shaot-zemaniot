@@ -56,12 +56,14 @@ const style = {
 	onAccent: render.makeColor(255, 255, 255),
 	rule: render.makeColor(60, 60, 64),
 };
+// Every font object holds glyph data, so load as few as possible: the band and
+// the box values share one face, and the large Roboto face is only created if
+// the civil line actually asks for it (picking Leco reuses the shaot face).
 const fonts = {
-	civil: new render.Font("Roboto-Bold", 49),
 	shaot: new render.Font("Leco-Regular", 42),
-	band: new render.Font("Gothic-Bold", 24),
-	slotValue: new render.Font("Gothic-Bold", 24),
+	bold24: new render.Font("Gothic-Bold", 24),
 	slotLabel: new render.Font("Gothic-Regular", 14),
+	roboto: null,
 };
 
 let br = null;
@@ -157,7 +159,12 @@ function applyCfg() {
 	// ink we already have, so any colour in the picker stays legible.
 	style.onAccent = (r * 299 + g * 587 + b * 114) / 1000 > 140 ? style.bg : style.fg;
 	// Reusing the shaot face costs no extra font object.
-	civilFont = cfg[8] ? fonts.shaot : fonts.civil;
+	if (cfg[8]) {
+		civilFont = fonts.shaot;
+	} else {
+		fonts.roboto ??= new render.Font("Roboto-Bold", 49);
+		civilFont = fonts.roboto;
+	}
 	setTick(cfg[2]);
 }
 
@@ -272,7 +279,7 @@ function draw() {
 		render.begin();
 		render.fillRectangle(style.bg, 0, 0, render.width, render.height);
 		center(sunLoaded ? "no sun window" : "waiting for phone",
-			fonts.slotValue, style.dim, 100);
+			fonts.bold24, style.dim, 100);
 		render.end();
 		return;
 	}
@@ -298,7 +305,7 @@ function draw() {
 	render.begin();
 	render.fillRectangle(style.bg, 0, 0, render.width, render.height);
 	render.fillRectangle(style.accent, 0, 0, render.width, BAND_H);
-	center(band[1], fonts.band, style.onAccent, 5);
+	center(band[1], fonts.bold24, style.onAccent, 5);
 	center(((d.getHours() % 12) || 12) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()),
 		civilFont, style.fg, 46);
 	center(formatShaot(chalakimNow(now, br.start, br.end), settings),
@@ -318,12 +325,12 @@ function draw() {
 		const ink = onFill ? style.onAccent : style.fg;
 		if (cells[i][2]) {
 			// A date split over both lines: same size and weight, no label.
-			center(cells[i][0], fonts.slotValue, ink, FOOTER_TOP + 3, i * cw, cw);
-			center(cells[i][1], fonts.slotValue, ink, FOOTER_TOP + 29, i * cw, cw);
+			center(cells[i][0], fonts.bold24, ink, FOOTER_TOP + 3, i * cw, cw);
+			center(cells[i][1], fonts.bold24, ink, FOOTER_TOP + 29, i * cw, cw);
 		} else {
 			center(cells[i][0], fonts.slotLabel, onFill ? style.onAccent : style.dim,
 				FOOTER_TOP + 6, i * cw, cw);
-			center(cells[i][1], fonts.slotValue, ink, FOOTER_TOP + 24, i * cw, cw);
+			center(cells[i][1], fonts.bold24, ink, FOOTER_TOP + 24, i * cw, cw);
 		}
 	}
 	render.end();
