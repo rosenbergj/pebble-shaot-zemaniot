@@ -60,7 +60,7 @@ const fonts = {
 	civil: new render.Font("Roboto-Bold", 49),
 	shaot: new render.Font("Leco-Regular", 42),
 	band: new render.Font("Gothic-Bold", 24),
-	slotValue: new render.Font("Gothic-Bold", 18),
+	slotValue: new render.Font("Gothic-Bold", 24),
 	slotLabel: new render.Font("Gothic-Regular", 14),
 };
 
@@ -150,7 +150,12 @@ function parseCfg(s) {
 function applyCfg() {
 	settings.offset6 = !!cfg[0];
 	settings.withMinutes = !!cfg[1];
-	style.accent = render.makeColor((cfg[7] >> 16) & 255, (cfg[7] >> 8) & 255, cfg[7] & 255);
+	const r = (cfg[7] >> 16) & 255, g = (cfg[7] >> 8) & 255, b = cfg[7] & 255;
+	style.accent = render.makeColor(r, g, b);
+	// Ink on the accent has to follow the accent: white on a pale colour is
+	// unreadable. Perceived brightness (ITU-R BT.601) picks the dark or light
+	// ink we already have, so any colour in the picker stays legible.
+	style.onAccent = (r * 299 + g * 587 + b * 114) / 1000 > 140 ? style.bg : style.fg;
 	// Reusing the shaot face costs no extra font object.
 	civilFont = cfg[8] ? fonts.shaot : fonts.civil;
 	setTick(cfg[2]);
@@ -220,10 +225,22 @@ function center(str, font, color, y, x0 = 0, w = render.width) {
 
 // Returns [label, value]. The band draws the value only, so content whose label
 // carries meaning (the weekday) folds it into the value when forBand is set.
+function ordinal(n) {
+	const tens = n % 100;
+	if (tens >= 11 && tens <= 13) return n + "th";
+	const ones = n % 10;
+	return n + (ones === 1 ? "st" : ones === 2 ? "nd" : ones === 3 ? "rd" : "th");
+}
+
 function slotContent(kind, d, forBand) {
 	if (kind === SLOT_HEBREW) {
-		return ["hebrew",
-			heb.day + " " + monthName(heb.year, heb.month, settings.hebrewScript)];
+		const month = monthName(heb.year, heb.month, settings.hebrewScript);
+		// In a box, split across both lines ("29th of" / "Av") rather than
+		// spending a line on a label: the widest thing is then just the month
+		// name, so long ones like Heshvan still fit.
+		return forBand
+			? ["", heb.day + " " + month]
+			: [ordinal(heb.day) + " of", month, true];  // true: both lines matched
 	}
 	if (kind === SLOT_SECDATE) {
 		const md = GMONTHS[d.getMonth()] + " " + d.getDate();
@@ -298,10 +315,16 @@ function draw() {
 
 	for (let i = 0; i < 3; i++) {
 		const onFill = i !== 1;
-		center(cells[i][0], fonts.slotLabel, onFill ? style.onAccent : style.dim,
-			FOOTER_TOP + 10, i * cw, cw);
-		center(cells[i][1], fonts.slotValue, onFill ? style.onAccent : style.fg,
-			FOOTER_TOP + 30, i * cw, cw);
+		const ink = onFill ? style.onAccent : style.fg;
+		if (cells[i][2]) {
+			// A date split over both lines: same size and weight, no label.
+			center(cells[i][0], fonts.slotValue, ink, FOOTER_TOP + 3, i * cw, cw);
+			center(cells[i][1], fonts.slotValue, ink, FOOTER_TOP + 29, i * cw, cw);
+		} else {
+			center(cells[i][0], fonts.slotLabel, onFill ? style.onAccent : style.dim,
+				FOOTER_TOP + 6, i * cw, cw);
+			center(cells[i][1], fonts.slotValue, ink, FOOTER_TOP + 24, i * cw, cw);
+		}
 	}
 	render.end();
 }
