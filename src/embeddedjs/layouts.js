@@ -43,12 +43,14 @@ function center(render, str, font, color, y, x0 = 0, w = render.width) {
 	render.drawText(str, font, color, x0 + ((w - tw) >> 1), y);
 }
 
-// Slot contents are all user-configurable; the accent fill on the outer two is
-// a fixed property of those positions, with only its color a setting.
+// Four configurable areas: the band (d.band) and the three footer slots
+// (d.cells), each a [label, value] pair -- the band shows its value only. Any
+// area can hold any content. The accent fill on the outer two footer positions
+// is a fixed property of those positions, with only its color a setting.
 export function draw(render, s, d) {
 	render.fillRectangle(s.bg, 0, 0, render.width, render.height);
 	render.fillRectangle(s.accent, 0, 0, render.width, BAND_H);
-	center(render, d.hebFull, s.fonts.band, s.onAccent, 5);
+	center(render, d.band[1], s.fonts.band, s.onAccent, 5);
 	center(render, d.civilSec, s.fonts.civil, s.fg, 46);
 	center(render, d.shaot, s.fonts.shaot, s.fg, 112);
 
@@ -59,12 +61,11 @@ export function draw(render, s, d) {
 	render.fillRectangle(s.accent, Math.round(2 * cw), FOOTER_TOP + 1,
 		render.width - Math.round(2 * cw), h);
 
-	const cells = [["sunset", d.sunset], [d.wday, d.secDate], ["batt", d.battery + "%"]];
 	for (let i = 0; i < 3; i++) {
 		const onFill = i !== 1;
-		center(render, cells[i][0], s.fonts.slotLabel, onFill ? s.onAccent : s.dim,
+		center(render, d.cells[i][0], s.fonts.slotLabel, onFill ? s.onAccent : s.dim,
 			FOOTER_TOP + 10, i * cw, cw);
-		center(render, cells[i][1], s.fonts.slotValue, onFill ? s.onAccent : s.fg,
+		center(render, d.cells[i][1], s.fonts.slotValue, onFill ? s.onAccent : s.fg,
 			FOOTER_TOP + 30, i * cw, cw);
 	}
 }

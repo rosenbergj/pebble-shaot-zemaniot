@@ -22,8 +22,28 @@ const WDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 const GMONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
 	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+// Four configurable areas: the band plus the three footer slots. Any area can
+// show any content; these are the defaults until the settings page lands.
+const slots = { band: "hebrew", left: "sunset", mid: "secdate", right: "battery" };
+
 function pad2(n) {
 	return n < 10 ? "0" + n : "" + n;
+}
+
+// Returns [label, value]. The band draws the value only, so content whose label
+// carries meaning (the weekday) folds it into the value when forBand is set.
+function slotContent(kind, d, heb, forBand) {
+	if (kind === "hebrew") {
+		return ["hebrew", heb.day + " " + monthName(heb.year, heb.month)];
+	}
+	if (kind === "secdate") {
+		const md = GMONTHS[d.getMonth()] + " " + d.getDate();
+		return forBand ? ["", WDAYS[d.getDay()] + " " + md] : [WDAYS[d.getDay()], md];
+	}
+	if (kind === "sunset") return ["sunset", sunsetStr];
+	if (kind === "tzeit") return ["tzeit", tzeitStr];
+	if (kind === "battery") return ["batt", "78%"];
+	return ["", ""];
 }
 
 function hhmm(ms) {
@@ -58,18 +78,15 @@ function draw() {
 		});
 	}
 
-	const hebMonth = monthName(heb.year, heb.month);
 	const data = {
 		shaot: formatShaot(chalakimNow(now, br.start, br.end), settings),
-		hebDay: "" + heb.day,
-		hebMonth,
-		hebFull: heb.day + " " + hebMonth,
 		civilSec: ((d.getHours() % 12) || 12) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()),
-		sunset: sunsetStr,
-		tzeit: tzeitStr,
-		wday: WDAYS[d.getDay()],
-		secDate: GMONTHS[d.getMonth()] + " " + d.getDate(),
-		battery: "78",
+		band: slotContent(slots.band, d, heb, true),
+		cells: [
+			slotContent(slots.left, d, heb),
+			slotContent(slots.mid, d, heb),
+			slotContent(slots.right, d, heb),
+		],
 	};
 
 	render.begin();
