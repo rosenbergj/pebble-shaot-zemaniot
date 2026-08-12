@@ -10,6 +10,13 @@
 // offline for roughly that long -- losing the phone should not stop the face.
 
 var solar = require("./solar");
+var Clay = require("@rebble/clay");
+var clayConfig = require("./config");
+
+// autoHandleEvents off: Clay would otherwise send one message key per setting,
+// which costs the watch over a kilobyte of mod memory it does not have. We
+// pack everything into a single CFG string instead.
+var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
 
 var REFRESH_MS = 21600000; // 6 h; the window is far longer, this just tops up
 var MAX_FAILURES = 3;
@@ -92,7 +99,39 @@ function update() {
   navigator.geolocation.getCurrentPosition(onSuccess, onError, GEO_OPTIONS);
 }
 
+// Order must match the cfg array in src/embeddedjs/main.js.
+var CFG_ORDER = ["Offset6", "WithMinutes", "TickSeconds",
+  "SlotBand", "SlotLeft", "SlotMid", "SlotRight", "AccentColor", "CivilFont"];
+
+function packSettings(settings) {
+  return CFG_ORDER.map(function (key) {
+    var item = settings[key];
+    var v = item && typeof item === "object" ? item.value : item;
+    if (true === v) return 1;
+    if (false === v) return 0;
+    if (undefined === v || null === v || "" === v) return "";  // leave default
+    // Colours arrive as "0xRRGGBB" or a number; everything else is numeric.
+    return parseInt(v, v.toString().indexOf("0x") === 0 ? 16 : 10);
+  }).join(",");
+}
+
+function sendSettings(packed) {
+  localStorage.setItem("cfg", packed);
+  Pebble.sendAppMessage({ CFG: packed });
+}
+
+Pebble.addEventListener("showConfiguration", function () {
+  Pebble.openURL(clay.generateUrl());
+});
+
+Pebble.addEventListener("webviewclosed", function (e) {
+  if (!e || !e.response) return; // cancelled
+  sendSettings(packSettings(clay.getSettings(e.response, false)));
+});
+
 Pebble.addEventListener("ready", function () {
+  var savedCfg = localStorage.getItem("cfg");
+  if (savedCfg) Pebble.sendAppMessage({ CFG: savedCfg });
   sendCached(); // show something immediately, then refine
   update();
   setInterval(update, REFRESH_MS);
