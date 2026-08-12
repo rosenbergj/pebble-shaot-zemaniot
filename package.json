@@ -18,8 +18,8 @@
       "watchface": true
     },
     "messageKeys": [
-      "LAT",
-      "LON"
+      "SUN",
+      "CFG"
     ],
     "resources": {
       "media": []

@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { bracket, nextEvent, TZEIT_ANGLE } from "../src/embeddedjs/core.js";
+// Solar maths lives on the phone now (see src/pkjs/solar.js); CommonJS, so
+// import the default export.
+import solar from "../src/pkjs/solar.js";
+const { bracket, nextEvent, TZEIT_ANGLE } = solar;
 
 const fixtures = JSON.parse(
 	readFileSync(new URL("./fixtures/zmanim.json", import.meta.url), "utf8")

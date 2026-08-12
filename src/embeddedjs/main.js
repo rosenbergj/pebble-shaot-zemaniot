@@ -19,11 +19,7 @@
 import Poco from "commodetto/Poco";
 import Message from "pebble/message";
 import Battery from "embedded:sensor/Battery";
-import {
-	bracket, nextEvent, TZEIT_ANGLE,
-	chalakimNow, formatShaot,
-	hebrewForNow, monthName,
-} from "core";
+import { chalakimNow, formatShaot, hebrewForNow, monthName } from "core";
 
 // Settings arrive from the phone (Clay page -> AppMessage) and are held as a
 // flat array: cheaper in mod memory than an object with named properties, and
@@ -73,27 +69,55 @@ let heb = null;
 let sunsetStr = "--:--";
 let tzeitStr = "--:--";
 let lastHebDay = -1;
-let brLat = 0;
-let brLon = 0;
 
-// --- location ---------------------------------------------------------------
-// The phone does the geolocation and the retrying (src/pkjs/index.js): the
-// conventional Pebble arrangement, and the right one here because the mod has
-// a hard memory ceiling while the phone side effectively does not. The face
-// must keep working with no phone nearby, so the last fix is cached.
+// --- sun events -------------------------------------------------------------
+// The phone computes sunrise/sunset/tzeit and sends a rolling window of
+// timestamps (src/pkjs/index.js); the watch only picks the pair bracketing
+// now. That keeps the solar arithmetic off a device with a hard memory
+// ceiling, and the window is long enough that the face stays correct for
+// about three days without the phone.
+//
+// Format: "r<secs>,s<secs>,t<secs>,..." in time order.
 
-const LOC_KEY = "loc";
-let here = { lat: 39.95, lon: -75.17 }; // coarse default until the phone reports
+const SUN_KEY = "sun";
+let sunTimes = null;  // [ms, kind] pairs, ascending
+let sunLoaded = false;
 
-// "lat,lon" -> here. Rejects NaN, which would silently poison every later
-// sunrise/sunset calculation instead of failing visibly.
-function applyLocation(s) {
+function parseSun(s) {
 	const parts = s.split(",");
-	const lat = parseFloat(parts[0]);
-	const lon = parseFloat(parts[1]);
-	if (lat !== lat || lon !== lon) return false;
-	here = { lat, lon };
-	return true;
+	const out = [];
+	for (let i = 0; i < parts.length; i++) {
+		const secs = parseInt(parts[i].substring(1));
+		if (secs === secs) out.push([secs * 1000, parts[i][0]]);
+	}
+	sunTimes = out.length ? out : null;
+	sunLoaded = true;
+	br = null; // force the bracket to be recomputed from the new window
+}
+
+// The half-day containing nowMs, from the surrounding rise/set pair. Null when
+// the window does not cover now -- no phone for days, or a polar latitude.
+function bracketFrom(nowMs) {
+	if (!sunTimes) return null;
+	let prev = null;
+	let next = null;
+	for (let i = 0; i < sunTimes.length; i++) {
+		const [t, kind] = sunTimes[i];
+		if (kind === "t") continue;
+		if (t <= nowMs) prev = sunTimes[i];
+		else if (!next) next = sunTimes[i];
+	}
+	if (!prev || !next) return null;
+	return { start: prev[0], end: next[0], isDay: prev[1] === "r" };
+}
+
+// First tzeit at or after fromMs.
+function tzeitFrom(fromMs) {
+	if (!sunTimes) return 0;
+	for (let i = 0; i < sunTimes.length; i++) {
+		if (sunTimes[i][1] === "t" && sunTimes[i][0] >= fromMs) return sunTimes[i][0];
+	}
+	return 0;
 }
 
 // --- settings ---------------------------------------------------------------
@@ -133,23 +157,22 @@ function applyCfg() {
 }
 
 function startChannel() {
-	const cached = localStorage.getItem(LOC_KEY);
-	if (cached) applyLocation(cached);
+	const cachedSun = localStorage.getItem(SUN_KEY);
+	if (cachedSun) parseSun(cachedSun);
 
 	const saved = localStorage.getItem(CFG_KEY);
 	if (saved) parseCfg(saved);
 	applyCfg();
 
 	return new Message({
-		keys: ["LAT", "LON", "CFG"],
+		keys: ["SUN", "CFG"],
 		onReadable() {
 			const m = this.read();
 
-			const lat = m.get("LAT");
-			const lon = m.get("LON");
-			if (undefined !== lat && undefined !== lon) {
-				const s = lat + "," + lon;
-				if (applyLocation(s)) localStorage.setItem(LOC_KEY, s);
+			const sun = m.get("SUN");
+			if (undefined !== sun) {
+				parseSun(sun);
+				localStorage.setItem(SUN_KEY, sun);
 			}
 
 			const c = m.get("CFG");
@@ -216,21 +239,26 @@ function draw() {
 	const now = Date.now();
 	const d = new Date();
 
-	// Recompute when the half-day ends, or when the phone moves us elsewhere.
-	if (!br || now >= br.end || now < br.start ||
-			here.lat !== brLat || here.lon !== brLon) {
-		brLat = here.lat;
-		brLon = here.lon;
-		br = bracket(now, brLat, brLon);
+	// Recompute when the half-day ends or a fresh window arrives.
+	if (!br || now >= br.end || now < br.start) {
+		br = bracketFrom(now);
 		lastHebDay = -1; // a bracket flip can roll the Hebrew date
 		if (br) {
 			const sunsetMs = br.isDay ? br.end : br.start;
 			sunsetStr = hhmm(sunsetMs);
-			const tz = nextEvent(sunsetMs - 1000, brLat, brLon, TZEIT_ANGLE, false);
+			const tz = tzeitFrom(sunsetMs);
 			tzeitStr = tz ? hhmm(tz) : "--:--";
 		}
 	}
-	if (!br) return;
+	if (!br) {
+		// No usable window: say so rather than showing a stale or invented time.
+		render.begin();
+		render.fillRectangle(style.bg, 0, 0, render.width, render.height);
+		center(sunLoaded ? "no sun window" : "waiting for phone",
+			fonts.slotValue, style.dim, 100);
+		render.end();
+		return;
+	}
 
 	if (d.getDate() !== lastHebDay) {
 		lastHebDay = d.getDate();
