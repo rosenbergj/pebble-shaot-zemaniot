@@ -7,7 +7,7 @@ import {
 	displayHour,
 	formatShaot,
 	msUntilNextChelek,
-} from "../src/embeddedjs/shaot.js";
+} from "../src/embeddedjs/core.js";
 
 // Synthetic 12-hour bracket: 06:00 -> 18:00 UTC
 const START = Date.UTC(2026, 7, 11, 6, 0, 0);

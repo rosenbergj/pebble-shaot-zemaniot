@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { bracket, nextEvent, TZEIT_ANGLE } from "../src/embeddedjs/zmanim.js";
+import { bracket, nextEvent, TZEIT_ANGLE } from "../src/embeddedjs/core.js";
 
 const fixtures = JSON.parse(
 	readFileSync(new URL("./fixtures/zmanim.json", import.meta.url), "utf8")

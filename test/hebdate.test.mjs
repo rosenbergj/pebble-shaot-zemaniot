@@ -7,7 +7,7 @@ import {
 	isLeapYear,
 	monthLength,
 	monthName,
-} from "../src/embeddedjs/hebdate.js";
+} from "../src/embeddedjs/core.js";
 
 const fixtures = JSON.parse(
 	readFileSync(new URL("./fixtures/hebdate.json", import.meta.url), "utf8")
