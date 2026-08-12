@@ -2,68 +2,44 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Shaot watchface — layout review, round 3</title>
+<title>Shaot watchface — chosen layout</title>
 <meta http-equiv="refresh" content="30">
 <style>
   body { background: #1a1a1c; color: #ddd; font-family: system-ui, sans-serif;
          margin: 0; padding: 2em; }
   h1 { font-size: 1.3em; font-weight: 600; }
-  h2 { font-size: 1.1em; font-weight: 600; margin-top: 2.5em; }
   p.note { color: #999; max-width: 52em; line-height: 1.55; }
-  .row { display: flex; flex-wrap: wrap; gap: 2em; margin-top: 1.5em; }
-  figure { margin: 0; width: 300px; }
-  img { image-rendering: pixelated; width: 300px; border: 1px solid #444;
-        border-radius: 10px; display: block; }
-  figcaption { margin-top: .6em; font-size: .95em; }
-  figcaption b { color: #6cf; }
-  figcaption span { color: #999; display: block; font-size: .85em; margin-top: .3em;
-                    line-height: 1.45; }
-  .actual figure { width: 200px; }
-  .actual img { width: 200px; }
+  .row { display: flex; flex-wrap: wrap; gap: 2.5em; margin-top: 1.5em;
+         align-items: flex-start; }
+  figure { margin: 0; }
+  figure.big img { width: 300px; }
+  figure.actual img { width: 200px; }
+  img { image-rendering: pixelated; border: 1px solid #444; border-radius: 10px;
+        display: block; }
+  figcaption { margin-top: .6em; font-size: .9em; color: #999; }
   a { color: #6cf; }
 </style>
 </head>
 <body>
-<h1>Round 3 — band on top, two slot counts, spacing options</h1>
-<p class="note">The merger of #3 and #4: accent band carries the Hebrew date, both times
-keep their different faces (Roboto-Bold 49 for civil, Leco-Regular 42 for shaot), and the
-configurable slots sit along the bottom. Slot values are now real — sunset and tzeit are
-computed, only the battery figure is faked. True-size strip at the bottom.</p>
+<h1>D, with filled outer slots and the secular date</h1>
+<p class="note">Live emulator screenshot. The Hebrew date sits in the accent band, civil
+time and shaot keep their different faces, and the outer two slot positions are filled
+with the accent color. All three slots stay user-configurable — the middle one shows
+weekday over month/date purely as an example of compact secular date content. The fill
+is fixed to the outer positions, with only its color a setting.</p>
+<p class="note">This shot is after sunset, so the shaot clock has flipped into the night
+half-day (0.38 of 12) and the Hebrew date has already rolled over to 29 Av. Sunset and
+battery are the sample outer slots; only the battery figure is faked.</p>
 
 <div class="row">
-  <figure>
-    <img src="layout-0-band-3slot.png" alt="band with three slots">
-    <figcaption><b>A — Three slots</b>
-      <span>Sunset, tzeit, battery. Densest of the set and closest to the design
-      doc's configurable-box idea.</span></figcaption>
+  <figure class="big">
+    <img src="layout-4-band-date-boxes.png" alt="chosen layout, 1.5x">
+    <figcaption>1.5×</figcaption>
   </figure>
-  <figure>
-    <img src="layout-1-band-2slot.png" alt="band with two slots">
-    <figcaption><b>B — Two slots</b>
-      <span>Wider cells, so longer values (a countdown like "32:15 till night")
-      fit comfortably. Calmer, one less thing to read.</span></figcaption>
+  <figure class="actual">
+    <img src="layout-4-band-date-boxes.png" alt="chosen layout, true size">
+    <figcaption>true size (200×228, as on the watch)</figcaption>
   </figure>
-  <figure>
-    <img src="layout-2-band-3slot-div.png" alt="band with three divided slots">
-    <figcaption><b>C — Three slots, divided</b>
-      <span>Same as A with vertical rules between cells. More Flatface-like
-      structure; reads as a row of boxes rather than a row of text.</span></figcaption>
-  </figure>
-  <figure>
-    <img src="layout-3-band-3slot-roomy.png" alt="band with three slots, roomier">
-    <figcaption><b>D — Three slots, roomier</b>
-      <span>A, but the ~30px of dead space at the bottom is spent separating the
-      two times (9px apart in A, 21px here). Same type sizes.</span></figcaption>
-  </figure>
-</div>
-
-<h2>True size (200×228, as on the watch)</h2>
-<p class="note">Judge readability and the crowding of the two big numbers from this row.</p>
-<div class="row actual">
-  <figure><img src="layout-0-band-3slot.png"><figcaption>A</figcaption></figure>
-  <figure><img src="layout-1-band-2slot.png"><figcaption>B</figcaption></figure>
-  <figure><img src="layout-2-band-3slot-div.png"><figcaption>C</figcaption></figure>
-  <figure><img src="layout-3-band-3slot-roomy.png"><figcaption>D</figcaption></figure>
 </div>
 </body>
 </html>

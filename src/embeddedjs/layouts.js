@@ -1,16 +1,24 @@
-// Candidate layouts for design review. Each entry draws one full screen from
-// the same data so the variants can be compared directly. Once a direction is
-// chosen the rest of this file goes away.
+// The chosen layout: accent band with the Hebrew date on top, civil time and
+// shaot time as co-heroes in different faces, three slots along the bottom.
 //
 // Emery is 200x228. Font constraints found by rendering specimens:
 //   Leco  - digits, "." and ":" -- the only large face that can show shaot.
 //   Roboto-Bold 49 - digits and ":" but NO "." (drops it silently); largest
 //                    face available, so civil-only.
 //   Bitham-Medium 42/34 - also no ".".
-// Worst-case widths at 8 chars: Roboto-Bold 49 = 196, Leco-Regular 42 = 176,
-// Leco-Bold 38 = 162, Leco-Bold 32 = ~146.
+// Worst-case widths at 8 chars: Roboto-Bold 49 = 196, Leco-Regular 42 = 176.
+//
+// MEMORY: a mod runs inside the host firmware's XS machine, whose budget
+// (static 32768, chunk 8192, heap 512 slots -- see the Pebble platform
+// manifest in the SDK) is fixed by the watch and cannot be raised from our
+// manifest. With all the review variants compiled in we sat right at that
+// ceiling: adding even one style property tipped it over, and over the ceiling
+// the watch hangs outright -- no error, no log, the emulator simply stops
+// answering. Keep this file lean, and suspect the ceiling first if a small
+// addition makes the face stop appearing.
 
 const BAND_H = 38;
+const FOOTER_TOP = 170;
 
 export function makeStyle(render) {
 	return {
@@ -21,12 +29,11 @@ export function makeStyle(render) {
 		onAccent: render.makeColor(255, 255, 255),
 		rule: render.makeColor(60, 60, 64),
 		fonts: {
-			roboto49: new render.Font("Roboto-Bold", 49),
-			leco42: new render.Font("Leco-Regular", 42),
-			leco38: new render.Font("Leco-Bold", 38),
-			bold24: new render.Font("Gothic-Bold", 24),
-			bold18: new render.Font("Gothic-Bold", 18),
-			text14: new render.Font("Gothic-Regular", 14),
+			civil: new render.Font("Roboto-Bold", 49),
+			shaot: new render.Font("Leco-Regular", 42),
+			band: new render.Font("Gothic-Bold", 24),
+			slotValue: new render.Font("Gothic-Bold", 18),
+			slotLabel: new render.Font("Gothic-Regular", 14),
 		},
 	};
 }
@@ -36,55 +43,28 @@ function center(render, str, font, color, y, x0 = 0, w = render.width) {
 	render.drawText(str, font, color, x0 + ((w - tw) >> 1), y);
 }
 
-// Shared skeleton: accent band with the Hebrew date, then the two times.
-function bandAndTimes(render, s, d, shaotFont, civilY = 48, shaotY = 106) {
+// Slot contents are all user-configurable; the accent fill on the outer two is
+// a fixed property of those positions, with only its color a setting.
+export function draw(render, s, d) {
 	render.fillRectangle(s.bg, 0, 0, render.width, render.height);
 	render.fillRectangle(s.accent, 0, 0, render.width, BAND_H);
-	center(render, d.hebFull, s.fonts.bold24, s.onAccent, 5);
-	center(render, d.civilSec, s.fonts.roboto49, s.fg, civilY);
-	center(render, d.shaot, shaotFont, s.fg, shaotY);
-}
+	center(render, d.hebFull, s.fonts.band, s.onAccent, 5);
+	center(render, d.civilSec, s.fonts.civil, s.fg, 46);
+	center(render, d.shaot, s.fonts.shaot, s.fg, 112);
 
-// Footer of n equal slots; dividers optional.
-function footer(render, s, cells, dividers, top = 158) {
-	render.fillRectangle(s.rule, 0, top, render.width, 1);
-	const cw = render.width / cells.length;
-	for (let i = 0; i < cells.length; i++) {
-		if (dividers && i > 0) {
-			render.fillRectangle(s.rule, Math.round(i * cw), top + 6, 1, render.height - top - 12);
-		}
-		center(render, cells[i][0], s.fonts.text14, s.dim, top + 10, i * cw, cw);
-		center(render, cells[i][1], s.fonts.bold18, s.fg, top + 30, i * cw, cw);
+	const cw = render.width / 3;
+	const h = render.height - FOOTER_TOP - 1;
+	render.fillRectangle(s.rule, 0, FOOTER_TOP, render.width, 1);
+	render.fillRectangle(s.accent, 0, FOOTER_TOP + 1, Math.round(cw), h);
+	render.fillRectangle(s.accent, Math.round(2 * cw), FOOTER_TOP + 1,
+		render.width - Math.round(2 * cw), h);
+
+	const cells = [["sunset", d.sunset], [d.wday, d.secDate], ["batt", d.battery + "%"]];
+	for (let i = 0; i < 3; i++) {
+		const onFill = i !== 1;
+		center(render, cells[i][0], s.fonts.slotLabel, onFill ? s.onAccent : s.dim,
+			FOOTER_TOP + 10, i * cw, cw);
+		center(render, cells[i][1], s.fonts.slotValue, onFill ? s.onAccent : s.fg,
+			FOOTER_TOP + 30, i * cw, cw);
 	}
 }
-
-function band3(render, s, d) {
-	bandAndTimes(render, s, d, s.fonts.leco42);
-	footer(render, s, [["sunset", d.sunset], ["tzeit", d.tzeit], ["batt", d.battery + "%"]], false);
-}
-
-function band2(render, s, d) {
-	bandAndTimes(render, s, d, s.fonts.leco42);
-	footer(render, s, [["sunset", d.sunset], ["tzeit", d.tzeit]], false);
-}
-
-function band3Divided(render, s, d) {
-	bandAndTimes(render, s, d, s.fonts.leco42);
-	footer(render, s, [["sunset", d.sunset], ["tzeit", d.tzeit], ["batt", d.battery + "%"]], true);
-}
-
-// Same as band3 but spending the unused bottom margin on separating the two
-// times, which sit only ~9px apart in the tighter versions.
-function band3Roomy(render, s, d) {
-	bandAndTimes(render, s, d, s.fonts.leco42, 46, 112);
-	footer(render, s,
-		[["sunset", d.sunset], ["tzeit", d.tzeit], ["batt", d.battery + "%"]],
-		false, 170);
-}
-
-export const LAYOUTS = [
-	{ name: "band-3slot", draw: band3 },
-	{ name: "band-2slot", draw: band2 },
-	{ name: "band-3slot-div", draw: band3Divided },
-	{ name: "band-3slot-roomy", draw: band3Roomy },
-];

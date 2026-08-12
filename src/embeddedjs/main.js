@@ -2,25 +2,25 @@ import Poco from "commodetto/Poco";
 import { bracket, nextEvent, TZEIT_ANGLE } from "zmanim";
 import { chalakimNow, formatShaot } from "shaot";
 import { hebrewForNow, monthName } from "hebdate";
-import { LAYOUTS, makeStyle } from "layouts";
+import { draw as drawLayout, makeStyle } from "layouts";
 
 // Hardcoded until phone-side location plumbing lands; likewise settings.
 const LAT = 39.95;
 const LON = -75.17;
 const settings = { offset6: false, withMinutes: true };
 
-// Layout under review; see layouts.js.
-const LAYOUT = 3;
-
 const render = new Poco(screen);
 const style = makeStyle(render);
-const layout = LAYOUTS[LAYOUT];
 
 let br = null;
 let heb = null;
 let sunsetStr = "--:--";
 let tzeitStr = "--:--";
 let lastHebDay = -1;
+
+const WDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+const GMONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 function pad2(n) {
 	return n < 10 ? "0" + n : "" + n;
@@ -67,11 +67,13 @@ function draw() {
 		civilSec: ((d.getHours() % 12) || 12) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds()),
 		sunset: sunsetStr,
 		tzeit: tzeitStr,
+		wday: WDAYS[d.getDay()],
+		secDate: GMONTHS[d.getMonth()] + " " + d.getDate(),
 		battery: "78",
 	};
 
 	render.begin();
-	layout.draw(render, style, data);
+	drawLayout(render, style, data);
 	render.end();
 }
 
