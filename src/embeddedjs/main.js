@@ -18,6 +18,7 @@
 
 import Poco from "commodetto/Poco";
 import Message from "pebble/message";
+import Battery from "embedded:sensor/Battery";
 import {
 	bracket, nextEvent, TZEIT_ANGLE,
 	chalakimNow, formatShaot,
@@ -99,6 +100,22 @@ function startLocation() {
 	});
 }
 
+// --- battery ----------------------------------------------------------------
+// The sensor pushes a sample on change and can also be polled, so read once at
+// startup and then let onSample keep it current.
+
+let batteryPct = 0;
+
+function startBattery() {
+	const b = new Battery({
+		onSample() {
+			batteryPct = this.sample().percent;
+		},
+	});
+	batteryPct = b.sample().percent;
+	return b;
+}
+
 // --- drawing ----------------------------------------------------------------
 
 function pad2(n) {
@@ -128,7 +145,7 @@ function slotContent(kind, d, forBand) {
 	}
 	if (kind === "sunset") return ["sunset", sunsetStr];
 	if (kind === "tzeit") return ["tzeit", tzeitStr];
-	if (kind === "battery") return ["batt", "78%"];
+	if (kind === "battery") return ["batt", batteryPct + "%"];
 	return ["", ""];
 }
 
@@ -198,6 +215,7 @@ function draw() {
 	render.end();
 }
 
-// Held in a binding so the channel is not collected while the face runs.
+// Held in bindings so these are not collected while the face runs.
 const locationChannel = startLocation();
+const batterySensor = startBattery();
 watch.addEventListener("secondchange", draw);

@@ -3,10 +3,8 @@ import assert from "node:assert/strict";
 import {
 	CHALAKIM_PER_HALF_DAY,
 	chalakimNow,
-	chelekLengthMs,
 	displayHour,
 	formatShaot,
-	msUntilNextChelek,
 } from "../src/embeddedjs/core.js";
 
 // Synthetic 12-hour bracket: 06:00 -> 18:00 UTC
@@ -45,13 +43,3 @@ test("6-based display hours run 6..11,12,1..5", () => {
 	}
 });
 
-test("chelek boundaries", () => {
-	const len = chelekLengthMs(START, END);
-	assert.ok(Math.abs(len - (12 * 3600000) / CHALAKIM_PER_HALF_DAY) < 1e-9);
-	// Just after a boundary, next boundary is ~one chelek away
-	const t = START + 100 * len + 1;
-	const until = msUntilNextChelek(t, START, END);
-	assert.ok(until > 0 && until <= len);
-	// epoch-ms doubles resolve ~0.5us; anything under 1ms is exact for our purposes
-	assert.ok(Math.abs(until - (len - 1)) < 1);
-});

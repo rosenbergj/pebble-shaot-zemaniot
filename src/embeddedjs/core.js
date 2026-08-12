@@ -11,7 +11,6 @@ export const MS_PER_DAY = 86400000;
 // Standard elevation angles (degrees relative to geometric horizon, center of disk).
 export const SUNRISE_SET_ANGLE = -0.833; // refraction 34' + semidiameter 16'
 export const TZEIT_ANGLE = -8.5;
-export const TALIT_ANGLE = -10.2;
 
 function julianCentury(ms) {
 	return (ms / MS_PER_DAY + 2440587.5 - 2451545) / 36525;
@@ -70,7 +69,7 @@ function eventForUTCDay(dayMs, lat, lon, angleDeg, rising) {
 }
 
 // All rise/set events at angleDeg over the three UTC days around nowMs, sorted.
-export function sunEvents(nowMs, lat, lon, angleDeg = SUNRISE_SET_ANGLE) {
+function sunEvents(nowMs, lat, lon, angleDeg = SUNRISE_SET_ANGLE) {
 	const evs = [];
 	for (let d = -1; d <= 1; d++) {
 		for (const rising of [true, false]) {
@@ -146,17 +145,6 @@ export function formatShaot(chalakim, { offset6 = false, withMinutes = true } = 
 	return h + "." + c;
 }
 
-// Duration of one chelek in ms for the given bracket.
-export function chelekLengthMs(startMs, endMs) {
-	return (endMs - startMs) / CHALAKIM_PER_HALF_DAY;
-}
-
-// Ms from nowMs until the next chelek boundary.
-export function msUntilNextChelek(nowMs, startMs, endMs) {
-	const len = chelekLengthMs(startMs, endMs);
-	const next = startMs + (chalakimNow(nowMs, startMs, endMs) + 1) * len;
-	return Math.max(0, next - nowMs);
-}
 
 
 // ---------------------------------------------------------------------------
