@@ -91,9 +91,6 @@ module.exports = [
         type: "select",
         messageKey: "SlotBand",
         label: "Top band",
-        description:
-          "Only the band can show both dates at once; it uses smaller type " +
-          "when the line would not otherwise fit.",
         options: BAND_OPTIONS,
         defaultValue: 1,
       },
