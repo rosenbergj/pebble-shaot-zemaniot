@@ -79,7 +79,9 @@ static bool s_have_location = false;
 #define LEAD_LECO42 8
 #define LEAD_ROBOTO49 9
 
-static const char *const WDAYS[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+// Title case, not caps: these sit beside "sunset", "tzeit" and "batt", which
+// are lowercase words, so a shouting weekday was the only one out of step.
+static const char *const WDAYS[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 static const char *const GMONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                       "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
@@ -235,6 +237,19 @@ static bool slot_content(uint8_t kind, const struct tm *lt, bool for_band,
   }
 }
 
+// The band is a single line, so a labelled slot joins its two parts with a
+// colon -- "sunset: 7:58" -- where a footer box stacks them. Content that names
+// itself, meaning either date, carries no label and is shown as it stands.
+static void band_content(uint8_t kind, const struct tm *lt, char *out, size_t out_n) {
+  char label[24], value[24];
+  slot_content(kind, lt, true, label, sizeof(label), value, sizeof(value));
+  if (label[0]) {
+    snprintf(out, out_n, "%s: %s", label, value);
+  } else {
+    snprintf(out, out_n, "%s", value);
+  }
+}
+
 // y is the intended top of the glyphs; lead is the font's internal leading.
 static void draw_centered(GContext *ctx, const char *text, GFont font, int lead,
                           GColor color, int y, int x, int w) {
@@ -307,9 +322,9 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, s_accent);
   graphics_fill_rect(ctx, GRect(0, 0, bounds.size.w, BAND_H), 0, GCornerNone);
 
-  char label[24], value[24];
-  slot_content(s_settings.slot_band, lt, true, label, sizeof(label), value, sizeof(value));
-  draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, s_on_accent, 5, 0, bounds.size.w);
+  char label[24], value[24], band[51];  // both parts plus ": " and the NUL
+  band_content(s_settings.slot_band, lt, band, sizeof(band));
+  draw_centered(ctx, band, s_font_bold24, LEAD_GOTHIC24, s_on_accent, 5, 0, bounds.size.w);
 
   // Civil time
   char civil[16];
