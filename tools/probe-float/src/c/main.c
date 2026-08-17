@@ -26,9 +26,12 @@
 
 #include "hebdate.h"
 #include "solar.h"
+#include "trig.h"
 
-#define PERSIST_STAGE 1
-#define PERSIST_RUNS 2
+// Bumped when the stage list changes: a value written by an earlier build would
+// be read back against the new names and report the wrong function.
+#define PERSIST_STAGE 11
+#define PERSIST_RUNS 12
 
 // Coarse coordinates, deliberately not anyone's exact position.
 #define PROBE_LAT 39.95
@@ -47,12 +50,12 @@ static const char *const STAGE_NAMES[] = {
     "floor",       // 7
     "round",       // 8
     "fmod",        // 9
-    "sin",         // 10
-    "cos",         // 11
-    "tan",         // 12
-    "asin",        // 13
-    "acos",        // 14
-    "atan2",       // 15
+    "sz_sin",      // 10 our trig from here down; libm's sin() is what crashed
+    "sz_cos",      // 11
+    "sz_tan",      // 12
+    "sz_asin",     // 13
+    "sz_acos",     // 14
+    "sz_sqrt",     // 15
     "solar",       // 16 the whole NOAA bracket
     "hebdate",     // 17 the calendar, which also uses double and floor
     "done",        // 18
@@ -114,12 +117,14 @@ static void run_stages(void *ctx) {
   mark(7);  s_v = floor(s_v + 0.5);
   mark(8);  s_v = round(s_v * 1.5);
   mark(9);  s_v = fmod(s_v, 360.0);
-  mark(10); s_v = sin(s_v);
-  mark(11); s_v = cos(s_v);
-  mark(12); s_v = tan(s_v * 0.25);
-  mark(13); s_v = asin(0.5);
-  mark(14); s_v = acos(0.5);
-  mark(15); s_v = atan2(1.0, 2.0);
+  // Large arguments on purpose: the solar series feeds sz_sin() several hundred
+  // radians, and argument reduction is exactly what broke in libm.
+  mark(10); s_v = sz_sin(s_v + 634.0);
+  mark(11); s_v = sz_cos(s_v + 1287.0);
+  mark(12); s_v = sz_tan(s_v * 0.25);
+  mark(13); s_v = sz_asin(0.5);
+  mark(14); s_v = sz_acos(-0.999);
+  mark(15); s_v = sz_sqrt(2.0);
 
   mark(16);
   SolarBracket br = solar_bracket((double)time(NULL) * 1000.0, PROBE_LAT, PROBE_LON);

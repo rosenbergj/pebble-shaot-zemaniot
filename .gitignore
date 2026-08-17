@@ -27,3 +27,8 @@ test/c/fixtures.h
 tools/probe/src/c/shaot.*
 tools/probe/src/c/hebdate.*
 tools/probe/src/c/solar.*
+tools/probe/src/c/trig.*
+tools/probe-float/src/c/shaot.*
+tools/probe-float/src/c/hebdate.*
+tools/probe-float/src/c/solar.*
+tools/probe-float/src/c/trig.*
