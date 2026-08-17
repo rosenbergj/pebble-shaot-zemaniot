@@ -61,15 +61,32 @@ against input that could hard-fault rather than show an error.
     pebble build && pebble install --emulator emery
     tools/probe/build.sh             # the diagnostic probe
 
-Artifacts to sideload:
+### dist/ is a deploy directory, not a build dump
 
-- `dist/shaot-probe.pbw` — the diagnostic probe. Draws one line per subsystem
-  (native C and text, then libm/solar, then the calendar, then battery) with a
-  stage counter, so what appears on screen says how far execution got. Reaches
-  `stage 6` in the emulator.
-- `dist/pt2-shaot-watchface-c-port-v2.pbw` — new UUID, hardened.
-- `dist/pt2-shaot-watchface-c-port.pbw` — the original failing build, kept for
-  comparison. Same UUID as the JS build, so it **displaces** that face.
+`dist/` is scp'd to a Nextcloud share and installed from a phone, so it holds
+**only known-good builds and whatever is currently being tested** — nothing
+superseded, nothing known-bad. Every file in it must be distinguishable on a
+phone screen: unique UUID *and* unique `displayName`, or two entries in the
+watchface picker look identical.
+
+Current contents:
+
+- `pt2-shaot-watchface-phase4-js.pbw` — "Shaot Zemaniot", the known-good daily
+  build. **Never overwrite** (`dist/` is gitignored, so git cannot restore it).
+- `pt2-shaot-watchface-c-port-v2.pbw` — "Shaot Zemaniot C", new UUID, hardened.
+  Under test.
+- `shaot-probe.pbw` — "Shaot Probe". Draws one line per subsystem (native C and
+  text, then libm/solar, then the calendar, then battery) with a stage counter,
+  so what appears on screen says how far execution got. Reaches `stage 6` in the
+  emulator. Under test.
+
+The original failing C build was removed from `dist/`: it was known-bad *and*
+shared the JS build's UUID, so installing it by mistake would have displaced the
+working face. Rebuild it from commit `e25902f` if it is ever needed again.
+
+The `displayName` is "Shaot Zemaniot C" only to tell the builds apart during
+testing. **Change it back to "Shaot Zemaniot" once the C build becomes the
+daily face.**
 
 **Two things still cannot be verified on this headless machine:**
 
