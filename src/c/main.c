@@ -123,6 +123,14 @@ static void apply_settings(void) {
 
 // --- persistence ------------------------------------------------------------
 
+// A latitude/longitude pair we are willing to compute from. Anything else is
+// corrupt: a bad value must leave the face saying so rather than propagate
+// through the solar maths into a wild time_t.
+static bool coords_sane(double lat, double lon) {
+  // NaN fails every comparison, so this rejects it too.
+  return (lat >= -90.0 && lat <= 90.0) && (lon >= -180.0 && lon <= 180.0);
+}
+
 // The settings struct is written whole, so a build that changes its layout
 // would misread an old one. Comparing the stored size catches that and falls
 // back to the defaults rather than showing garbage.
@@ -131,10 +139,16 @@ static void load_persisted(void) {
       persist_get_size(PERSIST_KEY_SETTINGS) == (int)sizeof(Settings)) {
     persist_read_data(PERSIST_KEY_SETTINGS, &s_settings, sizeof(Settings));
   }
+  // Range-check rather than trust: persistent storage is keyed by app UUID and
+  // survives reinstalls, so these ints can predate this build entirely.
   if (persist_exists(PERSIST_KEY_LAT) && persist_exists(PERSIST_KEY_LON)) {
-    s_lat = persist_read_int(PERSIST_KEY_LAT) / 1000000.0;
-    s_lon = persist_read_int(PERSIST_KEY_LON) / 1000000.0;
-    s_have_location = true;
+    double lat = persist_read_int(PERSIST_KEY_LAT) / 1000000.0;
+    double lon = persist_read_int(PERSIST_KEY_LON) / 1000000.0;
+    if (coords_sane(lat, lon)) {
+      s_lat = lat;
+      s_lon = lon;
+      s_have_location = true;
+    }
   }
 }
 
@@ -150,8 +164,15 @@ static void save_location(void) {
 // --- helpers ----------------------------------------------------------------
 
 // 12-hour clock without a meridiem suffix, matching the JavaScript build.
+// localtime() returns NULL for a time_t it cannot break down, so a bad solar
+// result must not be dereferenced -- that is a hard fault on the watch, where
+// there is no console to see it happen.
 static void format_hhmm(time_t t, char *out, size_t n) {
   struct tm *lt = localtime(&t);
+  if (!lt) {
+    snprintf(out, n, "--:--");
+    return;
+  }
   int h = lt->tm_hour % 12;
   if (h == 0) h = 12;
   snprintf(out, n, "%d:%02d", h, lt->tm_min);
@@ -345,11 +366,30 @@ static void subscribe_tick(void) {
 // all of them into a single string because per-key messages cost it more mod
 // memory than it had; in C the dictionary is ordinary.
 
+// The phone side picks the narrowest integer that fits, so a tuple carrying a
+// boolean or a small enum is one byte, not four. Reading value->int32 from it
+// would take the following bytes of the dictionary as the high end of the
+// number, which is how a "0" arrives as something else entirely.
 static bool read_int(DictionaryIterator *iter, uint32_t key, int32_t *out) {
   Tuple *t = dict_find(iter, key);
   if (!t) return false;
-  *out = t->value->int32;
-  return true;
+  if (t->type == TUPLE_INT) {
+    switch (t->length) {
+      case 1: *out = t->value->int8; return true;
+      case 2: *out = t->value->int16; return true;
+      case 4: *out = t->value->int32; return true;
+      default: return false;
+    }
+  }
+  if (t->type == TUPLE_UINT) {
+    switch (t->length) {
+      case 1: *out = t->value->uint8; return true;
+      case 2: *out = t->value->uint16; return true;
+      case 4: *out = (int32_t)t->value->uint32; return true;
+      default: return false;
+    }
+  }
+  return false;
 }
 
 static void inbox_received(DictionaryIterator *iter, void *context) {
@@ -358,13 +398,18 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   bool location_changed = false;
 
   // Coordinates arrive scaled by 1e6; AppMessage carries no floating point.
-  if (read_int(iter, MESSAGE_KEY_LAT, &v)) {
-    s_lat = v / 1000000.0;
-    location_changed = true;
-  }
-  if (read_int(iter, MESSAGE_KEY_LON, &v)) {
-    s_lon = v / 1000000.0;
-    location_changed = true;
+  // Both must be present and in range before either is adopted, so a partial
+  // or malformed message cannot pair a new latitude with a stale longitude.
+  int32_t lat_raw, lon_raw;
+  if (read_int(iter, MESSAGE_KEY_LAT, &lat_raw) &&
+      read_int(iter, MESSAGE_KEY_LON, &lon_raw)) {
+    double lat = lat_raw / 1000000.0;
+    double lon = lon_raw / 1000000.0;
+    if (coords_sane(lat, lon)) {
+      s_lat = lat;
+      s_lon = lon;
+      location_changed = true;
+    }
   }
 
   if (read_int(iter, MESSAGE_KEY_Offset6, &v)) {
@@ -405,11 +450,26 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   // exercised on a headless build machine, so this path is unverified here.
   Tuple *accent = dict_find(iter, MESSAGE_KEY_AccentColor);
   if (accent) {
-    uint32_t c = (accent->type == TUPLE_CSTRING)
-                     ? (uint32_t)strtol(accent->value->cstring, NULL, 0)
-                     : (uint32_t)accent->value->int32;
-    s_settings.accent = c & 0xFFFFFF;
-    settings_changed = true;
+    bool got = false;
+    uint32_t c = 0;
+    if (accent->type == TUPLE_CSTRING) {
+      c = (uint32_t)strtol(accent->value->cstring, NULL, 0);
+      got = true;
+    } else if (accent->type == TUPLE_BYTE_ARRAY && accent->length >= 3) {
+      // Clay can hand a colour over as its raw components rather than a
+      // number; take the last three bytes so both RGB and ARGB orderings land
+      // on the same colour.
+      const uint8_t *d = accent->value->data + (accent->length - 3);
+      c = ((uint32_t)d[0] << 16) | ((uint32_t)d[1] << 8) | d[2];
+      got = true;
+    } else if (read_int(iter, MESSAGE_KEY_AccentColor, &v)) {
+      c = (uint32_t)v;
+      got = true;
+    }
+    if (got) {
+      s_settings.accent = c & 0xFFFFFF;
+      settings_changed = true;
+    }
   }
 
   if (location_changed) {
