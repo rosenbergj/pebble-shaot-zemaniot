@@ -1,0 +1,26 @@
+{
+  "name": "shaot-probe",
+  "author": "Josh Rosenberg",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Shaot Probe",
+    "uuid": "9f237eff-f93b-4bb7-a42f-0e2535d16c0f",
+    "sdkVersion": "3",
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "capabilities": [],
+    "messageKeys": [],
+    "resources": {
+      "media": []
+    }
+  }
+}

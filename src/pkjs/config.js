@@ -1,16 +1,16 @@
 // Clay settings page, shown on the phone.
 //
-// The order of the settings here does not matter, but the order they are
-// packed into the CFG string (src/pkjs/index.js) must match the cfg array in
-// src/embeddedjs/main.js.
+// Clay handles these itself and sends one AppMessage key per setting, which
+// src/c/main.c reads by key. Select values are numbers rather than strings so
+// the watch can read them as integers without parsing.
 
 var SLOT_OPTIONS = [
-  { label: "Nothing", value: "0" },
-  { label: "Hebrew date", value: "1" },
-  { label: "Weekday and date", value: "2" },
-  { label: "Sunset", value: "3" },
-  { label: "Nightfall (tzeit)", value: "4" },
-  { label: "Battery", value: "5" },
+  { label: "Nothing", value: 0 },
+  { label: "Hebrew date", value: 1 },
+  { label: "Weekday and date", value: 2 },
+  { label: "Sunset", value: 3 },
+  { label: "Nightfall (tzeit)", value: 4 },
+  { label: "Battery", value: 5 },
 ];
 
 module.exports = [
@@ -51,10 +51,10 @@ module.exports = [
         messageKey: "CivilFont",
         label: "Clock face for the civil time",
         options: [
-          { label: "Large (Roboto)", value: "0" },
-          { label: "Match the shaot digits (Leco)", value: "1" },
+          { label: "Large (Roboto)", value: 0 },
+          { label: "Match the shaot digits (Leco)", value: 1 },
         ],
-        defaultValue: "0",
+        defaultValue: 0,
       },
     ],
   },
@@ -73,28 +73,28 @@ module.exports = [
         messageKey: "SlotBand",
         label: "Top band",
         options: SLOT_OPTIONS,
-        defaultValue: "1",
+        defaultValue: 1,
       },
       {
         type: "select",
         messageKey: "SlotLeft",
         label: "Bottom left",
         options: SLOT_OPTIONS,
-        defaultValue: "3",
+        defaultValue: 3,
       },
       {
         type: "select",
         messageKey: "SlotMid",
         label: "Bottom middle",
         options: SLOT_OPTIONS,
-        defaultValue: "2",
+        defaultValue: 2,
       },
       {
         type: "select",
         messageKey: "SlotRight",
         label: "Bottom right",
         options: SLOT_OPTIONS,
-        defaultValue: "5",
+        defaultValue: 5,
       },
     ],
   },

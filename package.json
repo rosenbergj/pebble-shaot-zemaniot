@@ -11,8 +11,7 @@
   },
   "pebble": {
     "displayName": "Shaot Zemaniot",
-    "uuid": "38467cc7-7e73-44a2-aed2-ee661f2e1a94",
-    "projectType": "moddable",
+    "uuid": "61e1c7cc-f40b-4f5d-ac2c-4dd30da87b88",
     "sdkVersion": "3",
     "enableMultiJS": true,
     "targetPlatforms": [
@@ -22,11 +21,21 @@
       "watchface": true
     },
     "capabilities": [
-      "configurable"
+      "configurable",
+      "location"
     ],
     "messageKeys": [
-      "SUN",
-      "CFG"
+      "LAT",
+      "LON",
+      "Offset6",
+      "WithMinutes",
+      "CivilFont",
+      "SlotBand",
+      "SlotLeft",
+      "SlotMid",
+      "SlotRight",
+      "AccentColor",
+      "TickSeconds"
     ],
     "resources": {
       "media": []
