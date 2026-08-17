@@ -70,11 +70,10 @@ module.exports = [
         messageKey: "Countdown",
         label: "Count down to nightfall",
         description:
-          "On: between sunset and nightfall, the shaot line counts down the " +
-          "minutes and seconds until nightfall instead. Off: the shaot " +
-          "reading stays on screen all evening. While the countdown is on " +
-          "screen the watch updates every second even if \"Update every " +
-          "second\" is off.",
+          "Between sunset and nightfall, the shaot line will instead count " +
+          "down the minutes and seconds until nightfall. While the " +
+          "countdown is on screen, the watch updates every second even if " +
+          "\"Update every second\" is off.",
         defaultValue: false,
       },
       {
