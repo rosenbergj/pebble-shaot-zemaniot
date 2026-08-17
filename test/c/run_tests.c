@@ -16,6 +16,7 @@
 #include "../../src/c/hebdate.h"
 #include "../../src/c/solar.h"
 #include "../../src/c/trig.h"
+#include "../../src/c/numparse.h"
 #include "fixtures.h"
 
 // NOAA simplified formulas vs PyEphem's full model and refraction handling:
@@ -243,8 +244,47 @@ static void test_trig(void) {
   check(sz_sqrt(0.0) == 0.0, "sz_sqrt(0) is 0");
 }
 
+// Settings arrive from Clay as text -- its select components read a DOM
+// <select>, whose value is always a string. This parser replaced strtol, which
+// behaved inconsistently on the watch, so it needs checking properly.
+static void test_numparse(void) {
+  group("numparse reads the settings values Clay sends");
+
+  int32_t v;
+  // The slot and font values, which is what actually broke.
+  for (int i = 0; i <= 9; i++) {
+    char buf[2] = {(char)('0' + i), '\0'};
+    v = -999;
+    check(numparse_int(buf, &v) && v == i, "numparse \"%s\" -> %d", buf, i);
+  }
+
+  check(numparse_int("42", &v) && v == 42, "two digits");
+  check(numparse_int("-7", &v) && v == -7, "negative");
+  check(numparse_int("+7", &v) && v == 7, "explicit plus");
+  check(numparse_int(" 5 ", &v) && v == 5, "surrounding spaces");
+  check(numparse_int("007", &v) && v == 7, "leading zeros are decimal, not octal");
+
+  // The colour picker's conventional form.
+  check(numparse_int("0x007882", &v) && v == 0x007882, "hex colour");
+  check(numparse_int("0X00FF00", &v) && v == 0x00FF00, "capital hex prefix");
+  check(numparse_int("0xffffff", &v) && v == 0xFFFFFF, "lowercase hex digits");
+
+  // Rejections: a bad value must leave the setting alone rather than become 0.
+  v = 123;
+  check(!numparse_int("", &v) && v == 123, "empty string rejected, out untouched");
+  check(!numparse_int("-", &v) && v == 123, "lone sign rejected");
+  check(!numparse_int("abc", &v) && v == 123, "non-numeric rejected");
+  check(!numparse_int("12x", &v) && v == 123, "trailing junk rejected");
+  check(!numparse_int("0x", &v) && v == 123, "bare 0x rejected");
+  check(!numparse_int(NULL, &v) && v == 123, "NULL rejected");
+
+  check(numparse_int("2147483647", &v) && v == 2147483647, "int32 max");
+  check(numparse_int("99999999999", &v) && v == 2147483647, "overflow saturates");
+}
+
 int main(void) {
   test_trig();
+  test_numparse();
   test_hebrew_dates();
   test_month_lengths();
   test_rollover();
