@@ -21,6 +21,11 @@
 // --- settings ---------------------------------------------------------------
 // Phase B defaults; the phone overwrites these once the Clay page is wired up.
 
+// The single solar kinds name a fact about today and roll over at local
+// midnight. The combined kinds answer a different question -- what happens next
+// -- so they are not anchored to today at all: after nightfall the next thing
+// to happen is tomorrow's sunrise, and saying so beats repeating a sunset that
+// is already an hour gone.
 typedef enum {
   SLOT_NONE = 0,
   SLOT_HEBREW = 1,
@@ -28,6 +33,10 @@ typedef enum {
   SLOT_SUNSET = 3,
   SLOT_TZEIT = 4,
   SLOT_BATTERY = 5,
+  SLOT_SUNRISE = 6,
+  SLOT_NEXT_SET_TZEIT = 7,       // sunset or nightfall
+  SLOT_NEXT_RISE_SET = 8,        // sunrise or sunset
+  SLOT_NEXT_RISE_SET_TZEIT = 9,  // any of the three
 } SlotKind;
 
 typedef struct {
@@ -118,10 +127,22 @@ static HebrewDate s_heb;
 // very next frame. Cached strings did not: they were rewritten only on a day
 // change or a bracket flip, and Pebble raises no event when the time format
 // changes, so nothing could invalidate them.
+static time_t s_sunrise_at;
 static time_t s_sunset_at;
 static time_t s_tzeit_at;
+static bool s_have_sunrise;
 static bool s_have_sunset;
 static bool s_have_tzeit;
+
+// The next occurrence of each event, for the combined slots. Separate from the
+// three above, which are today's whether or not they have happened yet.
+// Recomputed once the earliest of them has passed, and only while a slot that
+// needs them is actually configured.
+static time_t s_next_rise, s_next_set, s_next_tz;
+static bool s_have_next_rise, s_have_next_set, s_have_next_tz;
+static time_t s_next_stale;
+static time_t s_next_from;  // the "now" it was computed from, so a backward
+                            // jump in the clock invalidates it too
 static int s_last_day = -1;
 static int s_battery = 0;
 
@@ -226,6 +247,36 @@ static const char *ordinal_suffix(int n) {
   }
 }
 
+// Whichever of the requested events comes soonest, labelled with its own name
+// so the slot says what it is showing. The label is the point: a bare time that
+// silently changes meaning at sunset would be worse than no slot at all.
+static void next_event_content(bool want_rise, bool want_set, bool want_tz,
+                               char *label, size_t label_n, char *value, size_t value_n) {
+  const char *name = NULL;
+  time_t best = 0;
+
+  if (want_rise && s_have_next_rise) {
+    name = "sunrise";
+    best = s_next_rise;
+  }
+  if (want_set && s_have_next_set && (!name || s_next_set < best)) {
+    name = "sunset";
+    best = s_next_set;
+  }
+  if (want_tz && s_have_next_tz && (!name || s_next_tz < best)) {
+    name = "tzeit";
+    best = s_next_tz;
+  }
+
+  if (!name) {
+    snprintf(label, label_n, "next");
+    snprintf(value, value_n, "--:--");
+    return;
+  }
+  snprintf(label, label_n, "%s", name);
+  format_hhmm(best, value, value_n);
+}
+
 // Fills label and value. Returns true when the two lines are a matched pair
 // (a date split across both lines) rather than a label above a value.
 static bool slot_content(uint8_t kind, const struct tm *lt, bool for_band,
@@ -255,6 +306,11 @@ static bool slot_content(uint8_t kind, const struct tm *lt, bool for_band,
       snprintf(label, label_n, "%s", WDAYS[lt->tm_wday]);
       snprintf(value, value_n, "%s %d", GMONTHS[lt->tm_mon], lt->tm_mday);
       return false;
+    case SLOT_SUNRISE:
+      snprintf(label, label_n, "sunrise");
+      if (s_have_sunrise) format_hhmm(s_sunrise_at, value, value_n);
+      else snprintf(value, value_n, "--:--");
+      return false;
     case SLOT_SUNSET:
       snprintf(label, label_n, "sunset");
       if (s_have_sunset) format_hhmm(s_sunset_at, value, value_n);
@@ -264,6 +320,15 @@ static bool slot_content(uint8_t kind, const struct tm *lt, bool for_band,
       snprintf(label, label_n, "tzeit");
       if (s_have_tzeit) format_hhmm(s_tzeit_at, value, value_n);
       else snprintf(value, value_n, "--:--");
+      return false;
+    case SLOT_NEXT_SET_TZEIT:
+      next_event_content(false, true, true, label, label_n, value, value_n);
+      return false;
+    case SLOT_NEXT_RISE_SET:
+      next_event_content(true, true, false, label, label_n, value, value_n);
+      return false;
+    case SLOT_NEXT_RISE_SET_TZEIT:
+      next_event_content(true, true, true, label, label_n, value, value_n);
       return false;
     case SLOT_BATTERY:
       snprintf(label, label_n, "batt");
@@ -326,11 +391,16 @@ static GSize measure(const char *text, GFont font) {
 // time_t, which is the basis solar.c works in. Deliberately not mktime(): this
 // platform's newlib has burned us twice, in sin() and in strtol().
 static void update_solar_times(void) {
+  s_have_sunrise = false;
   s_have_sunset = false;
   s_have_tzeit = false;
 
   double midnight_ms = (double)time_start_of_today() * 1000.0;
-  double sunset_ms, tzeit_ms;
+  double sunrise_ms, sunset_ms, tzeit_ms;
+  if (solar_next_event(midnight_ms, s_lat, s_lon, SUNRISE_SET_ANGLE, true, &sunrise_ms)) {
+    s_sunrise_at = (time_t)(sunrise_ms / 1000.0);
+    s_have_sunrise = true;
+  }
   if (!solar_next_event(midnight_ms, s_lat, s_lon, SUNRISE_SET_ANGLE, false, &sunset_ms)) return;
   s_sunset_at = (time_t)(sunset_ms / 1000.0);
   s_have_sunset = true;
@@ -342,6 +412,37 @@ static void update_solar_times(void) {
     s_tzeit_at = (time_t)(tzeit_ms / 1000.0);
     s_have_tzeit = true;
   }
+}
+
+static bool kind_needs_next(uint8_t k) {
+  return k == SLOT_NEXT_SET_TZEIT || k == SLOT_NEXT_RISE_SET || k == SLOT_NEXT_RISE_SET_TZEIT;
+}
+
+static bool any_next_slot(void) {
+  return kind_needs_next(s_settings.slot_band) || kind_needs_next(s_settings.slot_left) ||
+         kind_needs_next(s_settings.slot_mid) || kind_needs_next(s_settings.slot_right);
+}
+
+// The next occurrence of each event, and when this answer expires -- which is
+// the moment the soonest of them happens, since that is when "next" changes.
+static void update_next_events(time_t now) {
+  double now_ms = (double)now * 1000.0;
+  double v;
+  s_next_from = now;
+
+  s_have_next_rise = solar_next_event(now_ms, s_lat, s_lon, SUNRISE_SET_ANGLE, true, &v);
+  if (s_have_next_rise) s_next_rise = (time_t)(v / 1000.0);
+  s_have_next_set = solar_next_event(now_ms, s_lat, s_lon, SUNRISE_SET_ANGLE, false, &v);
+  if (s_have_next_set) s_next_set = (time_t)(v / 1000.0);
+  s_have_next_tz = solar_next_event(now_ms, s_lat, s_lon, TZEIT_ANGLE, false, &v);
+  if (s_have_next_tz) s_next_tz = (time_t)(v / 1000.0);
+
+  // Somewhere with no crossings at all, do not spin: try again in an hour.
+  s_next_stale = now + 3600;
+  if (s_have_next_rise && s_next_rise < s_next_stale) s_next_stale = s_next_rise;
+  if (s_have_next_set && s_next_set < s_next_stale) s_next_stale = s_next_set;
+  if (s_have_next_tz && s_next_tz < s_next_stale) s_next_stale = s_next_tz;
+  s_next_stale += 1;  // strictly past it, so the event is not found again
 }
 
 // Recompute the half-day bracket, the sunset/tzeit strings and the Hebrew date
@@ -381,6 +482,11 @@ static void refresh(time_t now) {
                             lt.tm_hour, s_br.is_day);
     update_solar_times();
   }
+
+  // The combined slots expire on their own schedule -- when the event they are
+  // showing happens -- rather than at midnight, and cost three more passes of
+  // the solar maths, so they are only computed while one is configured.
+  if (any_next_slot() && (now >= s_next_stale || now < s_next_from)) update_next_events(now);
 }
 
 static void canvas_update(Layer *layer, GContext *ctx) {
@@ -659,6 +765,7 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     s_have_location = true;
     s_br.valid = false;  // recompute the bracket from the new coordinates
     s_last_day = -1;
+    s_next_stale = 0;    // and the next-event cache, which is also per-location
     save_location();
   }
   if (settings_changed) {

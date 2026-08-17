@@ -6,12 +6,19 @@
 // always a string, and converts only numbers and booleans. The watch parses
 // them; see tuple_to_int() in src/c/main.c.
 
+// Values 0-5 name a fact about today and roll over at local midnight. Values
+// 7-9 show whichever of their events comes next, labelled with its name, so
+// they change through the day and are not tied to today at all.
 var SLOT_OPTIONS = [
   { label: "Nothing", value: 0 },
   { label: "Hebrew date", value: 1 },
   { label: "Weekday and date", value: 2 },
+  { label: "Sunrise", value: 6 },
   { label: "Sunset", value: 3 },
   { label: "Nightfall (tzeit)", value: 4 },
+  { label: "Next: sunset or nightfall", value: 7 },
+  { label: "Next: sunrise or sunset", value: 8 },
+  { label: "Next: sunrise, sunset or nightfall", value: 9 },
   { label: "Battery", value: 5 },
 ];
 
