@@ -145,7 +145,7 @@ tools/deploy.sh --good   # mark what is in dist/ as known good
 ```
 
 A build refuses to stage unless the tree is clean and `package.json` carries a
-**new version**. That version is the only thing a phone can see: the filename
+**new version** (bumping it also rewrites `package-lock.json`, so commit both). That version is the only thing a phone can see: the filename
 never changes, so a build that failed to sync or install is otherwise invisible.
 Check the version the phone reports against `BUILD.txt` before concluding
 anything about a change.

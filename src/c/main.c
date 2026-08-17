@@ -258,6 +258,38 @@ static void draw_centered(GContext *ctx, const char *text, GFont font, int lead,
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 
+// Today's sunset and tzeit, where "today" runs from local midnight.
+//
+// These used to be read off the ends of the half-day bracket, which pinned them
+// to sunrise: from sunset until sunrise the next morning the boxes held the
+// sunset that had just passed. Anchoring on midnight instead means the small
+// hours show the evening that is coming rather than the one that is over.
+//
+// Future data beats past data, except that once the next event is more than
+// about a day away the past one is more useful again -- and the two are roughly
+// equal from around sixteen hours out. Midnight sits comfortably inside that
+// indifferent band, so it is a clean cutoff rather than an exact optimum.
+//
+// time_start_of_today() is a Pebble API and returns local midnight as a UTC
+// time_t, which is the basis solar.c works in. Deliberately not mktime(): this
+// platform's newlib has burned us twice, in sin() and in strtol().
+static void update_solar_strings(void) {
+  snprintf(s_sunset, sizeof(s_sunset), "--:--");
+  snprintf(s_tzeit, sizeof(s_tzeit), "--:--");
+
+  double midnight_ms = (double)time_start_of_today() * 1000.0;
+  double sunset_ms, tzeit_ms;
+  if (!solar_next_event(midnight_ms, s_lat, s_lon, SUNRISE_SET_ANGLE, false, &sunset_ms)) return;
+  format_hhmm((time_t)(sunset_ms / 1000.0), s_sunset, sizeof(s_sunset));
+
+  // Tzeit is defined by the sunset it follows, so it is found from that sunset
+  // rather than independently from midnight: pairing them keeps the two boxes
+  // describing the same evening even where a search from midnight would not.
+  if (solar_next_event(sunset_ms, s_lat, s_lon, TZEIT_ANGLE, false, &tzeit_ms)) {
+    format_hhmm((time_t)(tzeit_ms / 1000.0), s_tzeit, sizeof(s_tzeit));
+  }
+}
+
 // Recompute the half-day bracket, the sunset/tzeit strings and the Hebrew date
 // when the bracket ends or a new day starts.
 //
@@ -278,24 +310,18 @@ static void refresh(time_t now) {
 
   if (!s_br.valid || now_ms >= s_br.end_ms || now_ms < s_br.start_ms) {
     s_br = solar_bracket(now_ms, s_lat, s_lon);
-    s_last_day = -1;  // a bracket flip can roll the Hebrew date
-    if (s_br.valid) {
-      double sunset_ms = s_br.is_day ? s_br.end_ms : s_br.start_ms;
-      format_hhmm((time_t)(sunset_ms / 1000.0), s_sunset, sizeof(s_sunset));
-      double tz;
-      if (solar_next_event(sunset_ms, s_lat, s_lon, TZEIT_ANGLE, false, &tz)) {
-        format_hhmm((time_t)(tz / 1000.0), s_tzeit, sizeof(s_tzeit));
-      } else {
-        snprintf(s_tzeit, sizeof(s_tzeit), "--:--");
-      }
-    }
+    // Forces the block below: a bracket flip rolls the Hebrew date, and it is
+    // also the one moment the boxes are worth rechecking off a day boundary.
+    s_last_day = -1;
   }
 
   struct tm *lt = localtime(&now);
+  if (!lt) return;
   if (s_br.valid && lt->tm_mday != s_last_day) {
     s_last_day = lt->tm_mday;
     s_heb = hebdate_for_now(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
                             lt->tm_hour, s_br.is_day);
+    update_solar_strings();
   }
 }
 
