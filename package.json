@@ -10,7 +10,7 @@
     "@rebble/clay": "^1.0.10"
   },
   "pebble": {
-    "displayName": "Shaot Zemaniot C",
+    "displayName": "Shaot Zemaniot",
     "uuid": "61e1c7cc-f40b-4f5d-ac2c-4dd30da87b88",
     "sdkVersion": "3",
     "enableMultiJS": true,
