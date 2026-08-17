@@ -23,28 +23,63 @@ Port progress (branch `c-port`, four commits, working tree clean):
   message key each with Clay handling its own events.
 - **Phase D done** — settings and the last known location persist across
   launches; the "waiting for phone" and "no sun window" states both render.
-- **Phase E next, and it needs Josh** — sideload and confirm on the real watch.
+- **Phase E failed on hardware and is being debugged.** The first sideload gave
+  **"Shaot Zemaniot is not responding"** on the watch. The same build runs
+  correctly in the emulator.
+
+### The "not responding" investigation
+
+Ruled out so far, with the evidence:
+
+- **Stale persistent storage.** The port reused the JavaScript build's UUID, so
+  it inherited that app's persist data. Reproduced deliberately here — install
+  the JS build, let it write, then install the C build over it without wiping —
+  and the C build came up **fine**. Not the cause.
+- **App packaging.** The binary header parses correctly: `virtual_size` 23744,
+  flags `0x149` (watchface + JS + emery platform), 62 relocations, struct 16.0.
+  Note `virtual_size` is a **`uint16_t`** at offset 128, after `resource_crc`
+  and `resource_timestamp` — read it with the wrong layout and it looks like
+  garbage.
+- **Compute time in the tick path.** The solar maths only runs on a bracket
+  flip, not per tick.
+
+Still open, and the reason the probe exists: the watch runs a **native C app**
+for the first time here. The JavaScript build's `pebble-app.bin` was a 276-byte
+stub with the Alloy mod in resources, so it never exercised the native app path
+and proves nothing about it. This machine builds against **SDK 4.17** while
+**4.33.1** is current.
+
+Two changes went in as a result, both worth keeping regardless of the cause:
+the C build now has **its own UUID** (so it installs alongside the JS face
+instead of displacing it), and the message and persistence paths are hardened
+against input that could hard-fault rather than show an error.
 
 ### Picking this up
 
     git checkout c-port
     make -C test/c test              # 1491 checks, must stay green
     pebble build && pebble install --emulator emery
+    tools/probe/build.sh             # the diagnostic probe
 
-A build to sideload is at `dist/pt2-shaot-watchface-c-port.pbw`. It has the
-same UUID as the JavaScript build, so **installing it replaces the face
-currently on the watch**; `dist/pt2-shaot-watchface-phase4-js.pbw` reinstalls
-the old one.
+Artifacts to sideload:
 
-**Two things could not be verified on this headless machine and need checking
-on the phone/watch:**
+- `dist/shaot-probe.pbw` — the diagnostic probe. Draws one line per subsystem
+  (native C and text, then libm/solar, then the calendar, then battery) with a
+  stage counter, so what appears on screen says how far execution got. Reaches
+  `stage 6` in the emulator.
+- `dist/pt2-shaot-watchface-c-port-v2.pbw` — new UUID, hardened.
+- `dist/pt2-shaot-watchface-c-port.pbw` — the original failing build, kept for
+  comparison. Same UUID as the JS build, so it **displaces** that face.
+
+**Two things still cannot be verified on this headless machine:**
 
 1. **The Clay settings page.** `pebble emu-app-config` needs a browser, so the
    real page never ran. The watch side was proven by sending the same
    dictionary directly from pkjs, and every setting applied; what is untested
-   is Clay's own page-to-AppMessage step. Colour is read as either a number or
-   a `"0x"` string in case the page sends the latter.
+   is Clay's own page-to-AppMessage step. Colour is now read as a number, a
+   `"0x"` string, or a byte array.
 2. **Battery percentage on real hardware** — the emulator always reports 100%.
+   The probe displays it, so it is checkable there.
 
 After Phase E this file has done its job and should be deleted; fold anything
 still useful into `README.md` first.
