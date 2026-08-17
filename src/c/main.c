@@ -37,6 +37,10 @@ typedef enum {
   SLOT_NEXT_SET_TZEIT = 7,       // sunset or nightfall
   SLOT_NEXT_RISE_SET = 8,        // sunrise or sunset
   SLOT_NEXT_RISE_SET_TZEIT = 9,  // any of the three
+  // Both dates on one line. Offered for the band only: a footer box is a third
+  // of the screen and could not hold this at any readable size.
+  SLOT_DATES_SEC_HEB = 10,
+  SLOT_DATES_HEB_SEC = 11,
 } SlotKind;
 
 typedef struct {
@@ -112,6 +116,8 @@ static Layer *s_canvas;
 
 static GFont s_font_shaot;    // Leco 42
 static GFont s_font_bold24;   // Gothic 24 Bold
+static GFont s_font_bold18;   // Gothic 18 Bold, for a band line that will not fit
+static GFont s_font_bold14;   // Gothic 14 Bold, likewise
 static GFont s_font_label;    // Gothic 14
 static GFont s_font_civil;    // Roboto 49 or the shaot face
 static int s_lead_civil;      // leading of whichever civil face is selected
@@ -306,6 +312,18 @@ static bool slot_content(uint8_t kind, const struct tm *lt, bool for_band,
       snprintf(label, label_n, "%s", WDAYS[lt->tm_wday]);
       snprintf(value, value_n, "%s %d", GMONTHS[lt->tm_mon], lt->tm_mday);
       return false;
+    // Both dates, weekday first in either order. The whole line goes in value
+    // with no label, so the band prints it bare like the single dates do.
+    case SLOT_DATES_SEC_HEB:
+      snprintf(value, value_n, "%s %s %d / %d %s", WDAYS[lt->tm_wday], GMONTHS[lt->tm_mon],
+               lt->tm_mday, s_heb.day,
+               hebdate_month_name(s_heb.year, s_heb.month, s_settings.hebrew_script));
+      return false;
+    case SLOT_DATES_HEB_SEC:
+      snprintf(value, value_n, "%s %d %s / %s %d", WDAYS[lt->tm_wday], s_heb.day,
+               hebdate_month_name(s_heb.year, s_heb.month, s_settings.hebrew_script),
+               GMONTHS[lt->tm_mon], lt->tm_mday);
+      return false;
     case SLOT_SUNRISE:
       snprintf(label, label_n, "sunrise");
       if (s_have_sunrise) format_hhmm(s_sunrise_at, value, value_n);
@@ -343,7 +361,7 @@ static bool slot_content(uint8_t kind, const struct tm *lt, bool for_band,
 // colon -- "sunset: 7:58" -- where a footer box stacks them. Content that names
 // itself, meaning either date, carries no label and is shown as it stands.
 static void band_content(uint8_t kind, const struct tm *lt, char *out, size_t out_n) {
-  char label[24], value[24];
+  char label[24], value[40];
   slot_content(kind, lt, true, label, sizeof(label), value, sizeof(value));
   if (label[0]) {
     snprintf(out, out_n, "%s: %s", label, value);
@@ -374,6 +392,34 @@ static GSize measure(const char *text, GFont font) {
                                                GTextOverflowModeTrailingEllipsis,
                                                GTextAlignmentLeft);
 }
+
+// The largest face the band line will fit in, dropping a size at a time rather
+// than letting graphics_draw_text ellipsize. Both dates on one line overflow
+// Gothic 24 whenever the Hebrew month is a long one, and a truncated date is
+// worse than a small one. Everything else in the band fits at 24 and is
+// unaffected.
+//
+// y and lead differ per size so the line stays optically centred in the 38px
+// band; 5/LEAD_GOTHIC24 is the value the layout was originally tuned to.
+typedef struct {
+  GFont font;
+  int lead;
+  int y;
+} BandFace;
+
+static BandFace band_face(const char *text, int width) {
+  const BandFace ladder[] = {
+      {s_font_bold24, LEAD_GOTHIC24, 5},
+      {s_font_bold18, 3, 9},
+      {s_font_bold14, LEAD_GOTHIC14, 12},
+  };
+  const int n = (int)(sizeof(ladder) / sizeof(ladder[0]));
+  for (int i = 0; i < n - 1; i++) {
+    if (measure(text, ladder[i].font).w <= width) return ladder[i];
+  }
+  return ladder[n - 1];
+}
+
 
 // Today's sunset and tzeit, where "today" runs from local midnight.
 //
@@ -530,9 +576,10 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, s_accent);
   graphics_fill_rect(ctx, GRect(0, 0, bounds.size.w, BAND_H), 0, GCornerNone);
 
-  char label[24], value[24], band[51];  // both parts plus ": " and the NUL
+  char label[24], value[40], band[68];  // both parts plus ": " and the NUL
   band_content(s_settings.slot_band, &lt, band, sizeof(band));
-  draw_centered(ctx, band, s_font_bold24, LEAD_GOTHIC24, s_on_accent, 5, 0, bounds.size.w);
+  BandFace bf = band_face(band, bounds.size.w - 6);
+  draw_centered(ctx, band, bf.font, bf.lead, s_on_accent, bf.y, 0, bounds.size.w);
 
   // Civil time. Seconds are only shown when they are actually kept up to date:
   // a frozen seconds field is worse than none. Ticking once a minute, the
@@ -801,6 +848,8 @@ static void init(void) {
 
   s_font_shaot = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
   s_font_bold24 = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
+  s_font_bold18 = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+  s_font_bold14 = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
   s_font_label = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   apply_settings();
 

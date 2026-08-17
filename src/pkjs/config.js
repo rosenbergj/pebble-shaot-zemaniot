@@ -23,6 +23,14 @@ var SLOT_OPTIONS = [
   { label: "Battery", value: 5 },
 ];
 
+// Both dates at once will not fit a footer box, which is a third of the screen
+// wide, so these are offered for the band alone. The band shrinks its type a
+// size or two when a long Hebrew month makes the line too wide.
+var BAND_OPTIONS = SLOT_OPTIONS.concat([
+  { label: "Both dates: secular first", value: 10 },
+  { label: "Both dates: Hebrew first", value: 11 },
+]);
+
 module.exports = [
   {
     type: "heading",
@@ -83,7 +91,10 @@ module.exports = [
         type: "select",
         messageKey: "SlotBand",
         label: "Top band",
-        options: SLOT_OPTIONS,
+        description:
+          "Only the band can show both dates at once; it uses smaller type " +
+          "when the line would not otherwise fit.",
+        options: BAND_OPTIONS,
         defaultValue: 1,
       },
       {
