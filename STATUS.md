@@ -12,15 +12,42 @@ only re-partition it), and ~22.5KB is committed at startup, leaving roughly
 **10KB** for the whole watchface. The app's ~122KB C heap was never available to
 JavaScript. The C build currently uses ~21.8KB with ~109KB free.
 
-Port progress:
+Port progress (branch `c-port`, four commits, working tree clean):
 
 - **Phase A done** — `shaot.c`, `hebdate.c` and `solar.c` ported and verified by
   a host harness (1491 checks) against the same PyEphem/convertdate fixtures the
   JavaScript suite used.
 - **Phase B done** — the C watchface renders at pixel-exact parity with the
   JavaScript build; every text row and height matches the reference screenshot.
-- **Next** — Phase C (phone sends a location, Clay settings one key per
-  setting), then D (persistence, degraded states) and E (hardware).
+- **Phase C done** — the phone sends only coordinates, and settings are one
+  message key each with Clay handling its own events.
+- **Phase D done** — settings and the last known location persist across
+  launches; the "waiting for phone" and "no sun window" states both render.
+- **Phase E next, and it needs Josh** — sideload and confirm on the real watch.
+
+### Picking this up
+
+    git checkout c-port
+    make -C test/c test              # 1491 checks, must stay green
+    pebble build && pebble install --emulator emery
+
+A build to sideload is at `dist/pt2-shaot-watchface-c-port.pbw`. It has the
+same UUID as the JavaScript build, so **installing it replaces the face
+currently on the watch**; `dist/pt2-shaot-watchface-phase4-js.pbw` reinstalls
+the old one.
+
+**Two things could not be verified on this headless machine and need checking
+on the phone/watch:**
+
+1. **The Clay settings page.** `pebble emu-app-config` needs a browser, so the
+   real page never ran. The watch side was proven by sending the same
+   dictionary directly from pkjs, and every setting applied; what is untested
+   is Clay's own page-to-AppMessage step. Colour is read as either a number or
+   a `"0x"` string in case the page sends the latter.
+2. **Battery percentage on real hardware** — the emulator always reports 100%.
+
+After Phase E this file has done its job and should be deleted; fold anything
+still useful into `README.md` first.
 
 The last known-good JavaScript build is the `phase4-complete` tag (`a7b302f`,
 mod 13609), **verified on the real watch** — that is what the tag marks. A built
