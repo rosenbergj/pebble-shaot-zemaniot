@@ -34,6 +34,25 @@ Port progress (branch `c-port`, four commits, working tree clean):
   parse text. Toggles and the colour picker were unaffected, which is why most
   settings appeared to work.
 
+  Two further hardware-only bugs came out of wearing it, both fixed:
+
+  - **The solar maths must not run from a layer update proc.** `refresh()` was
+    called from `canvas_update()`, i.e. deep inside the firmware's render path
+    with a render watchdog running, which crashed the watch intermittently --
+    most visibly right after a settings change, since that invalidates the
+    bracket and forces the recompute into the next frame. It now runs from the
+    tick handler, the message handler, and once at startup on `main()`'s stack.
+    The emulator tolerates the old arrangement, and `tools/probe-float` called
+    the same code from a timer callback where the stack is shallow, so neither
+    caught it.
+  - **`strtol()` is unreliable on this platform.** The same build parsed `"2"`
+    and `"5"` correctly and failed on `"1"`. Replaced by `numparse_int()` in
+    `src/c/numparse.c`, which the host suite covers. After newlib's `sin()`,
+    treat newlib as suspect generally.
+
+  The settings dictionary is also read in a single pass over the tuples now,
+  rather than eleven `dict_find()` searches.
+
   Still unconfirmed on the watch: the **real battery percentage**.
 
 ### The "not responding" investigation, and how it was found
@@ -98,8 +117,7 @@ Current contents:
 
 - `pt2-shaot-watchface-phase4-js.pbw` — "Shaot Zemaniot", the known-good daily
   build. **Never overwrite** (`dist/` is gitignored, so git cannot restore it).
-- `pt2-shaot-watchface-c-port-v4.pbw` — "Shaot Zemaniot C", with the trig fix
-  and string-valued settings.
+- `pt2-shaot-watchface-c-port-v5.pbw` — "Shaot Zemaniot C", current.
 
 Settled bisect artifacts were removed once their answer was known. Rebuild any
 of them from the repo: `pebble build`, or `tools/probe*/build.sh`. TimeStyle:
