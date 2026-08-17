@@ -93,6 +93,12 @@ watch.
   with a bounce, so intermediate heights either side of the resting value do
   occur; degrade continuously rather than switching between two cases. Test with
   `pebble emu-set-timeline-quick-view on`.
+- **Never hold `localtime()`'s pointer across another call to it.** It returns
+  the address of one static `struct tm` and refills it every time, so a second
+  call rewrites what the first returned. Drawing formats solar times, which
+  calls it again — holding the pointer made the civil clock display the sunset
+  whenever a solar slot was drawn before it. Copy the struct: `struct tm lt =
+  *localtime(&now);`.
 - **Cache values, not formatted text.** There is no event for a change to the
   watch's 12/24-hour setting, so anything already rendered to a string stays
   wrong until something else happens to rewrite it. The sunset and tzeit boxes
