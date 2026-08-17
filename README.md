@@ -93,6 +93,12 @@ watch.
   with a bounce, so intermediate heights either side of the resting value do
   occur; degrade continuously rather than switching between two cases. Test with
   `pebble emu-set-timeline-quick-view on`.
+- **Cache values, not formatted text.** There is no event for a change to the
+  watch's 12/24-hour setting, so anything already rendered to a string stays
+  wrong until something else happens to rewrite it. The sunset and tzeit boxes
+  had exactly that bug. Keep instants as `time_t` and call `format_hhmm()` at
+  draw time; formatting is cheap, and only the solar maths has to stay out of
+  the update proc.
 - **The large clock faces are numeral subsets.** `FONT_KEY_ROBOTO_BOLD_SUBSET_49`
   and `FONT_KEY_LECO_42_NUMBERS` carry digits and separators, no letters — and
   Roboto has no `.` either, which is why the shaot line is Leco. Anything

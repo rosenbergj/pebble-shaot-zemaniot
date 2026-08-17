@@ -113,8 +113,15 @@ static GColor s_bg, s_fg, s_dim, s_accent, s_on_accent, s_rule;
 
 static SolarBracket s_br;
 static HebrewDate s_heb;
-static char s_sunset[8] = "--:--";
-static char s_tzeit[8] = "--:--";
+// The solar events are cached as instants, not as text. Formatting happens at
+// draw time, so a change to the watch's 12/24-hour setting takes effect on the
+// very next frame. Cached strings did not: they were rewritten only on a day
+// change or a bracket flip, and Pebble raises no event when the time format
+// changes, so nothing could invalidate them.
+static time_t s_sunset_at;
+static time_t s_tzeit_at;
+static bool s_have_sunset;
+static bool s_have_tzeit;
 static int s_last_day = -1;
 static int s_battery = 0;
 
@@ -250,11 +257,13 @@ static bool slot_content(uint8_t kind, const struct tm *lt, bool for_band,
       return false;
     case SLOT_SUNSET:
       snprintf(label, label_n, "sunset");
-      snprintf(value, value_n, "%s", s_sunset);
+      if (s_have_sunset) format_hhmm(s_sunset_at, value, value_n);
+      else snprintf(value, value_n, "--:--");
       return false;
     case SLOT_TZEIT:
       snprintf(label, label_n, "tzeit");
-      snprintf(value, value_n, "%s", s_tzeit);
+      if (s_have_tzeit) format_hhmm(s_tzeit_at, value, value_n);
+      else snprintf(value, value_n, "--:--");
       return false;
     case SLOT_BATTERY:
       snprintf(label, label_n, "batt");
@@ -316,20 +325,22 @@ static GSize measure(const char *text, GFont font) {
 // time_start_of_today() is a Pebble API and returns local midnight as a UTC
 // time_t, which is the basis solar.c works in. Deliberately not mktime(): this
 // platform's newlib has burned us twice, in sin() and in strtol().
-static void update_solar_strings(void) {
-  snprintf(s_sunset, sizeof(s_sunset), "--:--");
-  snprintf(s_tzeit, sizeof(s_tzeit), "--:--");
+static void update_solar_times(void) {
+  s_have_sunset = false;
+  s_have_tzeit = false;
 
   double midnight_ms = (double)time_start_of_today() * 1000.0;
   double sunset_ms, tzeit_ms;
   if (!solar_next_event(midnight_ms, s_lat, s_lon, SUNRISE_SET_ANGLE, false, &sunset_ms)) return;
-  format_hhmm((time_t)(sunset_ms / 1000.0), s_sunset, sizeof(s_sunset));
+  s_sunset_at = (time_t)(sunset_ms / 1000.0);
+  s_have_sunset = true;
 
   // Tzeit is defined by the sunset it follows, so it is found from that sunset
   // rather than independently from midnight: pairing them keeps the two boxes
   // describing the same evening even where a search from midnight would not.
   if (solar_next_event(sunset_ms, s_lat, s_lon, TZEIT_ANGLE, false, &tzeit_ms)) {
-    format_hhmm((time_t)(tzeit_ms / 1000.0), s_tzeit, sizeof(s_tzeit));
+    s_tzeit_at = (time_t)(tzeit_ms / 1000.0);
+    s_have_tzeit = true;
   }
 }
 
@@ -364,7 +375,7 @@ static void refresh(time_t now) {
     s_last_day = lt->tm_mday;
     s_heb = hebdate_for_now(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
                             lt->tm_hour, s_br.is_day);
-    update_solar_strings();
+    update_solar_times();
   }
 }
 
