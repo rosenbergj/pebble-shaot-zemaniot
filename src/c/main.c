@@ -67,7 +67,14 @@ static bool s_have_location = false;
 // --- layout -----------------------------------------------------------------
 
 #define BAND_H 38
-#define FOOTER_TOP 170
+
+// The footer is anchored to the bottom of the *unobstructed* area rather than
+// to a fixed y, so Timeline Peek does not simply cover it. On an unobstructed
+// 228-high screen this puts the rule back at y=170, the tuned position, and the
+// face is pixel-identical to before.
+#define FOOTER_ZONE_H 58      // the 1px rule plus 57 of boxes
+#define SHAOT_INK_BOTTOM 145  // lowest row the Leco line actually paints
+#define FOOTER_MIN_GAP 7      // below that the footer crowds the shaot line
 
 // graphics_draw_text() positions glyphs below the top of its box by a
 // font-specific internal leading, which Poco did not add. The y values below
@@ -326,7 +333,18 @@ static void refresh(time_t now) {
 }
 
 static void canvas_update(Layer *layer, GContext *ctx) {
+  // Two rectangles, and the difference matters. bounds is the whole screen and
+  // is what the background must cover, or the area under an appearing Timeline
+  // Peek shows whatever was there before. vis is the part not covered by an
+  // overlay, and is what content has to fit inside.
+  //
+  // No subscription is needed for this: the app is redrawn automatically
+  // whenever the unobstructed area changes. Peek animates in with a bounce, so
+  // vis briefly reports heights either side of its resting value -- the layout
+  // below has to degrade continuously rather than switch between two cases.
   GRect bounds = layer_get_bounds(layer);
+  GRect vis = layer_get_unobstructed_bounds(layer);
+  int vis_bottom = vis.origin.y + vis.size.h;
   time_t now = time(NULL);
   // Draw only. See refresh(): the solar maths must not run from here.
 
@@ -338,7 +356,8 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     // location means the phone has not reported one yet; a location with no
     // bracket means a polar latitude where the sun does not cross today.
     draw_centered(ctx, s_have_location ? "no sun window" : "waiting for phone",
-                  s_font_bold24, LEAD_GOTHIC24, s_dim, 100, 0, bounds.size.w);
+                  s_font_bold24, LEAD_GOTHIC24, s_dim, (vis.size.h - 28) / 2, 0,
+                  bounds.size.w);
     return;
   }
 
@@ -365,15 +384,23 @@ static void canvas_update(Layer *layer, GContext *ctx) {
                s_settings.offset6, s_settings.with_minutes, shaot, sizeof(shaot));
   draw_centered(ctx, shaot, s_font_shaot, LEAD_LECO42, s_fg, 112, 0, bounds.size.w);
 
-  // Footer. The accent fill belongs to the outer slot positions, not to their
-  // content: every slot is user-configurable, only the fill colour is.
-  int footer_h = bounds.size.h - FOOTER_TOP - 1;
+  // Footer. Anchored to the bottom of the unobstructed area, so it rides up
+  // ahead of an appearing Peek instead of disappearing under it, and is dropped
+  // once there is no longer room for it clear of the shaot line. The three
+  // slots are the only thing Peek can cost the wearer; everything above stays
+  // exactly where it was.
+  int footer_top = vis_bottom - FOOTER_ZONE_H;
+  if (footer_top < SHAOT_INK_BOTTOM + FOOTER_MIN_GAP) return;
+
+  // The accent fill belongs to the outer slot positions, not to their content:
+  // every slot is user-configurable, only the fill colour is.
+  int footer_h = vis_bottom - footer_top - 1;
   int third = bounds.size.w / 3;
   graphics_context_set_fill_color(ctx, s_rule);
-  graphics_fill_rect(ctx, GRect(0, FOOTER_TOP, bounds.size.w, 1), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, footer_top, bounds.size.w, 1), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, s_accent);
-  graphics_fill_rect(ctx, GRect(0, FOOTER_TOP + 1, third + 1, footer_h), 0, GCornerNone);
-  graphics_fill_rect(ctx, GRect(2 * third, FOOTER_TOP + 1, bounds.size.w - 2 * third, footer_h),
+  graphics_fill_rect(ctx, GRect(0, footer_top + 1, third + 1, footer_h), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(2 * third, footer_top + 1, bounds.size.w - 2 * third, footer_h),
                      0, GCornerNone);
 
   const uint8_t kinds[3] = {s_settings.slot_left, s_settings.slot_mid, s_settings.slot_right};
@@ -386,12 +413,12 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     bool split = slot_content(kinds[i], lt, false, label, sizeof(label), value, sizeof(value));
     if (split) {
       // A date split over both lines: same size and weight, no label.
-      draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, FOOTER_TOP + 3, x, w);
-      draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, ink, FOOTER_TOP + 29, x, w);
+      draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 3, x, w);
+      draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 29, x, w);
     } else {
       draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, on_fill ? s_on_accent : s_dim,
-                    FOOTER_TOP + 6, x, w);
-      draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, ink, FOOTER_TOP + 24, x, w);
+                    footer_top + 6, x, w);
+      draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 24, x, w);
     }
   }
 }

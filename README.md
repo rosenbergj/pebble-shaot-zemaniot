@@ -85,6 +85,14 @@ watch.
 - **`graphics_draw_text` adds a font-specific internal leading.** `main.c`
   subtracts a per-font `LEAD_*` constant so the layout coordinates land where
   they are meant to.
+- **`layer_get_bounds()` is not where content may go.** Timeline Peek covers the
+  bottom ~57px, and a face drawn to the full bounds is simply clipped — ours lost
+  all three footer boxes. Fill the background over `layer_get_bounds()`, but
+  place content inside `layer_get_unobstructed_bounds()`. No subscription is
+  needed: the app is redrawn automatically when the area changes. Peek animates
+  with a bounce, so intermediate heights either side of the resting value do
+  occur; degrade continuously rather than switching between two cases. Test with
+  `pebble emu-set-timeline-quick-view on`.
 - **`M_PI` is not defined** — the toolchain compiles without GNU extensions.
 - **`pebble build` can fail while `pebble install` happily pushes the previous
   `.pbw`.** Never redirect build output to `/dev/null`.
