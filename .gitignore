@@ -18,3 +18,7 @@ screenshots/*.png
 # Editor/OS noise
 *.swp
 .DS_Store
+
+# Host C test harness artifacts
+test/c/run_tests
+test/c/fixtures.h
