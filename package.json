@@ -1,7 +1,7 @@
 {
   "name": "shaot",
   "author": "Josh Rosenberg",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "keywords": [
     "pebble-app"
   ],
@@ -38,7 +38,14 @@
       "TickSeconds"
     ],
     "resources": {
-      "media": []
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "MENU_ICON",
+          "file": "images/menuicon.png",
+          "menuIcon": true
+        }
+      ]
     }
   }
 }
