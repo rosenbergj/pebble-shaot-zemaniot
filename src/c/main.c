@@ -86,6 +86,17 @@ static bool s_have_location = false;
 #define LEAD_LECO42 8
 #define LEAD_ROBOTO49 9
 
+#define CIVIL_Y 46
+
+// The am/pm marker, shown only when ticking once a minute on a 12-hour clock.
+// Set MERIDIEM_SHOWN to 0 to drop it and simply centre the clock, as 24-hour
+// mode does -- the civil faces carry no letters, so the marker has to be set in
+// a different face beside the digits, and whether that reads as deliberate or
+// as a mismatch is a judgement about the two typefaces together.
+#define MERIDIEM_SHOWN 1
+#define MERIDIEM_GAP 5
+#define MERIDIEM_NUDGE 3  // lifts it off the very bottom of the text box
+
 // Title case, not caps: these sit beside "sunset", "tzeit" and "batt", which
 // are lowercase words, so a shouting weekday was the only one out of step.
 static const char *const WDAYS[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
@@ -172,7 +183,17 @@ static void save_location(void) {
 
 // --- helpers ----------------------------------------------------------------
 
-// 12-hour clock without a meridiem suffix, matching the JavaScript build.
+// Whether to show a 24-hour clock. This follows the watch's own setting and is
+// deliberately not a setting of our own: it is a system-wide preference, and a
+// watchface that disagreed with the rest of the watch would just be wrong. The
+// face used to hardcode 12-hour and ignore it entirely.
+static bool use_24h(void) {
+  return clock_is_24h_style();
+}
+
+// A time of day, in whichever convention is in force. The sunset and tzeit
+// boxes go through here too, so they follow the main clock.
+//
 // localtime() returns NULL for a time_t it cannot break down, so a bad solar
 // result must not be dereferenced -- that is a hard fault on the watch, where
 // there is no console to see it happen.
@@ -180,6 +201,11 @@ static void format_hhmm(time_t t, char *out, size_t n) {
   struct tm *lt = localtime(&t);
   if (!lt) {
     snprintf(out, n, "--:--");
+    return;
+  }
+  if (use_24h()) {
+    // Padded, as a 24-hour clock conventionally is: 09:53, not 9:53.
+    snprintf(out, n, "%02d:%02d", lt->tm_hour, lt->tm_min);
     return;
   }
   int h = lt->tm_hour % 12;
@@ -263,6 +289,21 @@ static void draw_centered(GContext *ctx, const char *text, GFont font, int lead,
   graphics_context_set_text_color(ctx, color);
   graphics_draw_text(ctx, text, font, GRect(x, y - lead, w, 60),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+}
+
+// As above, but starting at x rather than centred in a box. Used where two runs
+// of text in different faces have to sit next to each other on one line.
+static void draw_at(GContext *ctx, const char *text, GFont font, int lead,
+                    GColor color, int y, int x, int w) {
+  graphics_context_set_text_color(ctx, color);
+  graphics_draw_text(ctx, text, font, GRect(x, y - lead, w, 60),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+}
+
+static GSize measure(const char *text, GFont font) {
+  return graphics_text_layout_get_content_size(text, font, GRect(0, 0, 200, 60),
+                                               GTextOverflowModeTrailingEllipsis,
+                                               GTextAlignmentLeft);
 }
 
 // Today's sunset and tzeit, where "today" runs from local midnight.
@@ -371,16 +412,52 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   band_content(s_settings.slot_band, lt, band, sizeof(band));
   draw_centered(ctx, band, s_font_bold24, LEAD_GOTHIC24, s_on_accent, 5, 0, bounds.size.w);
 
-  // Civil time
+  // Civil time. Seconds are only shown when they are actually kept up to date:
+  // a frozen seconds field is worse than none. Ticking once a minute, the
+  // 12-hour clock spends that space on am/pm instead, and the 24-hour clock,
+  // which does not need it, simply centres what is left.
   char civil[16];
-  int h12 = lt->tm_hour % 12;
-  if (h12 == 0) h12 = 12;
-  snprintf(civil, sizeof(civil), "%d:%02d:%02d", h12, lt->tm_min, lt->tm_sec);
-  draw_centered(ctx, civil, s_font_civil, s_lead_civil, s_fg, 46, 0, bounds.size.w);
+  bool h24 = use_24h();
+  const char *meridiem = NULL;
+  int hour = lt->tm_hour;
+  if (!h24) {
+    hour %= 12;
+    if (hour == 0) hour = 12;
+  }
+  if (s_settings.tick_seconds) {
+    snprintf(civil, sizeof(civil), h24 ? "%02d:%02d:%02d" : "%d:%02d:%02d", hour, lt->tm_min,
+             lt->tm_sec);
+  } else {
+    snprintf(civil, sizeof(civil), h24 ? "%02d:%02d" : "%d:%02d", hour, lt->tm_min);
+    if (!h24 && MERIDIEM_SHOWN) meridiem = (lt->tm_hour < 12) ? "am" : "pm";
+  }
 
-  // Shaot
+  if (meridiem) {
+    // The civil faces are numeral subsets with no letters in them at all, so the
+    // meridiem has to be set in Gothic beside the clock rather than appended to
+    // it. Both runs are measured and the pair centred together; the boxes are
+    // bottom-aligned, which keeps the small text sitting on the baseline of the
+    // large whichever civil face is selected.
+    GSize ts = measure(civil, s_font_civil);
+    GSize ms = measure(meridiem, s_font_bold24);
+    int total = ts.w + MERIDIEM_GAP + ms.w;
+    int x = (bounds.size.w - total) / 2;
+    int civil_box_top = CIVIL_Y - s_lead_civil;
+    draw_at(ctx, civil, s_font_civil, s_lead_civil, s_fg, CIVIL_Y, x, ts.w + 2);
+    draw_at(ctx, meridiem, s_font_bold24, LEAD_GOTHIC24, s_dim,
+            civil_box_top + (ts.h - ms.h) + LEAD_GOTHIC24 - MERIDIEM_NUDGE,
+            x + ts.w + MERIDIEM_GAP, ms.w + 2);
+  } else {
+    draw_centered(ctx, civil, s_font_civil, s_lead_civil, s_fg, CIVIL_Y, 0, bounds.size.w);
+  }
+
+  // Shaot. Ticking once a minute the reading would otherwise be up to a whole
+  // minute stale, always in the same direction; half a minute ahead makes it
+  // right on average across the minute it sits unchanged.
   char shaot[16];
-  shaot_format(shaot_chalakim_now((double)now * 1000.0, s_br.start_ms, s_br.end_ms),
+  double shaot_ms = (double)now * 1000.0;
+  if (!s_settings.tick_seconds) shaot_ms += 30000.0;
+  shaot_format(shaot_chalakim_now(shaot_ms, s_br.start_ms, s_br.end_ms),
                s_settings.offset6, s_settings.with_minutes, shaot, sizeof(shaot));
   draw_centered(ctx, shaot, s_font_shaot, LEAD_LECO42, s_fg, 112, 0, bounds.size.w);
 

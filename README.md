@@ -93,6 +93,11 @@ watch.
   with a bounce, so intermediate heights either side of the resting value do
   occur; degrade continuously rather than switching between two cases. Test with
   `pebble emu-set-timeline-quick-view on`.
+- **The large clock faces are numeral subsets.** `FONT_KEY_ROBOTO_BOLD_SUBSET_49`
+  and `FONT_KEY_LECO_42_NUMBERS` carry digits and separators, no letters — and
+  Roboto has no `.` either, which is why the shaot line is Leco. Anything
+  alphabetic on those lines, like `am`/`pm`, has to be set in a second face
+  beside them and positioned with `graphics_text_layout_get_content_size()`.
 - **`M_PI` is not defined** — the toolchain compiles without GNU extensions.
 - **`pebble build` can fail while `pebble install` happily pushes the previous
   `.pbw`.** Never redirect build output to `/dev/null`.

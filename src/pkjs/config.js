@@ -1,8 +1,10 @@
 // Clay settings page, shown on the phone.
 //
 // Clay handles these itself and sends one AppMessage key per setting, which
-// src/c/main.c reads by key. Select values are numbers rather than strings so
-// the watch can read them as integers without parsing.
+// src/c/main.c reads by key. Note that declaring numeric values below does not
+// mean numbers arrive: Clay reads a select's value off a DOM <select>, which is
+// always a string, and converts only numbers and booleans. The watch parses
+// them; see tuple_to_int() in src/c/main.c.
 
 var SLOT_OPTIONS = [
   { label: "Nothing", value: 0 },
@@ -42,8 +44,9 @@ module.exports = [
         messageKey: "WithMinutes",
         label: "Show proportional minutes",
         description:
-          "On: H.MM.CC, so just before sunset reads 11.59.17. Off: raw " +
-          "chalakim within the hour, so the same moment reads 11.1079.",
+          "On: hour, then proportional minutes (60 to the hour), then " +
+          "chalakim (18 to the minute). Off: the raw count of chalakim " +
+          "within the hour, 0 to 1079.",
         defaultValue: true,
       },
       {
