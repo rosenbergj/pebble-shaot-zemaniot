@@ -151,6 +151,7 @@ static time_t s_next_from;  // the "now" it was computed from, so a backward
                             // jump in the clock invalidates it too
 static int s_last_day = -1;
 static int s_battery = 0;
+static bool s_charging = false;
 
 static void apply_settings(void) {
   uint8_t r = (s_settings.accent >> 16) & 0xFF;
@@ -357,7 +358,10 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
       return SLOT_LAYOUT_LABEL;
     case SLOT_BATTERY:
       snprintf(label, label_n, "batt");
-      snprintf(value, value_n, "%d%%", s_battery);
+      // The reading drifts while the charger is attached, so say what is
+      // happening instead of quoting a number that is about to be wrong.
+      if (s_charging) snprintf(value, value_n, "chg");
+      else snprintf(value, value_n, "%d%%", s_battery);
       // The band is one line of text and cannot hold a drawn gauge, so there it
       // stays "batt: 78%"; only a box gets the meter.
       return for_band ? SLOT_LAYOUT_LABEL : SLOT_LAYOUT_GAUGE;
@@ -404,26 +408,41 @@ static void draw_at(GContext *ctx, const char *text, GFont font, int lead,
 #define GAUGE_H 12
 #define GAUGE_NUB_W 2
 #define GAUGE_NUB_H 6
+#define GAUGE_LOW_PCT 20  // at or below this the meter goes red, as TimeStyle does
 
-static void draw_battery_gauge(GContext *ctx, int pct, GColor ink, int y, int x, int w) {
+static void draw_battery_gauge(GContext *ctx, int pct, bool charging, GColor ink,
+                               int y, int x, int w) {
   int left = x + (w - (GAUGE_W + GAUGE_NUB_W)) / 2;
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
 
-  graphics_context_set_stroke_color(ctx, ink);
-  graphics_context_set_fill_color(ctx, ink);
+  // Red is deliberately not the box's ink: a low battery should shout the same
+  // colour whatever accent the wearer has picked. It is not applied while
+  // charging, where a low reading is a state the wearer is already fixing.
+  bool low = !charging && pct <= GAUGE_LOW_PCT;
+  // At zero there is no fill left to colour, so the outline carries the warning.
+  GColor outline = (low && pct == 0) ? GColorRed : ink;
+
+  graphics_context_set_stroke_color(ctx, outline);
+  graphics_context_set_fill_color(ctx, outline);
   graphics_draw_rect(ctx, GRect(left, y, GAUGE_W, GAUGE_H));
   graphics_fill_rect(ctx, GRect(left + GAUGE_W, y + (GAUGE_H - GAUGE_NUB_H) / 2,
                                 GAUGE_NUB_W, GAUGE_NUB_H),
                      0, GCornerNone);
 
+  // Nothing is drawn inside while charging. The percentage is unreliable on the
+  // charger -- which is why the row below reads "chg" rather than a number --
+  // and a bar drawn from that same number would be no more trustworthy.
+  if (charging) return;
+
   // The fill keeps a pixel clear of the outline all round, so a full battery
   // still reads as a filled cell rather than a solid block.
-  if (pct < 0) pct = 0;
-  if (pct > 100) pct = 100;
   int fill_w = ((GAUGE_W - 4) * pct + 50) / 100;
   // Anything above empty gets at least a sliver: a real 4% that rounds away to
   // nothing looks exactly like a flat battery.
   if (fill_w == 0 && pct > 0) fill_w = 1;
   if (fill_w > 0) {
+    graphics_context_set_fill_color(ctx, low ? GColorRed : ink);
     graphics_fill_rect(ctx, GRect(left + 2, y + 2, fill_w, GAUGE_H - 4), 0, GCornerNone);
   }
 }
@@ -707,7 +726,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
       // The gauge occupies the label row, which is why the box needs no
       // retuning: the percentage stays exactly where the value always sat.
       if (layout == SLOT_LAYOUT_GAUGE) {
-        draw_battery_gauge(ctx, s_battery, ink, footer_top + 6, x, w);
+        draw_battery_gauge(ctx, s_battery, s_charging, ink, footer_top + 6, x, w);
       } else {
         draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, on_fill ? s_on_accent : s_dim,
                       footer_top + 6, x, w);
@@ -729,6 +748,9 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 
 static void battery_handler(BatteryChargeState state) {
   s_battery = state.charge_percent;
+  // is_charging, not is_plugged: a full battery sitting on the charger has a
+  // trustworthy reading and should keep showing it.
+  s_charging = state.is_charging;
   layer_mark_dirty(s_canvas);
 }
 
@@ -901,7 +923,9 @@ static void init(void) {
   s_font_label = fonts_get_system_font(FONT_KEY_GOTHIC_14);
   apply_settings();
 
-  s_battery = battery_state_service_peek().charge_percent;
+  BatteryChargeState batt = battery_state_service_peek();
+  s_battery = batt.charge_percent;
+  s_charging = batt.is_charging;
 
   // Populate the cache before the first frame, while still on main()'s stack.
   // A persisted location means there is real work to do here.
