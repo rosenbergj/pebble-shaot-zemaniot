@@ -370,9 +370,27 @@ static void subscribe_tick(void) {
 // boolean or a small enum is one byte, not four. Reading value->int32 from it
 // would take the following bytes of the dictionary as the high end of the
 // number, which is how a "0" arrives as something else entirely.
+//
+// Strings have to be accepted as well. Clay's select component reads its value
+// off a DOM <select>, whose value is always a string, and
+// Clay.prepareForAppMessage converts only numbers and booleans -- everything
+// else passes through untouched. So a select arrives as text however its
+// options are declared, and rejecting that silently drops the setting.
 static bool read_int(DictionaryIterator *iter, uint32_t key, int32_t *out) {
   Tuple *t = dict_find(iter, key);
   if (!t) return false;
+  if (t->type == TUPLE_CSTRING) {
+    const char *s = t->value->cstring;
+    if (!s || !*s) return false;
+    char *end;
+    // Base 0 so the same helper reads a decimal slot number and a "0xRRGGBB"
+    // colour. The values in play are small enough that the octal reading of a
+    // leading zero cannot change the result.
+    long v = strtol(s, &end, 0);
+    if (end == s) return false;  // not a number at all
+    *out = (int32_t)v;
+    return true;
+  }
   if (t->type == TUPLE_INT) {
     switch (t->length) {
       case 1: *out = t->value->int8; return true;
@@ -452,10 +470,7 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   if (accent) {
     bool got = false;
     uint32_t c = 0;
-    if (accent->type == TUPLE_CSTRING) {
-      c = (uint32_t)strtol(accent->value->cstring, NULL, 0);
-      got = true;
-    } else if (accent->type == TUPLE_BYTE_ARRAY && accent->length >= 3) {
+    if (accent->type == TUPLE_BYTE_ARRAY && accent->length >= 3) {
       // Clay can hand a colour over as its raw components rather than a
       // number; take the last three bytes so both RGB and ARGB orderings land
       // on the same colour.
