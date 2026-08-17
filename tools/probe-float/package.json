@@ -1,0 +1,26 @@
+{
+  "name": "shaot-probe-float",
+  "author": "Josh Rosenberg",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Shaot Probe Float",
+    "uuid": "350496e4-c2a2-41c5-bb11-8466a7fe1a69",
+    "sdkVersion": "3",
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "capabilities": [],
+    "messageKeys": [],
+    "resources": {
+      "media": []
+    }
+  }
+}
