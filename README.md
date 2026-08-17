@@ -117,11 +117,44 @@ watch.
   `package.json` as an input to `message_keys.auto.c`, so an incremental build
   fails on `MESSAGE_KEY_<new>` being undeclared while the key sits right there
   in the manifest.
+- **Adding a field to `Settings` resets every wearer's settings.**
+  `load_persisted()` compares the stored size against `sizeof(Settings)` and
+  falls back to the defaults when they differ, which is what stops an old struct
+  being misread through a new layout. The price is that any build adding a
+  setting starts from defaults until the Clay page is saved again — and the
+  defaults are what the wearer gets in the meantime, so choose them as if they
+  were the upgrade experience. Say so in the release note; it is invisible
+  otherwise.
 - A wedged emulator needs SIGTERM (never SIGKILL — it corrupts the flash image),
   `rm -f /tmp/pb-emulator.json`, then `pebble wipe`. Beware `pkill -f`, whose
   pattern also matches the shell running it.
 - Installing over a running watchface can leave the old one on screen. If a
   screenshot looks stale, `pebble kill && pebble wipe` and reinstall.
+
+## Driving settings and time in the emulator
+
+The Clay page needs a browser, so it cannot be used from here. Send settings
+straight to the app instead:
+
+```sh
+pebble send-app-message --emulator emery --int 10011=1   # Countdown on
+```
+
+**The keys must be the numeric ids, not the names** — those are generated into
+`build/src/message_keys.auto.c`, so read them from there after a build. This
+path also exercises the real `inbox_received` handler, which a hardcoded default
+would not.
+
+**`pebble emu-set-time HH:MM:SS` does not stick.** The emulator's phone bridge
+pushes the real time back within a few seconds, so it is good for one screenshot
+of a moment and useless for watching anything change across it.
+
+**To watch behaviour change across a solar event, move the location, not the
+clock.** Send a `LAT`/`LON` (scaled by 1e6, as `src/pkjs/index.js` does) chosen
+so the event falls near the real current time; the clock then runs normally and
+successive screenshots are seconds apart, not resynced out from under you. That
+is how the countdown's per-second ticking was verified. Never use a real home
+location for this — anywhere with the right sun times will do.
 
 ## Debugging on hardware
 
