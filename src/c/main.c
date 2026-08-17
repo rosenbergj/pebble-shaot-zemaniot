@@ -53,9 +53,16 @@ static Settings s_settings = {
     .civil_font = 0,
 };
 
-// Hardcoded until the phone supplies a fix (Phase C). Deliberately coarse.
-static double s_lat = 39.95;
-static double s_lon = -75.17;
+// Supplied by the phone and remembered across launches. Until one arrives the
+// face says so rather than inventing a location: sun times for somewhere the
+// wearer is not are worse than no sun times at all.
+static double s_lat = 0;
+static double s_lon = 0;
+static bool s_have_location = false;
+
+#define PERSIST_KEY_SETTINGS 1
+#define PERSIST_KEY_LAT 2
+#define PERSIST_KEY_LON 3
 
 // --- layout -----------------------------------------------------------------
 
@@ -112,6 +119,32 @@ static void apply_settings(void) {
     s_font_civil = fonts_get_system_font(FONT_KEY_ROBOTO_BOLD_SUBSET_49);
     s_lead_civil = LEAD_ROBOTO49;
   }
+}
+
+// --- persistence ------------------------------------------------------------
+
+// The settings struct is written whole, so a build that changes its layout
+// would misread an old one. Comparing the stored size catches that and falls
+// back to the defaults rather than showing garbage.
+static void load_persisted(void) {
+  if (persist_exists(PERSIST_KEY_SETTINGS) &&
+      persist_get_size(PERSIST_KEY_SETTINGS) == (int)sizeof(Settings)) {
+    persist_read_data(PERSIST_KEY_SETTINGS, &s_settings, sizeof(Settings));
+  }
+  if (persist_exists(PERSIST_KEY_LAT) && persist_exists(PERSIST_KEY_LON)) {
+    s_lat = persist_read_int(PERSIST_KEY_LAT) / 1000000.0;
+    s_lon = persist_read_int(PERSIST_KEY_LON) / 1000000.0;
+    s_have_location = true;
+  }
+}
+
+static void save_settings(void) {
+  persist_write_data(PERSIST_KEY_SETTINGS, &s_settings, sizeof(Settings));
+}
+
+static void save_location(void) {
+  persist_write_int(PERSIST_KEY_LAT, (int32_t)(s_lat * 1000000.0));
+  persist_write_int(PERSIST_KEY_LON, (int32_t)(s_lon * 1000000.0));
 }
 
 // --- helpers ----------------------------------------------------------------
@@ -192,6 +225,7 @@ static void draw_centered(GContext *ctx, const char *text, GFont font, int lead,
 // Recompute the half-day bracket, the sunset/tzeit strings and the Hebrew date
 // when the bracket ends or a new day starts.
 static void refresh(time_t now) {
+  if (!s_have_location) return;
   double now_ms = (double)now * 1000.0;
 
   if (!s_br.valid || now_ms >= s_br.end_ms || now_ms < s_br.start_ms) {
@@ -225,10 +259,12 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, s_bg);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
 
-  if (!s_br.valid) {
-    // No usable bracket: say so rather than showing a stale or invented time.
-    draw_centered(ctx, "no sun window", s_font_bold24, LEAD_GOTHIC24, s_dim, 100, 0,
-                  bounds.size.w);
+  if (!s_have_location || !s_br.valid) {
+    // Say what is wrong rather than showing a stale or invented time. No
+    // location means the phone has not reported one yet; a location with no
+    // bracket means a polar latitude where the sun does not cross today.
+    draw_centered(ctx, s_have_location ? "no sun window" : "waiting for phone",
+                  s_font_bold24, LEAD_GOTHIC24, s_dim, 100, 0, bounds.size.w);
     return;
   }
 
@@ -377,12 +413,15 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   }
 
   if (location_changed) {
+    s_have_location = true;
     s_br.valid = false;  // recompute the bracket from the new coordinates
     s_last_day = -1;
+    save_location();
   }
   if (settings_changed) {
     apply_settings();
     subscribe_tick();
+    save_settings();
   }
   if (s_canvas) layer_mark_dirty(s_canvas);
 }
@@ -403,6 +442,8 @@ static void init(void) {
   s_fg = GColorWhite;
   s_dim = GColorFromRGB(140, 140, 145);
   s_rule = GColorFromRGB(60, 60, 64);
+
+  load_persisted();
 
   s_font_shaot = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
   s_font_bold24 = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
