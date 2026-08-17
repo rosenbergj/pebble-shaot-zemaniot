@@ -12,7 +12,6 @@
 
 #include <pebble.h>
 
-#include <stdlib.h>
 
 #include "hebdate.h"
 #include "numparse.h"
