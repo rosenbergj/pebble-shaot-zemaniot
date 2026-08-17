@@ -5,9 +5,18 @@ Original brief: `design-idea.txt`.
 
 ## Where this stands
 
-Phases 0–4 are built and run **in the emulator**. The build **fails on the real
-watch** with `alloy: fatal error, memory full`. The open question is whether to
-keep trimming JavaScript or rewrite the watch side in C.
+Phases 0–4 are built and feature-complete. The `phase4-complete` tag (`a7b302f`,
+mod 13609) is **verified running on the real Pebble Time 2** — that is what the
+tag marks. Later commits grew the mod to ~14045 and **fail on the watch** with
+`alloy: fatal error, memory full`, so the device limit is bracketed between the
+two. The open question is whether to keep trimming JavaScript or rewrite the
+watch side in C.
+
+Alloy's budget is a hard **32,768-byte** XS block that cannot be enlarged (the
+`ModdableCreationRecord` can only re-partition it), of which ~22.5KB is
+committed at startup — leaving roughly **10KB** for the whole watchface. The
+app's ~122KB C heap is unavailable to JavaScript. See the plan file for the
+source references.
 
 Working today: shaot clock with chalakim, Hebrew date with sunset rollover,
 civil time with seconds, sunset/nightfall/battery, four configurable display
