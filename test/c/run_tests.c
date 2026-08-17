@@ -15,6 +15,7 @@
 #include "../../src/c/shaot.h"
 #include "../../src/c/hebdate.h"
 #include "../../src/c/solar.h"
+#include "../../src/c/trig.h"
 #include "fixtures.h"
 
 // NOAA simplified formulas vs PyEphem's full model and refraction handling:
@@ -178,7 +179,72 @@ static void test_zmanim(void) {
   }
 }
 
+// The watch cannot use libm's trigonometry: newlib's sin() overruns the app
+// stack during argument reduction. trig.c replaces it, so it has to be checked
+// against the real thing -- on the host, where libm works.
+//
+// Ranges are the ones the solar code actually produces. The mean anomaly is not
+// reduced modulo a turn before use, so sz_sin() sees arguments of several
+// hundred radians and the quality of the argument reduction is what is really
+// under test here.
+static void test_trig(void) {
+  group("trig matches libm over the ranges the solar code uses");
+
+  // Absolute error this small leaves the sunrise/sunset result accurate to far
+  // under a second, which is the only thing that matters downstream.
+  const double tol = 1e-12;
+  double worst_sin = 0, worst_cos = 0, worst_tan = 0;
+
+  for (int i = -2000; i <= 2000; i++) {
+    double x = i * 0.7;  // out to +-1400 radians, past the largest real argument
+    double ds = fabs(sz_sin(x) - sin(x));
+    double dc = fabs(sz_cos(x) - cos(x));
+    if (ds > worst_sin) worst_sin = ds;
+    if (dc > worst_cos) worst_cos = dc;
+  }
+  check(worst_sin < tol, "sz_sin worst error %.3g over +-1400 rad", worst_sin);
+  check(worst_cos < tol, "sz_cos worst error %.3g over +-1400 rad", worst_cos);
+
+  // tan is only ever called on obliquity/2, around 11.7 degrees, but check a
+  // decent span away from the poles where it is legitimately ill conditioned.
+  for (int i = -70; i <= 70; i++) {
+    double x = i * (3.14159265358979323846 / 180.0);
+    double dt = fabs(sz_tan(x) - tan(x));
+    if (dt > worst_tan) worst_tan = dt;
+  }
+  check(worst_tan < tol, "sz_tan worst error %.3g over +-70 deg", worst_tan);
+
+  // asin and acos take the full domain: the hour-angle cosine reaches +-1 at
+  // the solstices in high latitudes, which is exactly where the naive Newton
+  // iteration would fall apart.
+  double worst_asin = 0, worst_acos = 0;
+  for (int i = -10000; i <= 10000; i++) {
+    double x = i / 10000.0;
+    double da = fabs(sz_asin(x) - asin(x));
+    double dc = fabs(sz_acos(x) - acos(x));
+    if (da > worst_asin) worst_asin = da;
+    if (dc > worst_acos) worst_acos = dc;
+  }
+  check(worst_asin < 1e-11, "sz_asin worst error %.3g over [-1,1]", worst_asin);
+  check(worst_acos < 1e-11, "sz_acos worst error %.3g over [-1,1]", worst_acos);
+
+  // Endpoints must not produce NaN: a cosine marginally outside [-1,1] from
+  // rounding has to clamp, not poison every later calculation.
+  check(sz_asin(1.0) == sz_asin(1.5), "sz_asin clamps above 1");
+  check(sz_acos(-1.0) == sz_acos(-1.5), "sz_acos clamps below -1");
+
+  double worst_sqrt = 0;
+  for (int i = 1; i <= 20000; i++) {
+    double x = i / 1000.0;
+    double d = fabs(sz_sqrt(x) - sqrt(x)) / sqrt(x);
+    if (d > worst_sqrt) worst_sqrt = d;
+  }
+  check(worst_sqrt < 1e-14, "sz_sqrt worst relative error %.3g", worst_sqrt);
+  check(sz_sqrt(0.0) == 0.0, "sz_sqrt(0) is 0");
+}
+
 int main(void) {
+  test_trig();
   test_hebrew_dates();
   test_month_lengths();
   test_rollover();

@@ -9,8 +9,8 @@
 CC ?= gcc
 CFLAGS ?= -std=c11 -Wall -Wextra -O1 -g
 
-PURE = ../../src/c/shaot.c ../../src/c/hebdate.c ../../src/c/solar.c
-HDRS = ../../src/c/shaot.h ../../src/c/hebdate.h ../../src/c/solar.h fixtures.h
+PURE = ../../src/c/shaot.c ../../src/c/hebdate.c ../../src/c/solar.c ../../src/c/trig.c
+HDRS = ../../src/c/shaot.h ../../src/c/hebdate.h ../../src/c/solar.h ../../src/c/trig.h fixtures.h
 
 run_tests: run_tests.c $(PURE) $(HDRS)
 	$(CC) $(CFLAGS) -o $@ run_tests.c $(PURE) -lm
