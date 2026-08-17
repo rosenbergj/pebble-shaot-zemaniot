@@ -15,6 +15,7 @@
 #include <stdlib.h>
 
 #include "hebdate.h"
+#include "numparse.h"
 #include "shaot.h"
 #include "solar.h"
 
@@ -245,6 +246,18 @@ static void draw_centered(GContext *ctx, const char *text, GFont font, int lead,
 
 // Recompute the half-day bracket, the sunset/tzeit strings and the Hebrew date
 // when the bracket ends or a new day starts.
+//
+// **Never call this from a layer update proc.** It runs the NOAA solar maths in
+// soft-float, several hundred bytes of stack and a good deal of work, and an
+// update proc is already deep inside the firmware's render path with a render
+// watchdog running. Doing it there made the watchface crash intermittently on
+// real hardware -- most visibly right after a settings change, which
+// invalidates the bracket and so forces the recompute into the very next frame.
+// The emulator tolerated it, and so did the probe, which called the same code
+// from a timer callback where the stack is shallow.
+//
+// Callers are the tick handler and the message handler; drawing only ever reads
+// what this leaves behind.
 static void refresh(time_t now) {
   if (!s_have_location) return;
   double now_ms = (double)now * 1000.0;
@@ -275,7 +288,7 @@ static void refresh(time_t now) {
 static void canvas_update(Layer *layer, GContext *ctx) {
   GRect bounds = layer_get_bounds(layer);
   time_t now = time(NULL);
-  refresh(now);
+  // Draw only. See refresh(): the solar maths must not run from here.
 
   graphics_context_set_fill_color(ctx, s_bg);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);
@@ -346,6 +359,10 @@ static void canvas_update(Layer *layer, GContext *ctx) {
 // --- services ---------------------------------------------------------------
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
+  // Recompute here rather than while drawing. refresh() is cheap on the vast
+  // majority of ticks: it only does real work when the bracket has run out or
+  // the day has rolled.
+  refresh(time(NULL));
   layer_mark_dirty(s_canvas);
 }
 
@@ -376,114 +393,105 @@ static void subscribe_tick(void) {
 // Clay.prepareForAppMessage converts only numbers and booleans -- everything
 // else passes through untouched. So a select arrives as text however its
 // options are declared, and rejecting that silently drops the setting.
-static bool read_int(DictionaryIterator *iter, uint32_t key, int32_t *out) {
-  Tuple *t = dict_find(iter, key);
+// Convert one tuple to an integer, whatever shape it arrived in.
+//
+// Three shapes have to be handled. The phone picks the narrowest integer that
+// fits, so a boolean or a small enum is one byte, not four -- reading
+// value->int32 from it would take the following bytes of the dictionary as the
+// high end of the number. Clay's select components send **strings**: the
+// component reads a DOM <select>, whose value is always a string, and
+// Clay.prepareForAppMessage converts only numbers and booleans, so declaring
+// numeric options in the config changes nothing.
+static bool tuple_to_int(const Tuple *t, int32_t *out) {
   if (!t) return false;
-  if (t->type == TUPLE_CSTRING) {
-    const char *s = t->value->cstring;
-    if (!s || !*s) return false;
-    char *end;
-    // Base 0 so the same helper reads a decimal slot number and a "0xRRGGBB"
-    // colour. The values in play are small enough that the octal reading of a
-    // leading zero cannot change the result.
-    long v = strtol(s, &end, 0);
-    if (end == s) return false;  // not a number at all
-    *out = (int32_t)v;
-    return true;
+  switch (t->type) {
+    case TUPLE_CSTRING:
+      // numparse_int rather than strtol: see numparse.h.
+      return numparse_int(t->value->cstring, out);
+    case TUPLE_INT:
+      switch (t->length) {
+        case 1: *out = t->value->int8; return true;
+        case 2: *out = t->value->int16; return true;
+        case 4: *out = t->value->int32; return true;
+        default: return false;
+      }
+    case TUPLE_UINT:
+      switch (t->length) {
+        case 1: *out = t->value->uint8; return true;
+        case 2: *out = t->value->uint16; return true;
+        case 4: *out = (int32_t)t->value->uint32; return true;
+        default: return false;
+      }
+    default:
+      return false;
   }
-  if (t->type == TUPLE_INT) {
-    switch (t->length) {
-      case 1: *out = t->value->int8; return true;
-      case 2: *out = t->value->int16; return true;
-      case 4: *out = t->value->int32; return true;
-      default: return false;
-    }
-  }
-  if (t->type == TUPLE_UINT) {
-    switch (t->length) {
-      case 1: *out = t->value->uint8; return true;
-      case 2: *out = t->value->uint16; return true;
-      case 4: *out = (int32_t)t->value->uint32; return true;
-      default: return false;
-    }
-  }
-  return false;
 }
 
+// One pass over the dictionary, switching on the key, rather than a dict_find()
+// search per setting. Same result for a well-formed message, but it does not
+// depend on the iterator surviving eleven searches, it visits each tuple
+// exactly once, and every key is handled in one place where the shapes above
+// are easy to keep straight.
 static void inbox_received(DictionaryIterator *iter, void *context) {
   int32_t v;
   bool settings_changed = false;
-  bool location_changed = false;
+  bool have_lat = false, have_lon = false;
+  int32_t lat_raw = 0, lon_raw = 0;
 
-  // Coordinates arrive scaled by 1e6; AppMessage carries no floating point.
-  // Both must be present and in range before either is adopted, so a partial
-  // or malformed message cannot pair a new latitude with a stale longitude.
-  int32_t lat_raw, lon_raw;
-  if (read_int(iter, MESSAGE_KEY_LAT, &lat_raw) &&
-      read_int(iter, MESSAGE_KEY_LON, &lon_raw)) {
+  // MESSAGE_KEY_* are extern constants rather than literals, so this is an
+  // if/else chain and not a switch.
+  for (Tuple *t = dict_read_first(iter); t; t = dict_read_next(iter)) {
+    uint32_t k = t->key;
+
+    // Coordinates arrive scaled by 1e6; AppMessage carries no floating point.
+    if (k == MESSAGE_KEY_LAT) {
+      if (tuple_to_int(t, &v)) { lat_raw = v; have_lat = true; }
+    } else if (k == MESSAGE_KEY_LON) {
+      if (tuple_to_int(t, &v)) { lon_raw = v; have_lon = true; }
+
+    } else if (k == MESSAGE_KEY_Offset6) {
+      if (tuple_to_int(t, &v)) { s_settings.offset6 = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_WithMinutes) {
+      if (tuple_to_int(t, &v)) { s_settings.with_minutes = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_TickSeconds) {
+      if (tuple_to_int(t, &v)) { s_settings.tick_seconds = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_CivilFont) {
+      if (tuple_to_int(t, &v)) { s_settings.civil_font = (uint8_t)v; settings_changed = true; }
+    } else if (k == MESSAGE_KEY_SlotBand) {
+      if (tuple_to_int(t, &v)) { s_settings.slot_band = (uint8_t)v; settings_changed = true; }
+    } else if (k == MESSAGE_KEY_SlotLeft) {
+      if (tuple_to_int(t, &v)) { s_settings.slot_left = (uint8_t)v; settings_changed = true; }
+    } else if (k == MESSAGE_KEY_SlotMid) {
+      if (tuple_to_int(t, &v)) { s_settings.slot_mid = (uint8_t)v; settings_changed = true; }
+    } else if (k == MESSAGE_KEY_SlotRight) {
+      if (tuple_to_int(t, &v)) { s_settings.slot_right = (uint8_t)v; settings_changed = true; }
+
+    } else if (k == MESSAGE_KEY_AccentColor) {
+      if (t->type == TUPLE_BYTE_ARRAY && t->length >= 3) {
+        // Clay can hand a colour over as its raw components rather than a
+        // number; take the last three bytes so both RGB and ARGB orderings
+        // land on the same colour.
+        const uint8_t *d = t->value->data + (t->length - 3);
+        s_settings.accent = ((uint32_t)d[0] << 16) | ((uint32_t)d[1] << 8) | d[2];
+        settings_changed = true;
+      } else if (tuple_to_int(t, &v)) {
+        s_settings.accent = (uint32_t)v & 0xFFFFFF;
+        settings_changed = true;
+      }
+    }
+  }
+
+  // Both coordinates must be present and in range before either is adopted, so
+  // a partial or malformed message cannot pair a new latitude with a stale
+  // longitude.
+  bool location_changed = false;
+  if (have_lat && have_lon) {
     double lat = lat_raw / 1000000.0;
     double lon = lon_raw / 1000000.0;
     if (coords_sane(lat, lon)) {
       s_lat = lat;
       s_lon = lon;
       location_changed = true;
-    }
-  }
-
-  if (read_int(iter, MESSAGE_KEY_Offset6, &v)) {
-    s_settings.offset6 = (v != 0);
-    settings_changed = true;
-  }
-  if (read_int(iter, MESSAGE_KEY_WithMinutes, &v)) {
-    s_settings.with_minutes = (v != 0);
-    settings_changed = true;
-  }
-  if (read_int(iter, MESSAGE_KEY_TickSeconds, &v)) {
-    s_settings.tick_seconds = (v != 0);
-    settings_changed = true;
-  }
-  if (read_int(iter, MESSAGE_KEY_CivilFont, &v)) {
-    s_settings.civil_font = (uint8_t)v;
-    settings_changed = true;
-  }
-  if (read_int(iter, MESSAGE_KEY_SlotBand, &v)) {
-    s_settings.slot_band = (uint8_t)v;
-    settings_changed = true;
-  }
-  if (read_int(iter, MESSAGE_KEY_SlotLeft, &v)) {
-    s_settings.slot_left = (uint8_t)v;
-    settings_changed = true;
-  }
-  if (read_int(iter, MESSAGE_KEY_SlotMid, &v)) {
-    s_settings.slot_mid = (uint8_t)v;
-    settings_changed = true;
-  }
-  if (read_int(iter, MESSAGE_KEY_SlotRight, &v)) {
-    s_settings.slot_right = (uint8_t)v;
-    settings_changed = true;
-  }
-  // Clay's colour component normalises to a number, but its defaultValue is
-  // conventionally written as a "0xRRGGBB" string. Accept either rather than
-  // misreading a string as an integer: the Clay page itself cannot be
-  // exercised on a headless build machine, so this path is unverified here.
-  Tuple *accent = dict_find(iter, MESSAGE_KEY_AccentColor);
-  if (accent) {
-    bool got = false;
-    uint32_t c = 0;
-    if (accent->type == TUPLE_BYTE_ARRAY && accent->length >= 3) {
-      // Clay can hand a colour over as its raw components rather than a
-      // number; take the last three bytes so both RGB and ARGB orderings land
-      // on the same colour.
-      const uint8_t *d = accent->value->data + (accent->length - 3);
-      c = ((uint32_t)d[0] << 16) | ((uint32_t)d[1] << 8) | d[2];
-      got = true;
-    } else if (read_int(iter, MESSAGE_KEY_AccentColor, &v)) {
-      c = (uint32_t)v;
-      got = true;
-    }
-    if (got) {
-      s_settings.accent = c & 0xFFFFFF;
-      settings_changed = true;
     }
   }
 
@@ -498,6 +506,10 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     subscribe_tick();
     save_settings();
   }
+  // Do the recompute here, in the message callback, rather than leaving it for
+  // the next frame to discover: a settings or location change invalidates the
+  // bracket, and the render path is the one place this must not happen.
+  if (location_changed || settings_changed) refresh(time(NULL));
   if (s_canvas) layer_mark_dirty(s_canvas);
 }
 
@@ -526,6 +538,10 @@ static void init(void) {
   apply_settings();
 
   s_battery = battery_state_service_peek().charge_percent;
+
+  // Populate the cache before the first frame, while still on main()'s stack.
+  // A persisted location means there is real work to do here.
+  refresh(time(NULL));
 
   s_window = window_create();
   window_set_background_color(s_window, s_bg);
