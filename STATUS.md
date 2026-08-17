@@ -28,9 +28,13 @@ Port progress (branch `c-port`, four commits, working tree clean):
   **libm's trigonometry**, replaced in `src/c/trig.c`. With that fix the staged
   probe reports `done` and the watchface runs on hardware.
 
-  Still unconfirmed on the watch, and the only things standing between here and
-  a finished port: the **Clay settings page** and the **real battery
-  percentage**.
+  The **Clay settings page** works, after one further fix: Clay's `select`
+  components always send their value as a **string**, so the four configurable
+  regions and the civil font silently did nothing until `read_int()` learned to
+  parse text. Toggles and the colour picker were unaffected, which is why most
+  settings appeared to work.
+
+  Still unconfirmed on the watch: the **real battery percentage**.
 
 ### The "not responding" investigation, and how it was found
 
@@ -94,10 +98,8 @@ Current contents:
 
 - `pt2-shaot-watchface-phase4-js.pbw` — "Shaot Zemaniot", the known-good daily
   build. **Never overwrite** (`dist/` is gitignored, so git cannot restore it).
-- `pt2-shaot-watchface-c-port-v3.pbw` — "Shaot Zemaniot C", with the trig fix.
-- `shaot-probe-float.pbw` — "Shaot Probe Float", now exercising `sz_sin` and
-  friends, so it verifies the fix rather than re-proving the failure. Launch it
-  **twice**: the first run records how far it got, the second reports it.
+- `pt2-shaot-watchface-c-port-v4.pbw` — "Shaot Zemaniot C", with the trig fix
+  and string-valued settings.
 
 Settled bisect artifacts were removed once their answer was known. Rebuild any
 of them from the repo: `pebble build`, or `tools/probe*/build.sh`. TimeStyle:
