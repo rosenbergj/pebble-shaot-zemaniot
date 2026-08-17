@@ -369,12 +369,16 @@ static void refresh(time_t now) {
     s_last_day = -1;
   }
 
-  struct tm *lt = localtime(&now);
-  if (!lt) return;
-  if (s_br.valid && lt->tm_mday != s_last_day) {
-    s_last_day = lt->tm_mday;
-    s_heb = hebdate_for_now(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
-                            lt->tm_hour, s_br.is_day);
+  // localtime() hands back a pointer to one static struct tm, so anything that
+  // calls it again invalidates what is held here. Take a copy rather than trust
+  // that nothing below does.
+  struct tm *now_tm = localtime(&now);
+  if (!now_tm) return;
+  struct tm lt = *now_tm;
+  if (s_br.valid && lt.tm_mday != s_last_day) {
+    s_last_day = lt.tm_mday;
+    s_heb = hebdate_for_now(lt.tm_year + 1900, lt.tm_mon + 1, lt.tm_mday,
+                            lt.tm_hour, s_br.is_day);
     update_solar_times();
   }
 }
@@ -408,14 +412,20 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     return;
   }
 
-  struct tm *lt = localtime(&now);
+  // A copy, not the pointer. localtime() returns one static struct tm, and
+  // format_hhmm() calls localtime() too -- so a solar slot drawn before the
+  // civil line would otherwise rewrite the time underneath it, and the clock
+  // would show the sunset. That is a settings change away from happening.
+  struct tm *now_tm = localtime(&now);
+  if (!now_tm) return;
+  struct tm lt = *now_tm;
 
   // Band
   graphics_context_set_fill_color(ctx, s_accent);
   graphics_fill_rect(ctx, GRect(0, 0, bounds.size.w, BAND_H), 0, GCornerNone);
 
   char label[24], value[24], band[51];  // both parts plus ": " and the NUL
-  band_content(s_settings.slot_band, lt, band, sizeof(band));
+  band_content(s_settings.slot_band, &lt, band, sizeof(band));
   draw_centered(ctx, band, s_font_bold24, LEAD_GOTHIC24, s_on_accent, 5, 0, bounds.size.w);
 
   // Civil time. Seconds are only shown when they are actually kept up to date:
@@ -425,17 +435,17 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   char civil[16];
   bool h24 = use_24h();
   const char *meridiem = NULL;
-  int hour = lt->tm_hour;
+  int hour = lt.tm_hour;
   if (!h24) {
     hour %= 12;
     if (hour == 0) hour = 12;
   }
   if (s_settings.tick_seconds) {
-    snprintf(civil, sizeof(civil), h24 ? "%02d:%02d:%02d" : "%d:%02d:%02d", hour, lt->tm_min,
-             lt->tm_sec);
+    snprintf(civil, sizeof(civil), h24 ? "%02d:%02d:%02d" : "%d:%02d:%02d", hour, lt.tm_min,
+             lt.tm_sec);
   } else {
-    snprintf(civil, sizeof(civil), h24 ? "%02d:%02d" : "%d:%02d", hour, lt->tm_min);
-    if (!h24) meridiem = (lt->tm_hour < 12) ? "am" : "pm";
+    snprintf(civil, sizeof(civil), h24 ? "%02d:%02d" : "%d:%02d", hour, lt.tm_min);
+    if (!h24) meridiem = (lt.tm_hour < 12) ? "am" : "pm";
   }
 
   if (meridiem) {
@@ -493,7 +503,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     int x = i * third;
     int w = (i == 2) ? bounds.size.w - 2 * third : third + 1;
 
-    bool split = slot_content(kinds[i], lt, false, label, sizeof(label), value, sizeof(value));
+    bool split = slot_content(kinds[i], &lt, false, label, sizeof(label), value, sizeof(value));
     if (split) {
       // A date split over both lines: same size and weight, no label.
       draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 3, x, w);
