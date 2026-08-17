@@ -1,26 +1,24 @@
-// Phone side: find the location, compute the sun events the watch needs, and
-// push them over.
+// Phone side: supply a location, and let Clay deliver the settings.
 //
-// The watch has a hard memory ceiling, so geolocation, retries, caching and
-// all the solar arithmetic deliberately live here where memory is cheap. The
-// watch receives a window of timestamps and does nothing but pick the pair
-// that brackets the current moment.
+// The watch computes its own sun times now, so the phone no longer sends a
+// window of solar events -- only the coordinates to compute them from. That
+// keeps the face correct offline indefinitely rather than for the length of a
+// transmitted window.
 //
-// The window covers about three days, so the watch keeps working correctly
-// offline for roughly that long -- losing the phone should not stop the face.
+// Coordinates travel as integers scaled by 1e6, because AppMessage carries no
+// floating point. Philadelphia is about 39950000 / -75170000, comfortably
+// inside int32.
 
-var solar = require("./solar");
 var Clay = require("@rebble/clay");
 var clayConfig = require("./config");
 
-// autoHandleEvents off: Clay would otherwise send one message key per setting,
-// which costs the watch over a kilobyte of mod memory it does not have. We
-// pack everything into a single CFG string instead.
-var clay = new Clay(clayConfig, null, { autoHandleEvents: false });
+// Auto-handling on: Clay sends one message key per setting, which src/c/main.c
+// reads by key. The old build had to pack everything into a single string
+// because the JavaScript runtime could not afford the per-key memory.
+var clay = new Clay(clayConfig);
 
-var REFRESH_MS = 21600000; // 6 h; the window is far longer, this just tops up
+var REFRESH_MS = 21600000; // 6 h; a fix this old is still fine for solar maths
 var MAX_FAILURES = 3;
-var WINDOW_DAYS = 3;
 
 // Same options TimeStyle uses: 15s is generous for a cold fix, and a 60s
 // maximumAge avoids re-fixing when something already has one.
@@ -28,47 +26,22 @@ var GEO_OPTIONS = { timeout: 15000, maximumAge: 60000 };
 
 var failures = 0;
 
-// "r1754123456,s1754167890,t1754169999,..." covering the last event before now
-// through the next WINDOW_DAYS. Kind is r(ise), s(et) or t(zeit); seconds
-// rather than milliseconds keep the payload short.
-function buildWindow(lat, lon) {
-  var now = Date.now();
-  var from = now - solar.MS_PER_DAY;
-  var until = now + WINDOW_DAYS * solar.MS_PER_DAY;
-  var seen = {};
-  var out = [];
-
-  for (var d = -1; d <= WINDOW_DAYS; d++) {
-    var t = now + d * solar.MS_PER_DAY;
-    var events = solar.sunEvents(t, lat, lon).map(function (e) {
-      return [e.t, e.rising ? "r" : "s"];
-    });
-    solar.sunEvents(t, lat, lon, solar.TZEIT_ANGLE).forEach(function (e) {
-      if (!e.rising) events.push([e.t, "t"]);
-    });
-    for (var i = 0; i < events.length; i++) {
-      var ms = events[i][0];
-      if (ms < from || ms > until) continue;
-      var token = events[i][1] + Math.round(ms / 1000);
-      if (seen[token]) continue; // overlapping day ranges repeat events
-      seen[token] = true;
-      out.push([ms, token]);
-    }
-  }
-
-  out.sort(function (a, b) { return a[0] - b[0]; });
-  return out.map(function (e) { return e[1]; }).join(",");
-}
-
-function sendWindow(lat, lon) {
-  var win = buildWindow(lat, lon);
-  localStorage.setItem("sun", win);
-  Pebble.sendAppMessage({ SUN: win });
+function sendLocation(lat, lon) {
+  Pebble.sendAppMessage({
+    LAT: Math.round(lat * 1e6),
+    LON: Math.round(lon * 1e6),
+  });
 }
 
 function sendCached() {
-  var win = localStorage.getItem("sun");
-  if (win) Pebble.sendAppMessage({ SUN: win });
+  var lat = parseFloat(localStorage.getItem("lat"));
+  var lon = parseFloat(localStorage.getItem("lon"));
+  // NaN-safe: NaN is the only value not equal to itself.
+  if (lat === lat && lon === lon) {
+    sendLocation(lat, lon);
+    return true;
+  }
+  return false;
 }
 
 function onSuccess(pos) {
@@ -77,7 +50,7 @@ function onSuccess(pos) {
   var lon = pos.coords.longitude;
   localStorage.setItem("lat", lat);
   localStorage.setItem("lon", lon);
-  sendWindow(lat, lon);
+  sendLocation(lat, lon);
 }
 
 function onError() {
@@ -87,52 +60,17 @@ function onError() {
     return;
   }
   failures = 0;
-  // No fix available: roll the window forward from the last known coordinates
-  // if we have them, so a dead GPS does not freeze the watch's sun times.
-  var lat = parseFloat(localStorage.getItem("lat"));
-  var lon = parseFloat(localStorage.getItem("lon"));
-  if (lat === lat && lon === lon) sendWindow(lat, lon);
-  else sendCached();
+  // No fix available: fall back to the last known coordinates so a dead GPS
+  // does not leave the watch without a location.
+  sendCached();
 }
 
 function update() {
   navigator.geolocation.getCurrentPosition(onSuccess, onError, GEO_OPTIONS);
 }
 
-// Order must match the cfg array in src/embeddedjs/main.js.
-var CFG_ORDER = ["Offset6", "WithMinutes", "TickSeconds",
-  "SlotBand", "SlotLeft", "SlotMid", "SlotRight", "AccentColor", "CivilFont"];
-
-function packSettings(settings) {
-  return CFG_ORDER.map(function (key) {
-    var item = settings[key];
-    var v = item && typeof item === "object" ? item.value : item;
-    if (true === v) return 1;
-    if (false === v) return 0;
-    if (undefined === v || null === v || "" === v) return "";  // leave default
-    // Colours arrive as "0xRRGGBB" or a number; everything else is numeric.
-    return parseInt(v, v.toString().indexOf("0x") === 0 ? 16 : 10);
-  }).join(",");
-}
-
-function sendSettings(packed) {
-  localStorage.setItem("cfg", packed);
-  Pebble.sendAppMessage({ CFG: packed });
-}
-
-Pebble.addEventListener("showConfiguration", function () {
-  Pebble.openURL(clay.generateUrl());
-});
-
-Pebble.addEventListener("webviewclosed", function (e) {
-  if (!e || !e.response) return; // cancelled
-  sendSettings(packSettings(clay.getSettings(e.response, false)));
-});
-
 Pebble.addEventListener("ready", function () {
-  var savedCfg = localStorage.getItem("cfg");
-  if (savedCfg) Pebble.sendAppMessage({ CFG: savedCfg });
-  sendCached(); // show something immediately, then refine
+  sendCached(); // something immediate, then refine
   update();
   setInterval(update, REFRESH_MS);
 });

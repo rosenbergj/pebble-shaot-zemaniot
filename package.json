@@ -21,11 +21,21 @@
       "watchface": true
     },
     "capabilities": [
-      "configurable"
+      "configurable",
+      "location"
     ],
     "messageKeys": [
-      "SUN",
-      "CFG"
+      "LAT",
+      "LON",
+      "Offset6",
+      "WithMinutes",
+      "CivilFont",
+      "SlotBand",
+      "SlotLeft",
+      "SlotMid",
+      "SlotRight",
+      "AccentColor",
+      "TickSeconds"
     ],
     "resources": {
       "media": []

@@ -12,6 +12,8 @@
 
 #include <pebble.h>
 
+#include <stdlib.h>
+
 #include "hebdate.h"
 #include "shaot.h"
 #include "solar.h"
@@ -302,6 +304,89 @@ static void subscribe_tick(void) {
                                tick_handler);
 }
 
+// --- messages ---------------------------------------------------------------
+// One key per setting, delivered by Clay. The old JavaScript build had to pack
+// all of them into a single string because per-key messages cost it more mod
+// memory than it had; in C the dictionary is ordinary.
+
+static bool read_int(DictionaryIterator *iter, uint32_t key, int32_t *out) {
+  Tuple *t = dict_find(iter, key);
+  if (!t) return false;
+  *out = t->value->int32;
+  return true;
+}
+
+static void inbox_received(DictionaryIterator *iter, void *context) {
+  int32_t v;
+  bool settings_changed = false;
+  bool location_changed = false;
+
+  // Coordinates arrive scaled by 1e6; AppMessage carries no floating point.
+  if (read_int(iter, MESSAGE_KEY_LAT, &v)) {
+    s_lat = v / 1000000.0;
+    location_changed = true;
+  }
+  if (read_int(iter, MESSAGE_KEY_LON, &v)) {
+    s_lon = v / 1000000.0;
+    location_changed = true;
+  }
+
+  if (read_int(iter, MESSAGE_KEY_Offset6, &v)) {
+    s_settings.offset6 = (v != 0);
+    settings_changed = true;
+  }
+  if (read_int(iter, MESSAGE_KEY_WithMinutes, &v)) {
+    s_settings.with_minutes = (v != 0);
+    settings_changed = true;
+  }
+  if (read_int(iter, MESSAGE_KEY_TickSeconds, &v)) {
+    s_settings.tick_seconds = (v != 0);
+    settings_changed = true;
+  }
+  if (read_int(iter, MESSAGE_KEY_CivilFont, &v)) {
+    s_settings.civil_font = (uint8_t)v;
+    settings_changed = true;
+  }
+  if (read_int(iter, MESSAGE_KEY_SlotBand, &v)) {
+    s_settings.slot_band = (uint8_t)v;
+    settings_changed = true;
+  }
+  if (read_int(iter, MESSAGE_KEY_SlotLeft, &v)) {
+    s_settings.slot_left = (uint8_t)v;
+    settings_changed = true;
+  }
+  if (read_int(iter, MESSAGE_KEY_SlotMid, &v)) {
+    s_settings.slot_mid = (uint8_t)v;
+    settings_changed = true;
+  }
+  if (read_int(iter, MESSAGE_KEY_SlotRight, &v)) {
+    s_settings.slot_right = (uint8_t)v;
+    settings_changed = true;
+  }
+  // Clay's colour component normalises to a number, but its defaultValue is
+  // conventionally written as a "0xRRGGBB" string. Accept either rather than
+  // misreading a string as an integer: the Clay page itself cannot be
+  // exercised on a headless build machine, so this path is unverified here.
+  Tuple *accent = dict_find(iter, MESSAGE_KEY_AccentColor);
+  if (accent) {
+    uint32_t c = (accent->type == TUPLE_CSTRING)
+                     ? (uint32_t)strtol(accent->value->cstring, NULL, 0)
+                     : (uint32_t)accent->value->int32;
+    s_settings.accent = c & 0xFFFFFF;
+    settings_changed = true;
+  }
+
+  if (location_changed) {
+    s_br.valid = false;  // recompute the bracket from the new coordinates
+    s_last_day = -1;
+  }
+  if (settings_changed) {
+    apply_settings();
+    subscribe_tick();
+  }
+  if (s_canvas) layer_mark_dirty(s_canvas);
+}
+
 static void window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
   s_canvas = layer_create(layer_get_bounds(root));
@@ -336,6 +421,10 @@ static void init(void) {
 
   subscribe_tick();
   battery_state_service_subscribe(battery_handler);
+
+  // Callbacks must be registered before opening.
+  app_message_register_inbox_received(inbox_received);
+  app_message_open(256, 64);
 }
 
 static void deinit(void) {
