@@ -113,6 +113,10 @@ watch.
 - **`M_PI` is not defined** — the toolchain compiles without GNU extensions.
 - **`pebble build` can fail while `pebble install` happily pushes the previous
   `.pbw`.** Never redirect build output to `/dev/null`.
+- **A new `messageKeys` entry needs `pebble clean` first.** waf does not treat
+  `package.json` as an input to `message_keys.auto.c`, so an incremental build
+  fails on `MESSAGE_KEY_<new>` being undeclared while the key sits right there
+  in the manifest.
 - A wedged emulator needs SIGTERM (never SIGKILL — it corrupts the flash image),
   `rm -f /tmp/pb-emulator.json`, then `pebble wipe`. Beware `pkill -f`, whose
   pattern also matches the shell running it.

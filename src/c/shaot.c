@@ -28,3 +28,19 @@ void shaot_format(int chalakim, bool offset6, bool with_minutes,
     snprintf(out, out_size, "%d.%04d", h, rem);
   }
 }
+
+void shaot_format_countdown(int seconds, char *out, size_t out_size) {
+  // The second in progress still counts, so a remainder of 44 reads "0:45".
+  // Without this the display would rest on "0:00" for a whole second, which
+  // reads as arrived rather than about to arrive.
+  seconds += 1;
+  if (seconds < 1) seconds = 1;
+
+  int mins = seconds / 60;
+  int secs = seconds % 60;
+  if (mins >= 60) {
+    snprintf(out, out_size, "%d:%02d:%02d", mins / 60, mins % 60, secs);
+  } else {
+    snprintf(out, out_size, "%d:%02d", mins, secs);
+  }
+}

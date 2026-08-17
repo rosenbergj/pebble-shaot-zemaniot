@@ -142,6 +142,33 @@ static void test_formatting(void) {
   expect_format(6 * 1080, true, true, "12.00.00");
 }
 
+static void expect_countdown(int seconds, const char *want) {
+  char buf[32];
+  shaot_format_countdown(seconds, buf, sizeof(buf));
+  check(strcmp(buf, want) == 0, "countdown(%d) gave %s, want %s", seconds, buf, want);
+}
+
+static void test_countdown_formatting(void) {
+  group("sunset-to-nightfall countdown counts the second in progress");
+  // The second in progress counts, so every reading is one above the remainder.
+  expect_countdown(0, "0:01");
+  expect_countdown(1, "0:02");
+  expect_countdown(58, "0:59");
+  expect_countdown(59, "1:00");
+  expect_countdown(60, "1:01");
+  // A typical ben-hashmashot is around 45 minutes at these latitudes.
+  expect_countdown(44 * 60, "44:01");
+  expect_countdown(59 * 60 + 58, "59:59");
+  // An hour and over gains an hours field rather than running the minutes up.
+  expect_countdown(59 * 60 + 59, "1:00:00");
+  expect_countdown(3600, "1:00:01");
+  expect_countdown(2 * 3600 + 5 * 60 + 9, "2:05:10");
+  // Past the event, and a clock that jumped forward: never a negative or zero
+  // reading, because the caller stops drawing it the moment the window closes.
+  expect_countdown(-1, "0:01");
+  expect_countdown(-500, "0:01");
+}
+
 static void test_display_hours(void) {
   group("6-based display hours run 6..11,12,1..5");
   const int expected[12] = {6, 7, 8, 9, 10, 11, 12, 1, 2, 3, 4, 5};
@@ -291,6 +318,7 @@ int main(void) {
   test_month_names();
   test_chalakim();
   test_formatting();
+  test_countdown_formatting();
   test_display_hours();
   test_zmanim();
 

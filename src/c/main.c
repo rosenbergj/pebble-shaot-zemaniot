@@ -48,6 +48,7 @@ typedef struct {
   bool with_minutes;
   bool tick_seconds;
   bool hebrew_script;
+  bool countdown;  // count down to nightfall between sunset and tzeit
   uint8_t slot_band, slot_left, slot_mid, slot_right;
   uint32_t accent;      // 0xRRGGBB
   uint8_t civil_font;   // 0 = Roboto 49, 1 = Leco 42 (matches the shaot face)
@@ -58,6 +59,7 @@ static Settings s_settings = {
     .with_minutes = true,
     .tick_seconds = true,
     .hebrew_script = false,
+    .countdown = false,
     .slot_band = SLOT_HEBREW,
     .slot_left = SLOT_SUNSET,
     .slot_mid = SLOT_SECDATE,
@@ -100,6 +102,10 @@ static bool s_have_location = false;
 #define LEAD_ROBOTO49 9
 
 #define CIVIL_Y 46
+
+// The countdown's caption, in the gap between the civil clock and the Leco
+// line. Nothing else is ever drawn there, so it costs no other element room.
+#define COUNTDOWN_LABEL_Y 95
 
 // The am/pm marker, shown only when ticking once a minute on a 12-hour clock.
 #define MERIDIEM_GAP 5
@@ -152,6 +158,12 @@ static time_t s_next_from;  // the "now" it was computed from, so a backward
 static int s_last_day = -1;
 static int s_battery = 0;
 static bool s_charging = false;
+// Whichever unit is currently subscribed. Zero is no unit, so the first call
+// always subscribes; after that subscribe_tick() is a no-op unless the rate
+// really has to change.
+static TimeUnits s_tick_unit = 0;
+
+static void subscribe_tick(void);
 
 static void apply_settings(void) {
   uint8_t r = (s_settings.accent >> 16) & 0xFF;
@@ -520,6 +532,16 @@ static void update_solar_times(void) {
   }
 }
 
+// Ben hashmashot: the stretch between sunset and nightfall, when the countdown
+// takes over the shaot line. Both instants come from update_solar_times(), which
+// derives tzeit from that same sunset, so the pair always describes one evening
+// and the window cannot straddle two. Off outside it, and off entirely wherever
+// the sun does not set, where there is nothing to count down to.
+static bool countdown_active(time_t now) {
+  return s_settings.countdown && s_have_sunset && s_have_tzeit && now >= s_sunset_at &&
+         now < s_tzeit_at;
+}
+
 static bool kind_needs_next(uint8_t k) {
   return k == SLOT_NEXT_SET_TZEIT || k == SLOT_NEXT_RISE_SET || k == SLOT_NEXT_RISE_SET_TZEIT;
 }
@@ -680,14 +702,25 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     draw_centered(ctx, civil, s_font_civil, s_lead_civil, s_fg, CIVIL_Y, 0, bounds.size.w);
   }
 
-  // Shaot. Ticking once a minute the reading would otherwise be up to a whole
-  // minute stale, always in the same direction; half a minute ahead makes it
-  // right on average across the minute it sits unchanged.
+  // The shaot line, or the countdown in its place. Between sunset and nightfall
+  // the proportional reading is at its least useful -- it has just rolled over
+  // and barely moves -- and the wait for nightfall is the thing actually being
+  // watched, so the countdown takes the line rather than a box. Ordinary
+  // seconds, not chalakim: it is a wall-clock wait, and the label says so.
   char shaot[16];
-  double shaot_ms = (double)now * 1000.0;
-  if (!s_settings.tick_seconds) shaot_ms += 30000.0;
-  shaot_format(shaot_chalakim_now(shaot_ms, s_br.start_ms, s_br.end_ms),
-               s_settings.offset6, s_settings.with_minutes, shaot, sizeof(shaot));
+  if (countdown_active(now)) {
+    shaot_format_countdown((int)(s_tzeit_at - now), shaot, sizeof(shaot));
+    draw_centered(ctx, "till nightfall", s_font_label, LEAD_GOTHIC14, s_dim, COUNTDOWN_LABEL_Y, 0,
+                  bounds.size.w);
+  } else {
+    // Ticking once a minute the reading would otherwise be up to a whole minute
+    // stale, always in the same direction; half a minute ahead makes it right on
+    // average across the minute it sits unchanged.
+    double shaot_ms = (double)now * 1000.0;
+    if (!s_settings.tick_seconds) shaot_ms += 30000.0;
+    shaot_format(shaot_chalakim_now(shaot_ms, s_br.start_ms, s_br.end_ms),
+                 s_settings.offset6, s_settings.with_minutes, shaot, sizeof(shaot));
+  }
   draw_centered(ctx, shaot, s_font_shaot, LEAD_LECO42, s_fg, 112, 0, bounds.size.w);
 
   // Footer. Anchored to the bottom of the unobstructed area, so it rides up
@@ -743,6 +776,11 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   // majority of ticks: it only does real work when the bracket has run out or
   // the day has rolled.
   refresh(time(NULL));
+  // Re-checked every tick because the countdown's window opens and closes on
+  // its own, with no event to hang it off. On a minute tick that means the
+  // countdown can appear up to a minute after sunset, which is the same lag
+  // everything else on the face already has in that mode.
+  subscribe_tick();
   layer_mark_dirty(s_canvas);
 }
 
@@ -757,8 +795,16 @@ static void battery_handler(BatteryChargeState state) {
 static void subscribe_tick(void) {
   // SECOND_UNIT is deliberate: per-second chalakim is the point of this face,
   // and the tick rate is a user setting. Do not "optimise" this to MINUTE_UNIT.
-  tick_timer_service_subscribe(s_settings.tick_seconds ? SECOND_UNIT : MINUTE_UNIT,
-                               tick_handler);
+  //
+  // The countdown overrides that setting for as long as it is on screen: it
+  // counts wall-clock seconds, and one that only moved once a minute would be
+  // worse than not showing it. That is under an hour a day, and only for a
+  // wearer who asked for the countdown at all.
+  TimeUnits want = (s_settings.tick_seconds || countdown_active(time(NULL))) ? SECOND_UNIT
+                                                                            : MINUTE_UNIT;
+  if (s_tick_unit == want) return;
+  s_tick_unit = want;
+  tick_timer_service_subscribe(want, tick_handler);
 }
 
 // --- messages ---------------------------------------------------------------
@@ -838,6 +884,8 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.with_minutes = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_TickSeconds) {
       if (tuple_to_int(t, &v)) { s_settings.tick_seconds = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_Countdown) {
+      if (tuple_to_int(t, &v)) { s_settings.countdown = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_CivilFont) {
       if (tuple_to_int(t, &v)) { s_settings.civil_font = (uint8_t)v; settings_changed = true; }
     } else if (k == MESSAGE_KEY_SlotBand) {

@@ -28,4 +28,12 @@ int shaot_display_hour(int hour_index, bool offset6);
 void shaot_format(int chalakim, bool offset6, bool with_minutes,
                   char *out, size_t out_size);
 
+// Ordinary clock seconds remaining, for the countdown from sunset to nightfall:
+// "M:SS" under an hour and "H:MM:SS" at or over it, so the common case stays as
+// narrow as possible. Counts the second in progress, so it reads "0:01" for a
+// second and then stops rather than sitting on "0:00"; a negative remainder
+// formats as "0:01" for the same reason. Minutes are not zero-padded under an
+// hour: the line is centred, so a leading zero would only cost width.
+void shaot_format_countdown(int seconds, char *out, size_t out_size);
+
 #endif
