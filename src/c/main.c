@@ -283,10 +283,17 @@ static void next_event_content(bool want_rise, bool want_set, bool want_tz,
   format_hhmm(best, value, value_n);
 }
 
-// Fills label and value. Returns true when the two lines are a matched pair
-// (a date split across both lines) rather than a label above a value.
-static bool slot_content(uint8_t kind, const struct tm *lt, bool for_band,
-                         char *label, size_t label_n, char *value, size_t value_n) {
+// How a footer box arranges the two rows it is given. The band ignores this: it
+// is one line of text and reads `label`/`value` directly.
+typedef enum {
+  SLOT_LAYOUT_LABEL,  // small label above a large value -- the common case
+  SLOT_LAYOUT_SPLIT,  // one thing broken over both rows, same size, no label
+  SLOT_LAYOUT_GAUGE,  // a drawn gauge in place of the label, value below
+} SlotLayout;
+
+// Fills label and value, and says how the box should lay them out.
+static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
+                               char *label, size_t label_n, char *value, size_t value_n) {
   label[0] = '\0';
   value[0] = '\0';
 
@@ -295,65 +302,67 @@ static bool slot_content(uint8_t kind, const struct tm *lt, bool for_band,
       const char *month = hebdate_month_name(s_heb.year, s_heb.month, s_settings.hebrew_script);
       if (for_band) {
         snprintf(value, value_n, "%d %s", s_heb.day, month);
-        return false;
+        return SLOT_LAYOUT_LABEL;
       }
       // In a box, split across both lines ("29th of" / "Av") rather than
       // spending a line on a label: the widest thing is then just the month
       // name, so long ones like Heshvan still fit.
       snprintf(label, label_n, "%d%s of", s_heb.day, ordinal_suffix(s_heb.day));
       snprintf(value, value_n, "%s", month);
-      return true;
+      return SLOT_LAYOUT_SPLIT;
     }
     case SLOT_SECDATE:
       if (for_band) {
         snprintf(value, value_n, "%s %s %d", WDAYS[lt->tm_wday], GMONTHS[lt->tm_mon], lt->tm_mday);
-        return false;
+        return SLOT_LAYOUT_LABEL;
       }
       snprintf(label, label_n, "%s", WDAYS[lt->tm_wday]);
       snprintf(value, value_n, "%s %d", GMONTHS[lt->tm_mon], lt->tm_mday);
-      return false;
+      return SLOT_LAYOUT_LABEL;
     // Both dates, weekday first in either order. The whole line goes in value
     // with no label, so the band prints it bare like the single dates do.
     case SLOT_DATES_SEC_HEB:
       snprintf(value, value_n, "%s %s %d / %d %s", WDAYS[lt->tm_wday], GMONTHS[lt->tm_mon],
                lt->tm_mday, s_heb.day,
                hebdate_month_name(s_heb.year, s_heb.month, s_settings.hebrew_script));
-      return false;
+      return SLOT_LAYOUT_LABEL;
     case SLOT_DATES_HEB_SEC:
       snprintf(value, value_n, "%s %d %s / %s %d", WDAYS[lt->tm_wday], s_heb.day,
                hebdate_month_name(s_heb.year, s_heb.month, s_settings.hebrew_script),
                GMONTHS[lt->tm_mon], lt->tm_mday);
-      return false;
+      return SLOT_LAYOUT_LABEL;
     case SLOT_SUNRISE:
       snprintf(label, label_n, "sunrise");
       if (s_have_sunrise) format_hhmm(s_sunrise_at, value, value_n);
       else snprintf(value, value_n, "--:--");
-      return false;
+      return SLOT_LAYOUT_LABEL;
     case SLOT_SUNSET:
       snprintf(label, label_n, "sunset");
       if (s_have_sunset) format_hhmm(s_sunset_at, value, value_n);
       else snprintf(value, value_n, "--:--");
-      return false;
+      return SLOT_LAYOUT_LABEL;
     case SLOT_TZEIT:
       snprintf(label, label_n, "tzeit");
       if (s_have_tzeit) format_hhmm(s_tzeit_at, value, value_n);
       else snprintf(value, value_n, "--:--");
-      return false;
+      return SLOT_LAYOUT_LABEL;
     case SLOT_NEXT_SET_TZEIT:
       next_event_content(false, true, true, label, label_n, value, value_n);
-      return false;
+      return SLOT_LAYOUT_LABEL;
     case SLOT_NEXT_RISE_SET:
       next_event_content(true, true, false, label, label_n, value, value_n);
-      return false;
+      return SLOT_LAYOUT_LABEL;
     case SLOT_NEXT_RISE_SET_TZEIT:
       next_event_content(true, true, true, label, label_n, value, value_n);
-      return false;
+      return SLOT_LAYOUT_LABEL;
     case SLOT_BATTERY:
       snprintf(label, label_n, "batt");
       snprintf(value, value_n, "%d%%", s_battery);
-      return false;
+      // The band is one line of text and cannot hold a drawn gauge, so there it
+      // stays "batt: 78%"; only a box gets the meter.
+      return for_band ? SLOT_LAYOUT_LABEL : SLOT_LAYOUT_GAUGE;
     default:
-      return false;
+      return SLOT_LAYOUT_LABEL;
   }
 }
 
@@ -385,6 +394,38 @@ static void draw_at(GContext *ctx, const char *text, GFont font, int lead,
   graphics_context_set_text_color(ctx, color);
   graphics_draw_text(ctx, text, font, GRect(x, y - lead, w, 60),
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft, NULL);
+}
+
+// A battery meter, drawn in a box's label row in place of the word "batt": an
+// outlined cell with a terminal nub, filled left to right in proportion to the
+// charge. It takes the same ink as the value below it, so it follows the
+// accent-contrast choice without knowing anything about the palette.
+#define GAUGE_W 26      // the body, excluding the nub
+#define GAUGE_H 12
+#define GAUGE_NUB_W 2
+#define GAUGE_NUB_H 6
+
+static void draw_battery_gauge(GContext *ctx, int pct, GColor ink, int y, int x, int w) {
+  int left = x + (w - (GAUGE_W + GAUGE_NUB_W)) / 2;
+
+  graphics_context_set_stroke_color(ctx, ink);
+  graphics_context_set_fill_color(ctx, ink);
+  graphics_draw_rect(ctx, GRect(left, y, GAUGE_W, GAUGE_H));
+  graphics_fill_rect(ctx, GRect(left + GAUGE_W, y + (GAUGE_H - GAUGE_NUB_H) / 2,
+                                GAUGE_NUB_W, GAUGE_NUB_H),
+                     0, GCornerNone);
+
+  // The fill keeps a pixel clear of the outline all round, so a full battery
+  // still reads as a filled cell rather than a solid block.
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  int fill_w = ((GAUGE_W - 4) * pct + 50) / 100;
+  // Anything above empty gets at least a sliver: a real 4% that rounds away to
+  // nothing looks exactly like a flat battery.
+  if (fill_w == 0 && pct > 0) fill_w = 1;
+  if (fill_w > 0) {
+    graphics_fill_rect(ctx, GRect(left + 2, y + 2, fill_w, GAUGE_H - 4), 0, GCornerNone);
+  }
 }
 
 static GSize measure(const char *text, GFont font) {
@@ -656,14 +697,21 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     int x = i * third;
     int w = (i == 2) ? bounds.size.w - 2 * third : third + 1;
 
-    bool split = slot_content(kinds[i], &lt, false, label, sizeof(label), value, sizeof(value));
-    if (split) {
+    SlotLayout layout =
+        slot_content(kinds[i], &lt, false, label, sizeof(label), value, sizeof(value));
+    if (layout == SLOT_LAYOUT_SPLIT) {
       // A date split over both lines: same size and weight, no label.
       draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 3, x, w);
       draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 29, x, w);
     } else {
-      draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, on_fill ? s_on_accent : s_dim,
-                    footer_top + 6, x, w);
+      // The gauge occupies the label row, which is why the box needs no
+      // retuning: the percentage stays exactly where the value always sat.
+      if (layout == SLOT_LAYOUT_GAUGE) {
+        draw_battery_gauge(ctx, s_battery, ink, footer_top + 6, x, w);
+      } else {
+        draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, on_fill ? s_on_accent : s_dim,
+                      footer_top + 6, x, w);
+      }
       draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 24, x, w);
     }
   }
