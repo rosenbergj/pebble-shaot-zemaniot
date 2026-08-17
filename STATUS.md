@@ -23,74 +23,59 @@ Port progress (branch `c-port`, four commits, working tree clean):
   message key each with Clay handling its own events.
 - **Phase D done** — settings and the last known location persist across
   launches; the "waiting for phone" and "no sun window" states both render.
-- **Phase E failed on hardware and is being debugged.** The first sideload gave
-  **"Shaot Zemaniot is not responding"** on the watch. The same build runs
-  correctly in the emulator.
+- **Phase E — root cause found and fixed, awaiting hardware confirmation.**
+  The first sideload gave **"Shaot Zemaniot is not responding"**. The cause was
+  **libm's trigonometry**, replaced in `src/c/trig.c`.
 
-### The "not responding" investigation
+### The "not responding" investigation, and how it was found
 
-Ruled out so far, with the evidence:
+**Cause: `sin()` overruns the app stack.** newlib's argument reduction,
+`__kernel_rem_pio2`, declares three 20-element `double` arrays plus a lookup
+table. A Pebble app's stack cannot take it. The emulator tolerates the overrun,
+which is why this was invisible until the watchface ran on a watch.
 
-- **Stale persistent storage.** The port reused the JavaScript build's UUID, so
-  it inherited that app's persist data. Reproduced deliberately here — install
-  the JS build, let it write, then install the C build over it without wiping —
-  and the C build came up **fine**. Not the cause.
-- **App packaging.** The binary header parses correctly: `virtual_size` 23744,
-  flags `0x149` (watchface + JS + emery platform), 62 relocations, struct 16.0.
-  Note `virtual_size` is a **`uint16_t`** at offset 128, after `resource_crc`
-  and `resource_timestamp` — read it with the wrong layout and it looks like
-  garbage.
-- **Compute time in the tick path.** The solar maths only runs on a bracket
-  flip, not per tick.
+`src/c/trig.c` replaces sin, cos, tan, asin, acos and sqrt with constant-stack
+implementations — no arrays, no tables, no recursion. Everything else stays with
+libm: plain double arithmetic, `floor()`, `round()` and `fmod()` were each
+verified working on hardware.
 
-- **SDK version.** The build now uses **SDK 4.33.1**, matching the watch's
-  firmware exactly, and the probe still failed before that while TimeStyle 7.1
-  — which declares an *older* `sdk=5.86` than our 5.101 — runs on that firmware
-  daily. Rebuilding changed only the declared version, the CRC, a timestamp and
-  20 bytes of build metadata; the machine code was identical, so the syscall ABI
-  did not move between 4.17 and 4.33.1.
-- **libm coming from the firmware.** It does not: `__aeabi_dadd`, `acos` and the
-  rest are statically linked into the app (`T` symbols).
-- **Firmware version as such.** The emulator boots the SDK's own firmware, so it
-  now runs 4.33.1 as well — and both probes still pass there. The difference is
-  **real hardware versus qemu**, not the firmware version.
+It matches libm to **1.11e-16** (one ulp) over the ranges the solar code uses,
+all 105 zmanim fixtures still pass, the rendered sunset is unchanged, and
+dropping newlib's trig cut **7.5KB** from the binary.
 
-Also worth knowing: a crash inside the first layer update proc draws **nothing**,
-because the framebuffer is only presented once the update returns. So "nothing
-appeared before the error" does not mean it died on the first system call.
+**How it was found — a four-build bisect on the watch**, since there are no logs:
 
-Still open. The watch runs a **native C app** for the first time here: the
-JavaScript build's `pebble-app.bin` was a 276-byte stub with the Alloy mod in
-resources, so it never exercised the native path. The strongest remaining lead
-is **floating point** — TimeStyle uses none at all (`grep` finds zero `float`
-or `double` in its sources), our builds use soft-float doubles heavily, and the
-toolchain targets `-mcpu=cortex-m3` with no FPU flags.
+| Build | Result | Conclusion |
+|---|---|---|
+| TimeStyle's own source built here | runs | toolchain fine |
+| integer-only probe (`tools/probe-int`) | runs | project setup fine |
+| probe using libm (`tools/probe`) | crashes | floating point |
+| staged probe (`tools/probe-float`) | reached `sin` | that one call |
 
-### The bisect waiting on hardware
+The staged probe is the technique worth keeping: it writes each stage number to
+**persistent storage before attempting the work**, and runs from a timer after
+the first render. A crash cannot unwrite that, so the next launch reports how
+far the previous run got. That is the only way to get a reading off this watch.
 
-Four builds, installed in this order, partition the whole space in one round:
+**Ruled out along the way — do not re-investigate:**
 
-| Install | If it fails, the problem is |
-|---|---|
-| `timestyle-ctrl.pbw` | our toolchain/SDK — it is TimeStyle's own source built here |
-| `shaot-probe-int.pbw` | our project setup — our code, zero floating point |
-| `shaot-probe.pbw` | floating point / libm / stack |
-| `pt2-shaot-watchface-c-port-v2.pbw` | the watchface's own AppMessage or persistence code |
+- **Stale persistent storage.** Reproduced deliberately (install the JS build,
+  let it write, install C over it without wiping) — came up fine.
+- **App packaging.** The header parses clean. `virtual_size` is a `uint16_t` at
+  offset **128**, after `resource_crc` and `resource_timestamp`; the wrong
+  struct layout makes it look like garbage.
+- **SDK version.** Now on **4.33.1**, matching the watch firmware, but that was
+  not it: TimeStyle 7.1 declares an *older* `sdk=5.86` than our 5.101 and runs
+  daily, and rebuilding changed only the version stamp, CRC, a timestamp and 20
+  bytes of metadata — identical machine code, so the syscall ABI never moved.
+- **libm coming from the firmware.** It is statically linked in (`T` symbols).
+- **Firmware version as such.** The emulator boots the SDK's firmware, so it now
+  runs 4.33.1 too and everything passes there. The gap was **real hardware
+  versus qemu**.
 
-Each has its own UUID and display name, so they install alongside each other and
-alongside the working JavaScript face.
-
-Two changes went in as a result, both worth keeping regardless of the cause:
-the C build now has **its own UUID** (so it installs alongside the JS face
-instead of displacing it), and the message and persistence paths are hardened
-against input that could hard-fault rather than show an error.
-
-### Picking this up
-
-    git checkout c-port
-    make -C test/c test              # 1491 checks, must stay green
-    pebble build && pebble install --emulator emery
-    tools/probe/build.sh             # the diagnostic probe
+**A crash inside a layer update proc draws nothing**, because the framebuffer is
+only presented once the update returns. "Nothing appeared before the error" does
+not mean it died early — that misread cost time here.
 
 ### dist/ is a deploy directory, not a build dump
 
@@ -104,18 +89,17 @@ Current contents:
 
 - `pt2-shaot-watchface-phase4-js.pbw` — "Shaot Zemaniot", the known-good daily
   build. **Never overwrite** (`dist/` is gitignored, so git cannot restore it).
-- `pt2-shaot-watchface-c-port-v2.pbw` — "Shaot Zemaniot C", new UUID, hardened.
-- `shaot-probe.pbw` — "Shaot Probe". One line per subsystem (native C and text,
-  then libm/solar, then the calendar, then battery) with a stage counter.
-- `shaot-probe-int.pbw` — "Shaot Probe Int". The same idea with **no floating
-  point at all**. Built from `tools/probe-int/`.
-- `timestyle-ctrl.pbw` — "TimeStyle CTRL". TimeStyle's own source built with
-  this toolchain, with a fresh UUID and name so it cannot displace the working
-  TimeStyle. Rebuild with:
+- `pt2-shaot-watchface-c-port-v3.pbw` — "Shaot Zemaniot C", with the trig fix.
+- `shaot-probe-float.pbw` — "Shaot Probe Float", now exercising `sz_sin` and
+  friends, so it verifies the fix rather than re-proving the failure. Launch it
+  **twice**: the first run records how far it got, the second reports it.
 
-      git clone --depth 1 https://github.com/freakified/TimeStylePebble.git
-      # set targetPlatforms to ["emery"], change uuid and displayName
-      pebble build
+Settled bisect artifacts were removed once their answer was known. Rebuild any
+of them from the repo: `pebble build`, or `tools/probe*/build.sh`. TimeStyle:
+
+    git clone --depth 1 https://github.com/freakified/TimeStylePebble.git
+    # set targetPlatforms to ["emery"], change uuid and displayName
+    pebble build
 
 The original failing C build was removed from `dist/`: it was known-bad *and*
 shared the JS build's UUID, so installing it by mistake would have displaced the
