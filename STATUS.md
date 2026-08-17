@@ -23,9 +23,14 @@ Port progress (branch `c-port`, four commits, working tree clean):
   message key each with Clay handling its own events.
 - **Phase D done** — settings and the last known location persist across
   launches; the "waiting for phone" and "no sun window" states both render.
-- **Phase E — root cause found and fixed, awaiting hardware confirmation.**
-  The first sideload gave **"Shaot Zemaniot is not responding"**. The cause was
-  **libm's trigonometry**, replaced in `src/c/trig.c`.
+- **Phase E — the C watchface runs on the real watch.** Confirmed 2026-08-17.
+  The first sideload gave **"Shaot Zemaniot is not responding"**; the cause was
+  **libm's trigonometry**, replaced in `src/c/trig.c`. With that fix the staged
+  probe reports `done` and the watchface runs on hardware.
+
+  Still unconfirmed on the watch, and the only things standing between here and
+  a finished port: the **Clay settings page** and the **real battery
+  percentage**.
 
 ### The "not responding" investigation, and how it was found
 
