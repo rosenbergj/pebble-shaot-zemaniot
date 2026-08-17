@@ -128,18 +128,38 @@ screen: a screenshot easily catches the frame before the message arrives.
 superseded, nothing known-bad. Every file in it must be distinguishable on a
 phone screen: unique UUID *and* unique `displayName`.
 
-- `pt2-shaot-watchface.pbw` — the current C build.
+- `pt2-shaot-watchface.pbw` — the latest build. This is the one to install.
+- `pt2-shaot-watchface-lastgood.pbw` — the rollback: the most recent build
+  confirmed working on the watch. Install this if the latest misbehaves.
 - `pt2-shaot-watchface-phase4-js.pbw` — the last JavaScript build (tag
-  `phase4-complete`), kept as a rollback. **Never overwrite it**: `dist/` is
-  gitignored, so git cannot restore it.
+  `phase4-complete`). **Never overwrite it**: `dist/` is gitignored, so git
+  cannot restore it, and the tree it came from no longer builds.
+- `BUILD.txt` — what is staged: version, commit, and which build the rollback is.
 
-The two have different UUIDs and *can* be installed side by side, but both
-display as "Shaot Zemaniot", so on the watch they would be indistinguishable.
-That is deliberate: the C build now carries the real name, and the JavaScript
-build is an emergency rollback meant to be installed on its own. The `.pbw`
-filenames differ, which is what matters when picking one on the phone. Give any
-build a distinct `displayName` again whenever two are meant to be installed at
-once for comparison.
+The filenames are stable so that installing never involves a choice about which
+file is newest. `tools/deploy.sh` maintains them:
+
+```sh
+tools/deploy.sh          # build the current commit into dist/
+tools/deploy.sh --good   # mark what is in dist/ as known good
+```
+
+A build refuses to stage unless the tree is clean and `package.json` carries a
+**new version**. That version is the only thing a phone can see: the filename
+never changes, so a build that failed to sync or install is otherwise invisible.
+Check the version the phone reports against `BUILD.txt` before concluding
+anything about a change.
+
+`--good` copies the staged build over the rollback and tags the commit
+`good-<version>`. The tags are immutable, one per confirmed build, because after
+a regression the useful question is what changed since the last good one, and
+`git diff good-1.0.4..HEAD` answers it. Nothing is marked good automatically —
+only wearing it says that.
+
+All three builds display as "Shaot Zemaniot" on the watch, and the current two
+share a UUID so installing one replaces the other. That is what makes rollback a
+single install. Give a build a distinct `displayName` *and* UUID whenever two are
+meant to be installed at once for comparison, as `tools/probe*` do.
 
 ### History
 
