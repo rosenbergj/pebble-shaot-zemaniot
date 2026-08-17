@@ -89,11 +89,6 @@ static bool s_have_location = false;
 #define CIVIL_Y 46
 
 // The am/pm marker, shown only when ticking once a minute on a 12-hour clock.
-// Set MERIDIEM_SHOWN to 0 to drop it and simply centre the clock, as 24-hour
-// mode does -- the civil faces carry no letters, so the marker has to be set in
-// a different face beside the digits, and whether that reads as deliberate or
-// as a mismatch is a judgement about the two typefaces together.
-#define MERIDIEM_SHOWN 1
 #define MERIDIEM_GAP 5
 #define MERIDIEM_NUDGE 3  // lifts it off the very bottom of the text box
 
@@ -429,7 +424,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
              lt->tm_sec);
   } else {
     snprintf(civil, sizeof(civil), h24 ? "%02d:%02d" : "%d:%02d", hour, lt->tm_min);
-    if (!h24 && MERIDIEM_SHOWN) meridiem = (lt->tm_hour < 12) ? "am" : "pm";
+    if (!h24) meridiem = (lt->tm_hour < 12) ? "am" : "pm";
   }
 
   if (meridiem) {
