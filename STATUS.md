@@ -5,56 +5,67 @@ Original brief: `design-idea.txt`.
 
 ## Where this stands
 
-Phases 0–4 are built and feature-complete. The `phase4-complete` tag (`a7b302f`,
-mod 13609) is **verified running on the real Pebble Time 2** — that is what the
-tag marks. Later commits grew the mod to ~14045 and **fail on the watch** with
-`alloy: fatal error, memory full`, so the device limit is bracketed between the
-two. The open question is whether to keep trimming JavaScript or rewrite the
-watch side in C.
+**Being rewritten in C on branch `c-port`.** The JavaScript build was finished
+and correct but could not fit on the watch: an Alloy mod lives inside a fixed
+**32,768-byte** XS block that cannot be enlarged (`ModdableCreationRecord` can
+only re-partition it), and ~22.5KB is committed at startup, leaving roughly
+**10KB** for the whole watchface. The app's ~122KB C heap was never available to
+JavaScript. The C build currently uses ~21.8KB with ~109KB free.
 
-Alloy's budget is a hard **32,768-byte** XS block that cannot be enlarged (the
-`ModdableCreationRecord` can only re-partition it), of which ~22.5KB is
-committed at startup — leaving roughly **10KB** for the whole watchface. The
-app's ~122KB C heap is unavailable to JavaScript. See the plan file for the
-source references.
+Port progress:
+
+- **Phase A done** — `shaot.c`, `hebdate.c` and `solar.c` ported and verified by
+  a host harness (1491 checks) against the same PyEphem/convertdate fixtures the
+  JavaScript suite used.
+- **Phase B done** — the C watchface renders at pixel-exact parity with the
+  JavaScript build; every text row and height matches the reference screenshot.
+- **Next** — Phase C (phone sends a location, Clay settings one key per
+  setting), then D (persistence, degraded states) and E (hardware).
+
+The last known-good JavaScript build is the `phase4-complete` tag (`a7b302f`,
+mod 13609), **verified on the real watch** — that is what the tag marks. A built
+copy lives at `dist/pt2-shaot-watchface-phase4-js.pbw` and is in daily use;
+**do not overwrite it** (`dist/` is gitignored, so git cannot restore it).
 
 Working today: shaot clock with chalakim, Hebrew date with sunset rollover,
 civil time with seconds, sunset/nightfall/battery, four configurable display
-areas, a Clay settings page, and phone-supplied sun times.
+areas, and on-watch solar maths.
 
 ## Layout
 
-- **Watch** — `src/embeddedjs/main.js` (all watch-side code) and `core.js`
-  (shaot arithmetic + Hebrew calendar, no watch APIs so node can test it).
-  Only two modules **on purpose**: each module costs XS memory.
-- **Phone** — `src/pkjs/solar.js` (NOAA solar maths, CommonJS), `index.js`
-  (geolocation, builds a ~4 day window of sun events), `config.js` (Clay page).
-- **Two message keys** — `SUN` is a rolling window of `r`/`s`/`t` timestamps so
-  the watch stays right for ~3 days offline; `CFG` packs every setting into one
-  comma-separated string. One key per setting cost ~1KB and hung the watch.
+- **Watch** — `src/c/main.c` (window, layers, tick, drawing) plus three pure
+  modules: `shaot.c` (chalakim), `hebdate.c` (Hebrew calendar) and `solar.c`
+  (NOAA sun events). The pure three stay **free of `pebble.h`** on purpose, so
+  the host harness can compile and check them with plain gcc.
+- **Phone** — `src/pkjs/index.js` and `config.js` (Clay page). Solar maths moved
+  back onto the watch; the phone only supplies a location and settings.
 
 ## Build and test
 
-    pebble build                          # never suppress the output, see below
+    pebble build                     # never suppress the output, see below
     pebble install --emulator emery
-    node --test 'test/**/*.test.mjs'      # 217 tests
+    make -C test/c test              # host tests for the pure modules
 
-Mod size lives at `build/mods/emery/mcrun/bin/pebble/release/embeddedjs/mc.xsa`.
-Test fixtures come from PyEphem and convertdate via `test/gen/*.py`.
+Test fixtures come from PyEphem and convertdate via `test/gen/*.py`;
+`test/gen/json_to_c.py` restates them as C literals for the harness.
 
 ## Traps that cost real time
 
-- **The emulator is more permissive than the watch.** Running in QEMU is not
-  evidence a build fits on hardware.
 - **`pebble build` can fail while `pebble install` pushes the previous .pbw.**
   Never redirect build output to /dev/null.
-- Watch-side `console.log` goes nowhere; pkjs logging works. Debug the watch by
-  drawing to the screen.
+- **`graphics_draw_text` adds a font-specific internal leading** that Poco did
+  not. `main.c` subtracts a per-font `LEAD_*` constant so the Alloy layout
+  coordinates still land correctly.
+- **The toolchain links libm without any build configuration**, but compiles
+  without the GNU extensions that define `M_PI` — spell the constant out.
 - A wedged emulator needs SIGTERM (never SIGKILL, it corrupts the flash image),
-  `rm -f /tmp/pb-emulator.json`, then `pebble wipe`.
+  `rm -f /tmp/pb-emulator.json`, then `pebble wipe`. Beware `pkill -f`, whose
+  pattern also matches the shell running it.
+- Installing over a different running watchface can leave the old one on screen;
+  `pebble kill && pebble wipe` before reinstalling if a screenshot looks stale.
 - The Pebble Android app's LAN Developer Connection opens no listener, so there
   is no on-device install or logging; verification means sideloading by hand.
 
-Fuller notes, including the memory-ceiling history and what has already been
-tried, are in the plan file at
+The port plan is at `~/.claude/plans/snazzy-squishing-rose.md`; the feature
+backlog and the original phase history are in
 `~/.claude/plans/new-project-see-the-shimmying-lovelace.md`.

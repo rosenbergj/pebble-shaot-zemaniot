@@ -1,0 +1,351 @@
+// The watchface: layout, slot content, and the tick loop.
+//
+// Emery is 200x228. Ported from the Alloy/JavaScript build, which could not
+// fit on real hardware: an Alloy mod lives inside a fixed 32KB XS block that
+// cannot be enlarged, and this feature set does not fit in the ~10KB left
+// after startup. C has no such budget, which is also why the solar maths runs
+// here again rather than on the phone.
+//
+// Pure calculation lives in shaot.c, hebdate.c and solar.c, which stay free of
+// pebble.h so the host harness in test/c can check them against the same
+// fixtures the JavaScript used.
+
+#include <pebble.h>
+
+#include "hebdate.h"
+#include "shaot.h"
+#include "solar.h"
+
+// --- settings ---------------------------------------------------------------
+// Phase B defaults; the phone overwrites these once the Clay page is wired up.
+
+typedef enum {
+  SLOT_NONE = 0,
+  SLOT_HEBREW = 1,
+  SLOT_SECDATE = 2,
+  SLOT_SUNSET = 3,
+  SLOT_TZEIT = 4,
+  SLOT_BATTERY = 5,
+} SlotKind;
+
+typedef struct {
+  bool offset6;
+  bool with_minutes;
+  bool tick_seconds;
+  bool hebrew_script;
+  uint8_t slot_band, slot_left, slot_mid, slot_right;
+  uint32_t accent;      // 0xRRGGBB
+  uint8_t civil_font;   // 0 = Roboto 49, 1 = Leco 42 (matches the shaot face)
+} Settings;
+
+static Settings s_settings = {
+    .offset6 = false,
+    .with_minutes = true,
+    .tick_seconds = true,
+    .hebrew_script = false,
+    .slot_band = SLOT_HEBREW,
+    .slot_left = SLOT_SUNSET,
+    .slot_mid = SLOT_SECDATE,
+    .slot_right = SLOT_BATTERY,
+    .accent = 0x007882,
+    .civil_font = 0,
+};
+
+// Hardcoded until the phone supplies a fix (Phase C). Deliberately coarse.
+static double s_lat = 39.95;
+static double s_lon = -75.17;
+
+// --- layout -----------------------------------------------------------------
+
+#define BAND_H 38
+#define FOOTER_TOP 170
+
+// graphics_draw_text() positions glyphs below the top of its box by a
+// font-specific internal leading, which Poco did not add. The y values below
+// are the original Alloy coordinates, so each draw subtracts its font's
+// leading to land in the same place. Measured from emulator screenshots by
+// comparing glyph bounding boxes against the JavaScript build.
+#define LEAD_GOTHIC14 2
+#define LEAD_GOTHIC24 4
+#define LEAD_LECO42 8
+#define LEAD_ROBOTO49 9
+
+static const char *const WDAYS[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+static const char *const GMONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                      "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+static Window *s_window;
+static Layer *s_canvas;
+
+static GFont s_font_shaot;    // Leco 42
+static GFont s_font_bold24;   // Gothic 24 Bold
+static GFont s_font_label;    // Gothic 14
+static GFont s_font_civil;    // Roboto 49 or the shaot face
+static int s_lead_civil;      // leading of whichever civil face is selected
+
+static GColor s_bg, s_fg, s_dim, s_accent, s_on_accent, s_rule;
+
+// --- cached state -----------------------------------------------------------
+
+static SolarBracket s_br;
+static HebrewDate s_heb;
+static char s_sunset[8] = "--:--";
+static char s_tzeit[8] = "--:--";
+static int s_last_day = -1;
+static int s_battery = 0;
+
+static void apply_settings(void) {
+  uint8_t r = (s_settings.accent >> 16) & 0xFF;
+  uint8_t g = (s_settings.accent >> 8) & 0xFF;
+  uint8_t b = s_settings.accent & 0xFF;
+  s_accent = GColorFromRGB(r, g, b);
+  // Ink on the accent has to follow the accent: white on a pale colour is
+  // unreadable. Perceived brightness (ITU-R BT.601) picks the dark or light
+  // ink we already have, so any colour in the picker stays legible.
+  s_on_accent = ((r * 299 + g * 587 + b * 114) / 1000 > 140) ? s_bg : s_fg;
+  if (s_settings.civil_font) {
+    s_font_civil = s_font_shaot;
+    s_lead_civil = LEAD_LECO42;
+  } else {
+    s_font_civil = fonts_get_system_font(FONT_KEY_ROBOTO_BOLD_SUBSET_49);
+    s_lead_civil = LEAD_ROBOTO49;
+  }
+}
+
+// --- helpers ----------------------------------------------------------------
+
+// 12-hour clock without a meridiem suffix, matching the JavaScript build.
+static void format_hhmm(time_t t, char *out, size_t n) {
+  struct tm *lt = localtime(&t);
+  int h = lt->tm_hour % 12;
+  if (h == 0) h = 12;
+  snprintf(out, n, "%d:%02d", h, lt->tm_min);
+}
+
+static const char *ordinal_suffix(int n) {
+  int tens = n % 100;
+  if (tens >= 11 && tens <= 13) return "th";
+  switch (n % 10) {
+    case 1: return "st";
+    case 2: return "nd";
+    case 3: return "rd";
+    default: return "th";
+  }
+}
+
+// Fills label and value. Returns true when the two lines are a matched pair
+// (a date split across both lines) rather than a label above a value.
+static bool slot_content(uint8_t kind, const struct tm *lt, bool for_band,
+                         char *label, size_t label_n, char *value, size_t value_n) {
+  label[0] = '\0';
+  value[0] = '\0';
+
+  switch (kind) {
+    case SLOT_HEBREW: {
+      const char *month = hebdate_month_name(s_heb.year, s_heb.month, s_settings.hebrew_script);
+      if (for_band) {
+        snprintf(value, value_n, "%d %s", s_heb.day, month);
+        return false;
+      }
+      // In a box, split across both lines ("29th of" / "Av") rather than
+      // spending a line on a label: the widest thing is then just the month
+      // name, so long ones like Heshvan still fit.
+      snprintf(label, label_n, "%d%s of", s_heb.day, ordinal_suffix(s_heb.day));
+      snprintf(value, value_n, "%s", month);
+      return true;
+    }
+    case SLOT_SECDATE:
+      if (for_band) {
+        snprintf(value, value_n, "%s %s %d", WDAYS[lt->tm_wday], GMONTHS[lt->tm_mon], lt->tm_mday);
+        return false;
+      }
+      snprintf(label, label_n, "%s", WDAYS[lt->tm_wday]);
+      snprintf(value, value_n, "%s %d", GMONTHS[lt->tm_mon], lt->tm_mday);
+      return false;
+    case SLOT_SUNSET:
+      snprintf(label, label_n, "sunset");
+      snprintf(value, value_n, "%s", s_sunset);
+      return false;
+    case SLOT_TZEIT:
+      snprintf(label, label_n, "tzeit");
+      snprintf(value, value_n, "%s", s_tzeit);
+      return false;
+    case SLOT_BATTERY:
+      snprintf(label, label_n, "batt");
+      snprintf(value, value_n, "%d%%", s_battery);
+      return false;
+    default:
+      return false;
+  }
+}
+
+// y is the intended top of the glyphs; lead is the font's internal leading.
+static void draw_centered(GContext *ctx, const char *text, GFont font, int lead,
+                          GColor color, int y, int x, int w) {
+  graphics_context_set_text_color(ctx, color);
+  graphics_draw_text(ctx, text, font, GRect(x, y - lead, w, 60),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
+}
+
+// Recompute the half-day bracket, the sunset/tzeit strings and the Hebrew date
+// when the bracket ends or a new day starts.
+static void refresh(time_t now) {
+  double now_ms = (double)now * 1000.0;
+
+  if (!s_br.valid || now_ms >= s_br.end_ms || now_ms < s_br.start_ms) {
+    s_br = solar_bracket(now_ms, s_lat, s_lon);
+    s_last_day = -1;  // a bracket flip can roll the Hebrew date
+    if (s_br.valid) {
+      double sunset_ms = s_br.is_day ? s_br.end_ms : s_br.start_ms;
+      format_hhmm((time_t)(sunset_ms / 1000.0), s_sunset, sizeof(s_sunset));
+      double tz;
+      if (solar_next_event(sunset_ms, s_lat, s_lon, TZEIT_ANGLE, false, &tz)) {
+        format_hhmm((time_t)(tz / 1000.0), s_tzeit, sizeof(s_tzeit));
+      } else {
+        snprintf(s_tzeit, sizeof(s_tzeit), "--:--");
+      }
+    }
+  }
+
+  struct tm *lt = localtime(&now);
+  if (s_br.valid && lt->tm_mday != s_last_day) {
+    s_last_day = lt->tm_mday;
+    s_heb = hebdate_for_now(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
+                            lt->tm_hour, s_br.is_day);
+  }
+}
+
+static void canvas_update(Layer *layer, GContext *ctx) {
+  GRect bounds = layer_get_bounds(layer);
+  time_t now = time(NULL);
+  refresh(now);
+
+  graphics_context_set_fill_color(ctx, s_bg);
+  graphics_fill_rect(ctx, bounds, 0, GCornerNone);
+
+  if (!s_br.valid) {
+    // No usable bracket: say so rather than showing a stale or invented time.
+    draw_centered(ctx, "no sun window", s_font_bold24, LEAD_GOTHIC24, s_dim, 100, 0,
+                  bounds.size.w);
+    return;
+  }
+
+  struct tm *lt = localtime(&now);
+
+  // Band
+  graphics_context_set_fill_color(ctx, s_accent);
+  graphics_fill_rect(ctx, GRect(0, 0, bounds.size.w, BAND_H), 0, GCornerNone);
+
+  char label[24], value[24];
+  slot_content(s_settings.slot_band, lt, true, label, sizeof(label), value, sizeof(value));
+  draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, s_on_accent, 5, 0, bounds.size.w);
+
+  // Civil time
+  char civil[16];
+  int h12 = lt->tm_hour % 12;
+  if (h12 == 0) h12 = 12;
+  snprintf(civil, sizeof(civil), "%d:%02d:%02d", h12, lt->tm_min, lt->tm_sec);
+  draw_centered(ctx, civil, s_font_civil, s_lead_civil, s_fg, 46, 0, bounds.size.w);
+
+  // Shaot
+  char shaot[16];
+  shaot_format(shaot_chalakim_now((double)now * 1000.0, s_br.start_ms, s_br.end_ms),
+               s_settings.offset6, s_settings.with_minutes, shaot, sizeof(shaot));
+  draw_centered(ctx, shaot, s_font_shaot, LEAD_LECO42, s_fg, 112, 0, bounds.size.w);
+
+  // Footer. The accent fill belongs to the outer slot positions, not to their
+  // content: every slot is user-configurable, only the fill colour is.
+  int footer_h = bounds.size.h - FOOTER_TOP - 1;
+  int third = bounds.size.w / 3;
+  graphics_context_set_fill_color(ctx, s_rule);
+  graphics_fill_rect(ctx, GRect(0, FOOTER_TOP, bounds.size.w, 1), 0, GCornerNone);
+  graphics_context_set_fill_color(ctx, s_accent);
+  graphics_fill_rect(ctx, GRect(0, FOOTER_TOP + 1, third + 1, footer_h), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(2 * third, FOOTER_TOP + 1, bounds.size.w - 2 * third, footer_h),
+                     0, GCornerNone);
+
+  const uint8_t kinds[3] = {s_settings.slot_left, s_settings.slot_mid, s_settings.slot_right};
+  for (int i = 0; i < 3; i++) {
+    bool on_fill = (i != 1);
+    GColor ink = on_fill ? s_on_accent : s_fg;
+    int x = i * third;
+    int w = (i == 2) ? bounds.size.w - 2 * third : third + 1;
+
+    bool split = slot_content(kinds[i], lt, false, label, sizeof(label), value, sizeof(value));
+    if (split) {
+      // A date split over both lines: same size and weight, no label.
+      draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, FOOTER_TOP + 3, x, w);
+      draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, ink, FOOTER_TOP + 29, x, w);
+    } else {
+      draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, on_fill ? s_on_accent : s_dim,
+                    FOOTER_TOP + 6, x, w);
+      draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, ink, FOOTER_TOP + 24, x, w);
+    }
+  }
+}
+
+// --- services ---------------------------------------------------------------
+
+static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
+  layer_mark_dirty(s_canvas);
+}
+
+static void battery_handler(BatteryChargeState state) {
+  s_battery = state.charge_percent;
+  layer_mark_dirty(s_canvas);
+}
+
+static void subscribe_tick(void) {
+  // SECOND_UNIT is deliberate: per-second chalakim is the point of this face,
+  // and the tick rate is a user setting. Do not "optimise" this to MINUTE_UNIT.
+  tick_timer_service_subscribe(s_settings.tick_seconds ? SECOND_UNIT : MINUTE_UNIT,
+                               tick_handler);
+}
+
+static void window_load(Window *window) {
+  Layer *root = window_get_root_layer(window);
+  s_canvas = layer_create(layer_get_bounds(root));
+  layer_set_update_proc(s_canvas, canvas_update);
+  layer_add_child(root, s_canvas);
+}
+
+static void window_unload(Window *window) {
+  layer_destroy(s_canvas);
+}
+
+static void init(void) {
+  s_bg = GColorFromRGB(16, 16, 18);
+  s_fg = GColorWhite;
+  s_dim = GColorFromRGB(140, 140, 145);
+  s_rule = GColorFromRGB(60, 60, 64);
+
+  s_font_shaot = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
+  s_font_bold24 = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
+  s_font_label = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  apply_settings();
+
+  s_battery = battery_state_service_peek().charge_percent;
+
+  s_window = window_create();
+  window_set_background_color(s_window, s_bg);
+  window_set_window_handlers(s_window, (WindowHandlers){
+                                           .load = window_load,
+                                           .unload = window_unload,
+                                       });
+  window_stack_push(s_window, true);
+
+  subscribe_tick();
+  battery_state_service_subscribe(battery_handler);
+}
+
+static void deinit(void) {
+  battery_state_service_unsubscribe();
+  tick_timer_service_unsubscribe();
+  window_destroy(s_window);
+}
+
+int main(void) {
+  init();
+  app_event_loop();
+  deinit();
+}
