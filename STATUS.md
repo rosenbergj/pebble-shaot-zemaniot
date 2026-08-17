@@ -43,11 +43,42 @@ Ruled out so far, with the evidence:
 - **Compute time in the tick path.** The solar maths only runs on a bracket
   flip, not per tick.
 
-Still open, and the reason the probe exists: the watch runs a **native C app**
-for the first time here. The JavaScript build's `pebble-app.bin` was a 276-byte
-stub with the Alloy mod in resources, so it never exercised the native app path
-and proves nothing about it. This machine builds against **SDK 4.17** while
-**4.33.1** is current.
+- **SDK version.** The build now uses **SDK 4.33.1**, matching the watch's
+  firmware exactly, and the probe still failed before that while TimeStyle 7.1
+  — which declares an *older* `sdk=5.86` than our 5.101 — runs on that firmware
+  daily. Rebuilding changed only the declared version, the CRC, a timestamp and
+  20 bytes of build metadata; the machine code was identical, so the syscall ABI
+  did not move between 4.17 and 4.33.1.
+- **libm coming from the firmware.** It does not: `__aeabi_dadd`, `acos` and the
+  rest are statically linked into the app (`T` symbols).
+- **Firmware version as such.** The emulator boots the SDK's own firmware, so it
+  now runs 4.33.1 as well — and both probes still pass there. The difference is
+  **real hardware versus qemu**, not the firmware version.
+
+Also worth knowing: a crash inside the first layer update proc draws **nothing**,
+because the framebuffer is only presented once the update returns. So "nothing
+appeared before the error" does not mean it died on the first system call.
+
+Still open. The watch runs a **native C app** for the first time here: the
+JavaScript build's `pebble-app.bin` was a 276-byte stub with the Alloy mod in
+resources, so it never exercised the native path. The strongest remaining lead
+is **floating point** — TimeStyle uses none at all (`grep` finds zero `float`
+or `double` in its sources), our builds use soft-float doubles heavily, and the
+toolchain targets `-mcpu=cortex-m3` with no FPU flags.
+
+### The bisect waiting on hardware
+
+Four builds, installed in this order, partition the whole space in one round:
+
+| Install | If it fails, the problem is |
+|---|---|
+| `timestyle-ctrl.pbw` | our toolchain/SDK — it is TimeStyle's own source built here |
+| `shaot-probe-int.pbw` | our project setup — our code, zero floating point |
+| `shaot-probe.pbw` | floating point / libm / stack |
+| `pt2-shaot-watchface-c-port-v2.pbw` | the watchface's own AppMessage or persistence code |
+
+Each has its own UUID and display name, so they install alongside each other and
+alongside the working JavaScript face.
 
 Two changes went in as a result, both worth keeping regardless of the cause:
 the C build now has **its own UUID** (so it installs alongside the JS face
@@ -74,11 +105,17 @@ Current contents:
 - `pt2-shaot-watchface-phase4-js.pbw` — "Shaot Zemaniot", the known-good daily
   build. **Never overwrite** (`dist/` is gitignored, so git cannot restore it).
 - `pt2-shaot-watchface-c-port-v2.pbw` — "Shaot Zemaniot C", new UUID, hardened.
-  Under test.
-- `shaot-probe.pbw` — "Shaot Probe". Draws one line per subsystem (native C and
-  text, then libm/solar, then the calendar, then battery) with a stage counter,
-  so what appears on screen says how far execution got. Reaches `stage 6` in the
-  emulator. Under test.
+- `shaot-probe.pbw` — "Shaot Probe". One line per subsystem (native C and text,
+  then libm/solar, then the calendar, then battery) with a stage counter.
+- `shaot-probe-int.pbw` — "Shaot Probe Int". The same idea with **no floating
+  point at all**. Built from `tools/probe-int/`.
+- `timestyle-ctrl.pbw` — "TimeStyle CTRL". TimeStyle's own source built with
+  this toolchain, with a fresh UUID and name so it cannot displace the working
+  TimeStyle. Rebuild with:
+
+      git clone --depth 1 https://github.com/freakified/TimeStylePebble.git
+      # set targetPlatforms to ["emery"], change uuid and displayName
+      pebble build
 
 The original failing C build was removed from `dist/`: it was known-bad *and*
 shared the JS build's UUID, so installing it by mistake would have displaced the
