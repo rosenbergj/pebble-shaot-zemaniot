@@ -17,6 +17,7 @@
 #include "../../src/c/solar.h"
 #include "../../src/c/trig.h"
 #include "../../src/c/numparse.h"
+#include "../../src/c/weather.h"
 #include "fixtures.h"
 
 // NOAA simplified formulas vs PyEphem's full model and refraction handling:
@@ -309,6 +310,74 @@ static void test_numparse(void) {
   check(numparse_int("99999999999", &v) && v == 2147483647, "overflow saturates");
 }
 
+static void test_weather(void) {
+  group("celsius to fahrenheit rounds half away from zero");
+  check(weather_c_to_f(0) == 32, "0C is 32F, got %d", weather_c_to_f(0));
+  check(weather_c_to_f(100) == 212, "100C is 212F, got %d", weather_c_to_f(100));
+  check(weather_c_to_f(20) == 68, "20C is 68F, got %d", weather_c_to_f(20));
+  check(weather_c_to_f(37) == 99, "37C is 98.6F, rounds to 99, got %d", weather_c_to_f(37));
+  // The negative half-case is the one integer division gets wrong by truncating
+  // toward zero: -5C is exactly 23F, and -17C is -1.4F, which rounds to -1.
+  check(weather_c_to_f(-5) == 23, "-5C is 23F, got %d", weather_c_to_f(-5));
+  check(weather_c_to_f(-17) == 1, "-17C is 1.4F, rounds to 1, got %d", weather_c_to_f(-17));
+  check(weather_c_to_f(-18) == 0, "-18C is -0.4F, rounds to 0, got %d", weather_c_to_f(-18));
+  check(weather_c_to_f(-40) == -40, "-40 is the crossing point, got %d", weather_c_to_f(-40));
+
+  group("ymd packs dates in comparable order");
+  check(weather_ymd(2026, 8, 18) == 20260818, "2026-08-18 packs to 20260818");
+  check(weather_ymd(2026, 12, 31) < weather_ymd(2027, 1, 1), "new year increases");
+  check(weather_ymd(2026, 1, 9) < weather_ymd(2026, 1, 10), "single digit day sorts low");
+
+  group("next calendar day");
+  check(weather_next_ymd(20260818) == 20260819, "mid-month");
+  check(weather_next_ymd(20260831) == 20260901, "month end");
+  check(weather_next_ymd(20261231) == 20270101, "year end");
+  check(weather_next_ymd(20260228) == 20260301, "february in a common year");
+  check(weather_next_ymd(20240228) == 20240229, "february in a leap year");
+  check(weather_next_ymd(20240229) == 20240301, "leap day");
+  check(weather_next_ymd(19000228) == 19000301, "1900 is not a leap year");
+  check(weather_next_ymd(20000228) == 20000229, "2000 is a leap year");
+  check(weather_next_ymd(20260430) == 20260501, "thirty-day month");
+
+  group("forecast means today until the cutoff, tomorrow after");
+  check(weather_wanted_ymd(2026, 8, 18, 0) == 20260818, "just after midnight is today");
+  check(weather_wanted_ymd(2026, 8, 18, 17) == 20260818, "the hour before the cutoff is today");
+  check(weather_wanted_ymd(2026, 8, 18, 18) == 20260819, "the cutoff hour itself is tomorrow");
+  check(weather_wanted_ymd(2026, 8, 18, 23) == 20260819, "late evening is tomorrow");
+  // The cutoff and a month or year boundary landing together is the case that
+  // would quietly show a forecast for a day that does not exist.
+  check(weather_wanted_ymd(2026, 8, 31, 19) == 20260901, "evening of a month end");
+  check(weather_wanted_ymd(2026, 12, 31, 19) == 20270101, "new year's eve");
+  check(weather_wanted_ymd(2024, 2, 28, 19) == 20240229, "evening before a leap day");
+
+  group("forecast day selection");
+  WeatherData w;
+  memset(&w, 0, sizeof(w));
+  w.have_days = 0x3;
+  w.day_ymd[0] = 20260818;
+  w.day_ymd[1] = 20260819;
+  check(weather_pick_day(&w, 20260818) == 0, "today matches slot 0");
+  check(weather_pick_day(&w, 20260819) == 1, "tomorrow matches slot 1");
+  // Going offline across local midnight is the case that makes stamping the
+  // days worth it: yesterday's payload must not be shown as today's.
+  check(weather_pick_day(&w, 20260820) == -1, "a day we do not hold is refused");
+  check(weather_pick_day(&w, 20260817) == -1, "a day already past is refused");
+  w.have_days = 0x1;
+  check(weather_pick_day(&w, 20260819) == -1, "slot present but unset is refused");
+
+  group("staleness");
+  memset(&w, 0, sizeof(w));
+  check(!weather_is_stale(&w, 1000000), "never fetched is absent, not stale");
+  w.have_current = 1;
+  w.fetched_at = 1000000;
+  check(!weather_is_stale(&w, 1000000), "a fetch just now is fresh");
+  check(!weather_is_stale(&w, 1000000 + WEATHER_STALE_SECS), "exactly at the threshold is fresh");
+  check(weather_is_stale(&w, 1000000 + WEATHER_STALE_SECS + 1), "one second past is stale");
+  // A watch whose clock jumps backwards would otherwise make a fresh reading
+  // look arbitrarily old.
+  check(!weather_is_stale(&w, 999000), "a clock that went backwards is not stale");
+}
+
 int main(void) {
   test_trig();
   test_numparse();
@@ -321,6 +390,7 @@ int main(void) {
   test_countdown_formatting();
   test_display_hours();
   test_zmanim();
+  test_weather();
 
   printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures ? 1 : 0;
