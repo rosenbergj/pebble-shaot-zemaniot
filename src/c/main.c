@@ -422,6 +422,22 @@ static void draw_at(GContext *ctx, const char *text, GFont font, int lead,
 #define GAUGE_NUB_H 6
 #define GAUGE_LOW_PCT 20  // at or below this the meter goes red, as TimeStyle does
 
+// The mark drawn inside the cell while charging: a plug, its lead entering from
+// the left and its prongs pointing at the cell's terminal nub, so the shape
+// reads as something being plugged in rather than pulled out. Built from rects
+// rather than a Pebble Draw Command resource -- the interior is 22x8, which is
+// too small to be worth a resource, and stripes or a bolt both read as a charge
+// level rather than as the absence of one.
+static void draw_charge_mark(GContext *ctx, int x0, int y0, GColor ink) {
+  const int w = GAUGE_W - 4;
+  const int h = GAUGE_H - 4;
+  graphics_context_set_fill_color(ctx, ink);
+  graphics_fill_rect(ctx, GRect(x0, y0 + 3, w - 14, 2), 0, GCornerNone);       // lead
+  graphics_fill_rect(ctx, GRect(x0 + w - 14, y0, 9, h), 0, GCornerNone);       // body
+  graphics_fill_rect(ctx, GRect(x0 + w - 5, y0 + 1, 5, 2), 0, GCornerNone);    // prongs
+  graphics_fill_rect(ctx, GRect(x0 + w - 5, y0 + 5, 5, 2), 0, GCornerNone);
+}
+
 static void draw_battery_gauge(GContext *ctx, int pct, bool charging, GColor ink,
                                int y, int x, int w) {
   int left = x + (w - (GAUGE_W + GAUGE_NUB_W)) / 2;
@@ -442,10 +458,14 @@ static void draw_battery_gauge(GContext *ctx, int pct, bool charging, GColor ink
                                 GAUGE_NUB_W, GAUGE_NUB_H),
                      0, GCornerNone);
 
-  // Nothing is drawn inside while charging. The percentage is unreliable on the
-  // charger -- which is why the row below reads "chg" rather than a number --
-  // and a bar drawn from that same number would be no more trustworthy.
-  if (charging) return;
+  // Nothing proportional is drawn inside while charging. The percentage is
+  // unreliable on the charger -- which is why the row below reads "chg" rather
+  // than a number -- and a bar drawn from that same number would be no more
+  // trustworthy. A fixed mark says "charging" without claiming a level.
+  if (charging) {
+    draw_charge_mark(ctx, left + 2, y + 2, ink);
+    return;
+  }
 
   // The fill keeps a pixel clear of the outline all round, so a full battery
   // still reads as a filled cell rather than a solid block.
