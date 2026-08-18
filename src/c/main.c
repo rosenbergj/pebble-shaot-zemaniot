@@ -1309,6 +1309,10 @@ static bool tuple_to_int(const Tuple *t, int32_t *out) {
 // are easy to keep straight.
 static void inbox_received(DictionaryIterator *iter, void *context) {
   int32_t v;
+  // The phone re-sends the stored settings on every launch, so "a settings key
+  // arrived" is no longer the same as "something changed". Keep a copy and
+  // compare, or every launch would rewrite persistent storage to no effect.
+  const Settings before = s_settings;
   bool settings_changed = false;
   bool weather_changed = false;
   int32_t day_ymd[WEATHER_DAYS] = {0, 0};
@@ -1430,6 +1434,9 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     s_last_day = -1;
     s_next_stale = 0;    // and the next-event cache, which is also per-location
     save_location();
+  }
+  if (settings_changed && memcmp(&before, &s_settings, sizeof(Settings)) == 0) {
+    settings_changed = false;
   }
   if (settings_changed) {
     apply_settings();

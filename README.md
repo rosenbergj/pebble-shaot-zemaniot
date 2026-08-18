@@ -231,6 +231,36 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   ~1.8KB for all twelve). They carry their own colours, so `wx_recolor()`
   repaints one before it is drawn in a box whose ink differs.
 
+## Settings, and why the phone re-sends them
+
+Settings live in two places: Clay keeps them on the phone, and the watch keeps
+its own copy as a single `Settings` struct in persistent storage.
+
+**The watch discards its copy whenever the struct's size changes**, which is
+every build that adds a setting — `load_persisted()` compares the stored size
+and falls back to the defaults rather than misreading an old layout. The phone
+does not know that happened, so it goes on showing the wearer's real choices
+while the watch shows defaults, and the two only re-agree when the settings
+page is opened and saved. Each half is behaving as written; together they look
+broken.
+
+So `src/pkjs/index.js` re-sends whatever Clay has stored on every `ready`. It
+is idempotent, costs one message, and heals a reinstall as well as a new field.
+Two details it depends on:
+
+- **Only keys this build still declares are sent.** A setting that has since
+  been removed — `ClockStyle` was, once — stays behind in Clay's store, and
+  would otherwise map to an undefined message key and travel as junk. The
+  filter uses `require('message_keys')`, the same mapping Clay itself uses.
+- **The watch compares before it writes.** A settings message now arrives on
+  every launch, so `inbox_received()` keeps a copy of `Settings` and skips
+  `save_settings()` when nothing actually differs. Without that, every launch
+  would rewrite flash to no effect.
+
+An empty store is left alone: a watch that has never been configured should
+keep its own defaults, and sending an empty dictionary would only churn the
+AppMessage buffers.
+
 ## The disconnect indicator
 
 A struck-through Bluetooth rune in the right-hand gutter, between the clock and

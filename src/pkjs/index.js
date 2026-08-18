@@ -12,6 +12,7 @@
 
 var Clay = require("@rebble/clay");
 var clayConfig = require("./config");
+var messageKeys = require("message_keys");
 
 // Auto-handling on: Clay sends one message key per setting, which src/c/main.c
 // reads by key. The old build had to pack everything into a single string
@@ -222,7 +223,45 @@ Pebble.addEventListener("appmessage", function () {
   updateWeather();
 });
 
+// Clay keeps the settings on the phone. The watch keeps its own copy as a single
+// struct and throws the whole thing away whenever that struct's size changes,
+// which is every build that adds a setting -- so after such an install the phone
+// still shows the wearer's real choices while the watch has fallen back to
+// defaults, and the two only re-agree when the settings page is opened and
+// saved. Re-sending what Clay has stored, on every launch, heals that before
+// anyone notices. It costs one message and is idempotent.
+function resendSettings() {
+  var stored;
+  try {
+    stored = JSON.parse(localStorage.getItem("clay-settings") || "{}");
+  } catch (e) {
+    return;
+  }
+
+  // Only keys this build still declares. A setting that has since been removed
+  // -- ClockStyle was, once -- is left behind in Clay's store, and it would
+  // otherwise map to an undefined message key and travel as a junk entry.
+  var known = {};
+  var any = false;
+  Object.keys(stored).forEach(function (k) {
+    if (messageKeys[k] !== undefined) {
+      known[k] = stored[k];
+      any = true;
+    }
+  });
+  // Nothing configured yet: the watch's own defaults are the right answer, and
+  // sending an empty dictionary would only reset the AppMessage buffers.
+  if (!any) return;
+
+  try {
+    Pebble.sendAppMessage(Clay.prepareSettingsForAppMessage(known));
+  } catch (e) {
+    // A stale or malformed store must not take the rest of startup with it.
+  }
+}
+
 Pebble.addEventListener("ready", function () {
+  resendSettings();
   sendCached(); // something immediate, then refine
   update();
   setInterval(update, REFRESH_MS);
