@@ -204,6 +204,19 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   tap-driven second face can read the same flag. It reverts on its own because
   screen touch does not reach a watchface (see above) and some accelerometer
   taps are a jostled wrist rather than a decision.
+- **The two states are laid out differently, because they have to be.** A
+  footer box is 66x57. Current conditions are one number and sit beside the
+  icon on one line under a header. The forecast is two numbers, and in that
+  same arrangement the size ladder drops them to 14pt, which is too small to
+  read at a glance. So the forecast puts the icon and the day word side by side
+  on the top row, freeing the full width beneath for one 24pt line. Stacking
+  the two temperatures under a header reads better still and does not fit: a
+  header plus two 24pt lines needs 62px. Eight arrangements were built and
+  screenshotted in place before this one; anything that keeps the header *and*
+  stacks the temperatures will clip.
+- **The day word is load-bearing.** The forecast rolls from today to tomorrow
+  at the cutoff, so a layout without it leaves no way to tell whose high is on
+  screen. That is what ruled out the arrangements with the largest type.
 - **Icons are Pebble Draw Commands** (`type: "raw"` in `package.json`, 25x25,
   ~1.8KB for all twelve). They carry their own colours, so `wx_recolor()`
   repaints one before it is drawn in a box whose ink differs.

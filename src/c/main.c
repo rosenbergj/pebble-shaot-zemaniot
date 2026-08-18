@@ -611,6 +611,7 @@ static void draw_battery_gauge(GContext *ctx, int pct, bool charging, GColor ink
 #define WX_ICON_SIZE 25
 #define WX_ICON_GAP 3
 
+
 static uint32_t wx_resource(uint8_t cond) {
   switch (cond) {
     case WCOND_CLEAR_DAY: return RESOURCE_ID_WEATHER_CLEAR_DAY;
@@ -993,6 +994,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
       for (int i = 0; i < 3; i++) widths[i] = (i == date_box) ? want : narrow;
     }
   }
+
   int xs[3] = {0, widths[0], widths[0] + widths[1]};
   widths[2] = bounds.size.w - xs[2];  // the last box absorbs any rounding
 
@@ -1045,27 +1047,46 @@ static void canvas_update(Layer *layer, GContext *ctx) {
       if (layout == SLOT_LAYOUT_WEATHER) {
         const bool stale = weather_is_stale(&s_wx, (int32_t)time(NULL));
         const GColor wink = stale ? wx_muted(ink) : ink;
-        draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14,
-                      stale ? wink : (on_fill ? s_on_accent : s_dim), footer_top + 6, x, w);
-
+        const GColor lab = stale ? wink : (on_fill ? s_on_accent : s_dim);
         const int day = s_alt_view ? weather_pick_day(&s_wx, wx_wanted_ymd(&lt)) : -1;
         const bool have = s_alt_view ? (day >= 0) : (bool)s_wx.have_current;
-        if (have) {
-          // Icon and temperature are centred in the box as one unit, so the
-          // pair stays put when the number goes from two digits to five.
+        GDrawCommandImage *icon =
+            have ? wx_icon(s_alt_view ? s_wx.day_cond[day] : s_wx.cond) : NULL;
+        if (icon) wx_recolor(icon, wink);
+
+        if (!have) {
+          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 6, x, w);
+          draw_centered(ctx, value, vf.font, vf.lead, wink, footer_top + 24 + vf.dy, x, w);
+          continue;
+        }
+
+        if (!s_alt_view) {
+          // Current conditions are one number, which fits beside the icon on a
+          // single line at 18pt.
+          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 6, x, w);
           const int text_w = measure(value, vf.font).w;
           const int left = x + (w - (WX_ICON_SIZE + WX_ICON_GAP + text_w)) / 2;
-          GDrawCommandImage *icon = wx_icon(s_alt_view ? s_wx.day_cond[day] : s_wx.cond);
-          if (icon) {
-            wx_recolor(icon, wink);
-            gdraw_command_image_draw(ctx, icon, GPoint(left, footer_top + 26));
-          }
+          if (icon) gdraw_command_image_draw(ctx, icon, GPoint(left, footer_top + 26));
           draw_at(ctx, value, vf.font, vf.lead, wink, footer_top + 24 + vf.dy,
                   left + WX_ICON_SIZE + WX_ICON_GAP, w);
         } else {
-          // Nothing to illustrate, so the placeholder takes the whole box
-          // rather than sitting off to one side of a gap where an icon is not.
-          draw_centered(ctx, value, vf.font, vf.lead, wink, footer_top + 24 + vf.dy, x, w);
+          // The forecast is two numbers, and beside the icon on one line they
+          // drop to 14pt -- too small to read at a glance. Putting the icon and
+          // the day side by side on the top row instead frees the whole width
+          // beneath for one full-size line. Stacking the two temperatures under
+          // a header would read better still, but a header and two 24pt lines
+          // need 62px and the box is 57, which is what clipped every attempt.
+          //
+          // The day is not decoration: the forecast rolls from today to
+          // tomorrow at the cutoff, so without the word there is no telling
+          // whose high is on screen.
+          if (icon) gdraw_command_image_draw(ctx, icon, GPoint(x + 2, footer_top + 2));
+          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 9,
+                        x + WX_ICON_SIZE + 2, w - WX_ICON_SIZE - 4);
+          // Wide readings -- a three-digit high, or a negative low -- still
+          // outgrow 24pt, and the ladder drops them a size rather than clipping.
+          BoxFace f = box_face(value, w - 4, false);
+          draw_centered(ctx, value, f.font, f.lead, wink, footer_top + 30 + f.dy, x, w);
         }
         continue;
       }
