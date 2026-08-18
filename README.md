@@ -130,6 +130,21 @@ watch.
   200px band returns a width that never exceeds 200 -- and every ladder that
   shrinks text to fit is silently defeated. The band's fallback to 18pt had
   never once fired.
+- **A watchface receives no screen touch, and the API says otherwise.** Emery
+  declares `PBL_TOUCH` and `touch_service_is_enabled()` returns **true** inside
+  a watchface, but neither `touch_service_subscribe()` nor an attached
+  `tap_recognizer` ever fires — with the system touch bridge left alone or
+  disabled via `window_set_touch_bridge_disabled()`. Confirmed on hardware
+  2026-08-18 with a throwaway probe watchface, against an accelerometer-tap
+  counter that incremented normally throughout, and with the launch counter
+  unmoved, so the taps were not being consumed as system navigation either.
+  **Do not feature-test touch with `touch_service_is_enabled()`** — it is the
+  check the header recommends and it returns a false positive here. The gate is
+  in firmware and invisible to the SDK. Accelerometer tap
+  (`accel_tap_service_subscribe()`) is the only input a watchface gets; the
+  headers' own advice, in the "User interaction in watchfaces" note, turns out
+  to be current after all. None of this is testable in the emulator: there is no
+  `emu-touch` and no touch endpoint in the protocol.
 - **`M_PI` is not defined** — the toolchain compiles without GNU extensions.
 - **`pebble build` can fail while `pebble install` happily pushes the previous
   `.pbw`.** Never redirect build output to `/dev/null`.
