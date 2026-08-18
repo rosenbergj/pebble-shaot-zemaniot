@@ -214,6 +214,11 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   header plus two 24pt lines needs 62px. Eight arrangements were built and
   screenshotted in place before this one; anything that keeps the header *and*
   stacks the temperatures will clip.
+- **Inverting a box is the face's way of saying "this block is doing something
+  unusual"**, not a weather-specific trick. A box normally on the accent fill
+  is drawn on the background, and the middle box, normally on the background,
+  takes the fill. Reuse it for transient states; do not spend it on anything
+  permanent, since its meaning depends on being out of the ordinary.
 - **The day word is load-bearing.** The forecast rolls from today to tomorrow
   at the cutoff, so a layout without it leaves no way to tell whose high is on
   screen. That is what ruled out the arrangements with the largest type.
