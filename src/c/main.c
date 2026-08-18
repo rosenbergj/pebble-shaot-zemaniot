@@ -17,6 +17,7 @@
 #include "numparse.h"
 #include "shaot.h"
 #include "solar.h"
+#include "weather.h"
 
 // --- settings ---------------------------------------------------------------
 // Phase B defaults; the phone overwrites these once the Clay page is wired up.
@@ -41,6 +42,10 @@ typedef enum {
   // of the screen and could not hold this at any readable size.
   SLOT_DATES_SEC_HEB = 10,
   SLOT_DATES_HEB_SEC = 11,
+  // Current conditions, or the forecast while an accelerometer tap is held
+  // open. One kind rather than two: the wearer picks "weather" and taps to see
+  // the other half, which is the whole point of the toggle.
+  SLOT_WEATHER = 12,
 } SlotKind;
 
 typedef struct {
@@ -49,6 +54,7 @@ typedef struct {
   bool tick_seconds;
   bool hebrew_script;
   bool countdown;  // count down to nightfall between sunset and tzeit
+  bool metric;     // temperatures in Celsius rather than Fahrenheit
   uint8_t slot_band, slot_left, slot_mid, slot_right;
   uint32_t accent;      // 0xRRGGBB
   uint8_t civil_font;   // 0 = Roboto 49, 1 = Leco 42 (matches the shaot face)
@@ -60,6 +66,7 @@ static Settings s_settings = {
     .tick_seconds = true,
     .hebrew_script = false,
     .countdown = false,
+    .metric = false,
     .slot_band = SLOT_HEBREW,
     .slot_left = SLOT_SUNSET,
     .slot_mid = SLOT_SECDATE,
@@ -78,6 +85,45 @@ static bool s_have_location = false;
 #define PERSIST_KEY_SETTINGS 1
 #define PERSIST_KEY_LAT 2
 #define PERSIST_KEY_LON 3
+#define PERSIST_KEY_WEATHER 4
+
+// --- weather ----------------------------------------------------------------
+//
+// The phone fetches; this holds what it sent and decides what to show. The
+// decisions that do not need a screen -- which day the forecast box means, how
+// old is too old, Celsius to Fahrenheit -- live in weather.c so the host
+// harness can check them.
+
+static WeatherData s_wx;
+
+// Icons are Pebble Draw Commands, so they are loaded once and recoloured at
+// draw time rather than being reloaded whenever the ink changes.
+static GDrawCommandImage *s_wx_icon[WCOND_COUNT];
+
+// The tap-driven alternate view. One flag for the whole face rather than one
+// per slot: a tap is a single global gesture, so everything that responds to it
+// should change together and revert together. Weather is the only thing reading
+// it today -- it swaps current conditions for the forecast -- but anything else
+// wanting a second face can read the same flag.
+//
+// Not persisted: a relaunch should come back in the ordinary view.
+static bool s_alt_view = false;
+static AppTimer *s_alt_timer = NULL;
+
+// Long enough to read a two-number forecast, short enough that a tap from a
+// jostled wrist is not still showing it a minute later. Watchfaces get no
+// screen touch, so every tap here is the accelerometer and some of them are
+// accidents; see the note in README.md.
+#define ALT_VIEW_HOLD_MS 8000
+
+// The minute of the hour at which this watch asks for weather. Randomised at
+// startup, as TimeStyle does, so that every watch running this face does not
+// hit the API on the same two ticks of the clock.
+static uint8_t s_wx_minute;
+
+static void save_weather(void) {
+  persist_write_data(PERSIST_KEY_WEATHER, &s_wx, sizeof(s_wx));
+}
 
 // --- layout -----------------------------------------------------------------
 
@@ -181,6 +227,7 @@ static bool s_charging = false;
 static TimeUnits s_tick_unit = 0;
 
 static void subscribe_tick(void);
+static void request_weather(void);
 
 static void apply_settings(void) {
   uint8_t r = (s_settings.accent >> 16) & 0xFF;
@@ -220,6 +267,13 @@ static void load_persisted(void) {
   }
   // Range-check rather than trust: persistent storage is keyed by app UUID and
   // survives reinstalls, so these ints can predate this build entirely.
+  // Weather survives a relaunch so the face is not blank for the first half
+  // hour after every reboot. Same size check as the settings, for the same
+  // reason: the struct is written whole.
+  if (persist_exists(PERSIST_KEY_WEATHER) &&
+      persist_get_size(PERSIST_KEY_WEATHER) == (int)sizeof(WeatherData)) {
+    persist_read_data(PERSIST_KEY_WEATHER, &s_wx, sizeof(s_wx));
+  }
   if (persist_exists(PERSIST_KEY_LAT) && persist_exists(PERSIST_KEY_LON)) {
     double lat = persist_read_int(PERSIST_KEY_LAT) / 1000000.0;
     double lon = persist_read_int(PERSIST_KEY_LON) / 1000000.0;
@@ -318,8 +372,28 @@ static void next_event_content(bool want_rise, bool want_set, bool want_tz,
 typedef enum {
   SLOT_LAYOUT_LABEL,  // small label above a large value -- the common case
   SLOT_LAYOUT_SPLIT,  // one thing broken over both rows, same size, no label
-  SLOT_LAYOUT_GAUGE,  // a drawn gauge in place of the label, value below
+  SLOT_LAYOUT_GAUGE,   // a drawn gauge in place of the label, value below
+  SLOT_LAYOUT_WEATHER, // label, then an icon and a temperature side by side
 } SlotLayout;
+
+// Which day the forecast half means right now. The rule itself lives in
+// weather.c so the host harness can check it at hours the emulator will not
+// hold still for.
+static int32_t wx_wanted_ymd(const struct tm *lt) {
+  return weather_wanted_ymd(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday, lt->tm_hour);
+}
+
+static int wx_display_temp(int celsius) {
+  return s_settings.metric ? celsius : weather_c_to_f(celsius);
+}
+
+// Whether a tap would visibly change anything. A gesture that silently does
+// nothing is worse than no gesture, so the handler checks before toggling --
+// and this is the place to widen as more slots learn to read s_alt_view.
+static bool tap_has_effect(void) {
+  return s_settings.slot_left == SLOT_WEATHER || s_settings.slot_mid == SLOT_WEATHER ||
+         s_settings.slot_right == SLOT_WEATHER || s_settings.slot_band == SLOT_WEATHER;
+}
 
 // Whether this kind's value row can contain a Hebrew month name.
 static bool slot_has_hebrew(uint8_t kind) {
@@ -390,6 +464,32 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
     case SLOT_NEXT_RISE_SET_TZEIT:
       next_event_content(true, true, true, label, label_n, value, value_n);
       return SLOT_LAYOUT_LABEL;
+    case SLOT_WEATHER: {
+      const int32_t wanted = wx_wanted_ymd(lt);
+      const int day = s_alt_view ? weather_pick_day(&s_wx, wanted) : -1;
+      if (s_alt_view) {
+        // Naming the day rather than saying "forecast" is the whole label-side
+        // cue: it is what tells the wearer which day they are looking at, and
+        // it changes at the cutoff without a tap.
+        snprintf(label, label_n, "%s",
+                 wanted == weather_ymd(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday)
+                     ? "today"
+                     : "tomorrow");
+        if (day >= 0) {
+          snprintf(value, value_n, "%d/%d", wx_display_temp(s_wx.day_high_c[day]),
+                   wx_display_temp(s_wx.day_low_c[day]));
+        } else {
+          snprintf(value, value_n, "--/--");
+        }
+      } else {
+        snprintf(label, label_n, "now");
+        if (s_wx.have_current) snprintf(value, value_n, "%d\u00b0", wx_display_temp(s_wx.temp_c));
+        else snprintf(value, value_n, "--\u00b0");
+      }
+      // The band is one line of text with no room for an icon beside it, so
+      // there weather reads "now: 72" and only a box gets the picture.
+      return for_band ? SLOT_LAYOUT_LABEL : SLOT_LAYOUT_WEATHER;
+    }
     case SLOT_BATTERY:
       snprintf(label, label_n, "batt");
       // The reading drifts while the charger is attached, so say what is
@@ -505,6 +605,61 @@ static void draw_battery_gauge(GContext *ctx, int pct, bool charging, GColor ink
 // wraps *during measurement* and the width comes back capped at the box -- so a
 // line that does not fit measures as though it does, and every caller that
 // shrinks text to fit is silently defeated.
+// The 25x25 icon and the temperature sit side by side, centred in the box as a
+// pair. The temperature takes whatever width the icon leaves, which is what
+// the size ladder in box_face() is then fitting into.
+#define WX_ICON_SIZE 25
+#define WX_ICON_GAP 3
+
+static uint32_t wx_resource(uint8_t cond) {
+  switch (cond) {
+    case WCOND_CLEAR_DAY: return RESOURCE_ID_WEATHER_CLEAR_DAY;
+    case WCOND_CLEAR_NIGHT: return RESOURCE_ID_WEATHER_CLEAR_NIGHT;
+    case WCOND_CLOUDY: return RESOURCE_ID_WEATHER_CLOUDY_DAY;
+    case WCOND_HEAVY_RAIN: return RESOURCE_ID_WEATHER_HEAVY_RAIN;
+    case WCOND_HEAVY_SNOW: return RESOURCE_ID_WEATHER_HEAVY_SNOW;
+    case WCOND_LIGHT_RAIN: return RESOURCE_ID_WEATHER_LIGHT_RAIN;
+    case WCOND_LIGHT_SNOW: return RESOURCE_ID_WEATHER_LIGHT_SNOW;
+    case WCOND_PARTLY_CLOUDY_NIGHT: return RESOURCE_ID_WEATHER_PARTLY_CLOUDY_NIGHT;
+    case WCOND_PARTLY_CLOUDY: return RESOURCE_ID_WEATHER_PARTLY_CLOUDY;
+    case WCOND_RAINING_AND_SNOWING: return RESOURCE_ID_WEATHER_RAINING_AND_SNOWING;
+    case WCOND_THUNDERSTORM: return RESOURCE_ID_WEATHER_THUNDERSTORM;
+    default: return RESOURCE_ID_WEATHER_GENERIC;
+  }
+}
+
+// Loaded on first use and kept. Only a handful are ever asked for in a given
+// week of weather, so this costs far less than the twelve-icon table it avoids.
+static GDrawCommandImage *wx_icon(uint8_t cond) {
+  if (cond >= WCOND_COUNT) cond = WCOND_GENERIC;
+  if (!s_wx_icon[cond]) {
+    s_wx_icon[cond] = gdraw_command_image_create_with_resource(wx_resource(cond));
+  }
+  return s_wx_icon[cond];
+}
+
+// Pebble Draw Commands carry their own colours, so an icon has to be repainted
+// before it is drawn in a box whose ink is not the colour it was authored in.
+// Taken from TimeStyle's util.c (MIT), which is also where the icons come from.
+static bool wx_recolor_cb(GDrawCommand *command, uint32_t index, void *context) {
+  const GColor *ink = (const GColor *)context;
+  gdraw_command_set_fill_color(command, *ink);
+  gdraw_command_set_stroke_color(command, *ink);
+  return true;
+}
+
+static void wx_recolor(GDrawCommandImage *img, GColor ink) {
+  gdraw_command_list_iterate(gdraw_command_image_get_command_list(img), wx_recolor_cb, &ink);
+}
+
+// A stale reading keeps its place but loses its confidence: the same shape in a
+// muted ink, so it reads as information we are no longer standing behind. Which
+// grey depends on what the box's ink would have been, since the accent fill can
+// be light or dark.
+static GColor wx_muted(GColor normal) {
+  return gcolor_equal(normal, s_bg) ? GColorDarkGray : GColorLightGray;
+}
+
 static GSize measure(const char *text, GFont font) {
   return graphics_text_layout_get_content_size(text, font, GRect(0, 0, 1000, 60),
                                                GTextOverflowModeTrailingEllipsis,
@@ -841,14 +996,30 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   int xs[3] = {0, widths[0], widths[0] + widths[1]};
   widths[2] = bounds.size.w - xs[2];  // the last box absorbs any rounding
 
+  // The outer two boxes carry the accent fill. While the forecast is open, a
+  // weather box swaps: an outer one is drawn on the background and the middle
+  // one takes the fill. With the label naming the day, that is the pair of cues
+  // that says which half you are looking at.
+  bool filled[3];
+  for (int i = 0; i < 3; i++) {
+    filled[i] = (i != 1);
+    if (s_alt_view && kinds[i] == SLOT_WEATHER) filled[i] = !filled[i];
+  }
+
   graphics_context_set_fill_color(ctx, s_rule);
   graphics_fill_rect(ctx, GRect(0, footer_top, bounds.size.w, 1), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, s_accent);
-  graphics_fill_rect(ctx, GRect(0, footer_top + 1, widths[0] + 1, footer_h), 0, GCornerNone);
-  graphics_fill_rect(ctx, GRect(xs[2], footer_top + 1, widths[2], footer_h), 0, GCornerNone);
+  for (int i = 0; i < 3; i++) {
+    // The leftmost fill runs one pixel wide to close the seam against its
+    // neighbour; the others start where the previous box ended.
+    if (filled[i]) {
+      graphics_fill_rect(ctx, GRect(xs[i], footer_top + 1, widths[i] + (i == 0 ? 1 : 0), footer_h),
+                         0, GCornerNone);
+    }
+  }
 
   for (int i = 0; i < 3; i++) {
-    bool on_fill = (i != 1);
+    bool on_fill = filled[i];
     GColor ink = on_fill ? s_on_accent : s_fg;
     int x = xs[i];
     int w = widths[i];
@@ -859,7 +1030,11 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     // A Hebrew month name can only appear in the value row, and only when the
     // wearer has asked for Hebrew script. The label row above it is always
     // Latin ("30th of"), so it stays Gothic.
-    BoxFace vf = box_face(value, w, s_settings.hebrew_script && slot_has_hebrew(kinds[i]));
+    // A weather box gives up the icon's width before the ladder starts fitting
+    // the temperature into what is left.
+    const int value_w =
+        (layout == SLOT_LAYOUT_WEATHER) ? w - WX_ICON_SIZE - WX_ICON_GAP : w;
+    BoxFace vf = box_face(value, value_w, s_settings.hebrew_script && slot_has_hebrew(kinds[i]));
     if (layout == SLOT_LAYOUT_SPLIT) {
       // A date split over both lines: same size and weight, no label.
       draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 3, x, w);
@@ -867,6 +1042,33 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     } else {
       // The gauge occupies the label row, which is why the box needs no
       // retuning: the percentage stays exactly where the value always sat.
+      if (layout == SLOT_LAYOUT_WEATHER) {
+        const bool stale = weather_is_stale(&s_wx, (int32_t)time(NULL));
+        const GColor wink = stale ? wx_muted(ink) : ink;
+        draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14,
+                      stale ? wink : (on_fill ? s_on_accent : s_dim), footer_top + 6, x, w);
+
+        const int day = s_alt_view ? weather_pick_day(&s_wx, wx_wanted_ymd(&lt)) : -1;
+        const bool have = s_alt_view ? (day >= 0) : (bool)s_wx.have_current;
+        if (have) {
+          // Icon and temperature are centred in the box as one unit, so the
+          // pair stays put when the number goes from two digits to five.
+          const int text_w = measure(value, vf.font).w;
+          const int left = x + (w - (WX_ICON_SIZE + WX_ICON_GAP + text_w)) / 2;
+          GDrawCommandImage *icon = wx_icon(s_alt_view ? s_wx.day_cond[day] : s_wx.cond);
+          if (icon) {
+            wx_recolor(icon, wink);
+            gdraw_command_image_draw(ctx, icon, GPoint(left, footer_top + 26));
+          }
+          draw_at(ctx, value, vf.font, vf.lead, wink, footer_top + 24 + vf.dy,
+                  left + WX_ICON_SIZE + WX_ICON_GAP, w);
+        } else {
+          // Nothing to illustrate, so the placeholder takes the whole box
+          // rather than sitting off to one side of a gap where an icon is not.
+          draw_centered(ctx, value, vf.font, vf.lead, wink, footer_top + 24 + vf.dy, x, w);
+        }
+        continue;
+      }
       if (layout == SLOT_LAYOUT_GAUGE) {
         draw_battery_gauge(ctx, s_battery, s_charging, ink, footer_top + 6, x, w);
       } else {
@@ -890,6 +1092,8 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   // countdown can appear up to a minute after sunset, which is the same lag
   // everything else on the face already has in that mode.
   subscribe_tick();
+  // Once an hour, at a minute of this watch's own choosing.
+  if (tick_time->tm_min == s_wx_minute && tick_time->tm_sec == 0) request_weather();
   layer_mark_dirty(s_canvas);
 }
 
@@ -899,6 +1103,48 @@ static void battery_handler(BatteryChargeState state) {
   // trustworthy reading and should keep showing it.
   s_charging = state.is_charging;
   layer_mark_dirty(s_canvas);
+}
+
+// Ask the phone for weather. The watch drives this rather than the phone
+// pushing on a timer, because only the watch knows whether any slot is
+// currently showing weather -- there is no point spending a radio wake and an
+// HTTP fetch on a face that is not displaying it. The phone treats any message
+// from us as the request; we send nothing else.
+static void request_weather(void) {
+  if (!tap_has_effect()) return;
+  DictionaryIterator *iter;
+  if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
+  dict_write_uint8(iter, 0, 0);
+  app_message_outbox_send();
+}
+
+static void alt_view_timeout(void *data) {
+  s_alt_timer = NULL;
+  s_alt_view = false;
+  layer_mark_dirty(s_canvas);
+}
+
+// The only input a watchface gets: screen touch is never delivered to one, as
+// README.md records. That is also why the view reverts on its own -- some of
+// these taps are a jostled wrist rather than a decision, and a latching mode
+// would sit there until the next one.
+static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
+  if (!tap_has_effect()) return;
+  if (s_alt_timer) {
+    app_timer_cancel(s_alt_timer);
+    s_alt_timer = NULL;
+  }
+  s_alt_view = !s_alt_view;
+  if (s_alt_view) {
+    s_alt_timer = app_timer_register(ALT_VIEW_HOLD_MS, alt_view_timeout, NULL);
+  }
+  layer_mark_dirty(s_canvas);
+}
+
+static void connection_handler(bool connected) {
+  // Reconnecting is the first chance to catch up on whatever was missed while
+  // the phone was away, and it costs nothing when the data is already current.
+  if (connected) request_weather();
 }
 
 static void subscribe_tick(void) {
@@ -973,6 +1219,8 @@ static bool tuple_to_int(const Tuple *t, int32_t *out) {
 static void inbox_received(DictionaryIterator *iter, void *context) {
   int32_t v;
   bool settings_changed = false;
+  bool weather_changed = false;
+  int32_t day_ymd[WEATHER_DAYS] = {0, 0};
   bool have_lat = false, have_lon = false;
   int32_t lat_raw = 0, lon_raw = 0;
 
@@ -1007,6 +1255,35 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.slot_mid = (uint8_t)v; settings_changed = true; }
     } else if (k == MESSAGE_KEY_SlotRight) {
       if (tuple_to_int(t, &v)) { s_settings.slot_right = (uint8_t)v; settings_changed = true; }
+    } else if (k == MESSAGE_KEY_Metric) {
+      if (tuple_to_int(t, &v)) { s_settings.metric = (v != 0); settings_changed = true; }
+
+    // Weather. Temperatures arrive in Celsius whatever the units setting says,
+    // so switching units redraws immediately instead of waiting for a fetch.
+    } else if (k == MESSAGE_KEY_WxTemp) {
+      if (tuple_to_int(t, &v)) {
+        s_wx.temp_c = (int16_t)v;
+        s_wx.have_current = 1;
+        weather_changed = true;
+      }
+    } else if (k == MESSAGE_KEY_WxCond) {
+      if (tuple_to_int(t, &v)) { s_wx.cond = (uint8_t)v; weather_changed = true; }
+    } else if (k == MESSAGE_KEY_WxDay0Ymd) {
+      if (tuple_to_int(t, &v)) { day_ymd[0] = v; }
+    } else if (k == MESSAGE_KEY_WxDay0High) {
+      if (tuple_to_int(t, &v)) { s_wx.day_high_c[0] = (int16_t)v; }
+    } else if (k == MESSAGE_KEY_WxDay0Low) {
+      if (tuple_to_int(t, &v)) { s_wx.day_low_c[0] = (int16_t)v; }
+    } else if (k == MESSAGE_KEY_WxDay0Cond) {
+      if (tuple_to_int(t, &v)) { s_wx.day_cond[0] = (uint8_t)v; }
+    } else if (k == MESSAGE_KEY_WxDay1Ymd) {
+      if (tuple_to_int(t, &v)) { day_ymd[1] = v; }
+    } else if (k == MESSAGE_KEY_WxDay1High) {
+      if (tuple_to_int(t, &v)) { s_wx.day_high_c[1] = (int16_t)v; }
+    } else if (k == MESSAGE_KEY_WxDay1Low) {
+      if (tuple_to_int(t, &v)) { s_wx.day_low_c[1] = (int16_t)v; }
+    } else if (k == MESSAGE_KEY_WxDay1Cond) {
+      if (tuple_to_int(t, &v)) { s_wx.day_cond[1] = (uint8_t)v; }
 
     } else if (k == MESSAGE_KEY_AccentColor) {
       if (t->type == TUPLE_BYTE_ARRAY && t->length >= 3) {
@@ -1021,6 +1298,23 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
         settings_changed = true;
       }
     }
+  }
+
+  // A day is only adopted once its date has arrived with it. The date is what
+  // makes the payload safe to keep: without it, a forecast fetched yesterday
+  // would be indistinguishable from one fetched this morning.
+  for (int i = 0; i < WEATHER_DAYS; i++) {
+    if (day_ymd[i] > 0) {
+      s_wx.day_ymd[i] = day_ymd[i];
+      s_wx.have_days |= (uint8_t)(1u << i);
+      weather_changed = true;
+    }
+  }
+  if (weather_changed) {
+    // Stamped on arrival rather than at the phone: staleness is about how long
+    // ago we heard, and the watch's own clock is the one the wearer is reading.
+    s_wx.fetched_at = (int32_t)time(NULL);
+    save_weather();
   }
 
   // Both coordinates must be present and in range before either is adopted, so
@@ -1103,15 +1397,33 @@ static void init(void) {
 
   subscribe_tick();
   battery_state_service_subscribe(battery_handler);
+  accel_tap_service_subscribe(accel_tap_handler);
+  connection_service_subscribe((ConnectionHandlers){
+      .pebble_app_connection_handler = connection_handler,
+  });
 
-  // Callbacks must be registered before opening.
+  // Spread the hourly weather fetch across the hour without pulling in rand():
+  // two watches have to have been launched in the same second of the same
+  // minute to collide, and nothing breaks if they do.
+  s_wx_minute = (uint8_t)(time(NULL) % 60);
+
+  // Callbacks must be registered before opening. The inbox has to hold eleven
+  // weather keys arriving together, which does not fit the old 256.
   app_message_register_inbox_received(inbox_received);
-  app_message_open(256, 64);
+  app_message_open(512, 64);
+
+  request_weather();
 }
 
 static void deinit(void) {
+  save_weather();
+  connection_service_unsubscribe();
+  accel_tap_service_unsubscribe();
   battery_state_service_unsubscribe();
   tick_timer_service_unsubscribe();
+  for (int i = 0; i < WCOND_COUNT; i++) {
+    if (s_wx_icon[i]) gdraw_command_image_destroy(s_wx_icon[i]);
+  }
   window_destroy(s_window);
 }
 

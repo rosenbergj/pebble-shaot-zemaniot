@@ -1,7 +1,7 @@
 {
   "name": "shaot",
   "author": "Josh Rosenberg",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "keywords": [
     "pebble-app"
   ],
@@ -37,7 +37,18 @@
       "AccentColor",
       "TickSeconds",
       "Countdown",
-      "HebrewScript"
+      "HebrewScript",
+      "Metric",
+      "WxTemp",
+      "WxCond",
+      "WxDay0Ymd",
+      "WxDay0High",
+      "WxDay0Low",
+      "WxDay0Cond",
+      "WxDay1Ymd",
+      "WxDay1High",
+      "WxDay1Low",
+      "WxDay1Cond"
     ],
     "resources": {
       "media": [
@@ -64,6 +75,66 @@
           "name": "FONT_HEBREW_14",
           "file": "fonts/LiberationSans-Bold.ttf",
           "characterRegex": "[\\u0020-\\u007E\\u05D0-\\u05EA]"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_CLEAR_DAY",
+          "file": "data/CLEAR_DAY.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_CLEAR_NIGHT",
+          "file": "data/CLEAR_NIGHT.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_CLOUDY_DAY",
+          "file": "data/CLOUDY_DAY.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_PARTLY_CLOUDY",
+          "file": "data/PARTLY_CLOUDY.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_PARTLY_CLOUDY_NIGHT",
+          "file": "data/PARTLY_CLOUDY_NIGHT.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_LIGHT_RAIN",
+          "file": "data/LIGHT_RAIN.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_HEAVY_RAIN",
+          "file": "data/HEAVY_RAIN.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_LIGHT_SNOW",
+          "file": "data/LIGHT_SNOW.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_HEAVY_SNOW",
+          "file": "data/HEAVY_SNOW.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_RAINING_AND_SNOWING",
+          "file": "data/RAINING_AND_SNOWING.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_THUNDERSTORM",
+          "file": "data/THUNDERSTORM.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "WEATHER_GENERIC",
+          "file": "data/WEATHER_GENERIC.pdc"
         }
       ]
     }
