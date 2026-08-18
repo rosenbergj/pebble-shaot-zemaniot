@@ -1,7 +1,7 @@
 {
   "name": "shaot",
   "author": "Josh Rosenberg",
-  "version": "1.0.18",
+  "version": "1.0.19",
   "keywords": [
     "pebble-app"
   ],
@@ -48,7 +48,8 @@
       "WxDay1Ymd",
       "WxDay1High",
       "WxDay1Low",
-      "WxDay1Cond"
+      "WxDay1Cond",
+      "DisconnectIcon"
     ],
     "resources": {
       "media": [

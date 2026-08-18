@@ -152,6 +152,11 @@ watch.
   hold, so anything triggered by the hour cannot be tested by moving the clock
   and then interacting. This is why the forecast's 18:00 cutoff lives in
   `weather.c` as `weather_wanted_ymd()` and is checked on the host instead.
+- **`pebble send-app-message` takes several pairs after *one* flag**, as
+  `--int 1=42 2=-10`. Repeating the flag (`--int 1=42 --int 2=-10`) silently
+  keeps only the last pair, which looks exactly like a watch-side bug. The
+  coordinates are the case that catches this: `main.c` adopts a location only
+  when both arrive in the same message.
 - **`M_PI` is not defined** — the toolchain compiles without GNU extensions.
 - **`pebble build` can fail while `pebble install` happily pushes the previous
   `.pbw`.** Never redirect build output to `/dev/null`.
@@ -225,6 +230,34 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
 - **Icons are Pebble Draw Commands** (`type: "raw"` in `package.json`, 25x25,
   ~1.8KB for all twelve). They carry their own colours, so `wx_recolor()`
   repaints one before it is drawn in a box whose ink differs.
+
+## The disconnect indicator
+
+A struck-through Bluetooth rune in the right-hand gutter, between the clock and
+the shaot line, while the phone is unreachable and `DisconnectIcon` is on.
+
+- **It is an overlay, and deliberately not one of the five regions.** It is
+  drawn from `canvas_update()` after `draw_face()` returns, because
+  `draw_face()` gives up early when the unobstructed area is too short for the
+  footer, and an indicator that vanishes under a Timeline Peek is not doing its
+  job. The right gutter is dead space at every time of day, since the clock is
+  centred, so nothing has to move to make room.
+- **The rune is drawn, not a resource.** It has to read at 25px; TimeStyle's
+  disconnect icon is a phone with a cross, which carries more detail than
+  survives at that size. Below roughly 20px the rune's diagonals collapse and
+  it stops reading at all -- a first attempt at 13px looked like an asterisk.
+- **The strike matters.** A plain rune is the symbol for Bluetooth *working*
+  almost everywhere else, and although this one only ever appears when the
+  phone is gone, a glance should not have to know that.
+- **An outline PDC needs fill and stroke set separately.** `pdc_recolor()`
+  takes both; `wx_recolor()` passes one colour twice, which is right for the
+  weather icons because they are solid shapes and wrong for anything drawn as
+  an outline -- doing it to TimeStyle's disconnect icon turned it into a blob.
+- **The emulator cannot produce a real disconnect.** pypkjs keeps the phone-app
+  connection up, so `pebble emu-bt-connection --connected no` does not reach
+  `connection_service_peek_pebble_app_connection()`. Verify by inverting the
+  test in a probe build, which proves the icon tracks the flag; the genuine
+  disconnected case can only be seen on the watch.
 
 ## Driving settings and time in the emulator
 

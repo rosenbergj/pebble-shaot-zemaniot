@@ -55,6 +55,7 @@ typedef struct {
   bool hebrew_script;
   bool countdown;  // count down to nightfall between sunset and tzeit
   bool metric;     // temperatures in Celsius rather than Fahrenheit
+  bool bt_icon;    // show a mark while the phone is unreachable
   uint8_t slot_band, slot_left, slot_mid, slot_right;
   uint32_t accent;      // 0xRRGGBB
   uint8_t civil_font;   // 0 = Roboto 49, 1 = Leco 42 (matches the shaot face)
@@ -67,6 +68,7 @@ static Settings s_settings = {
     .hebrew_script = false,
     .countdown = false,
     .metric = false,
+    .bt_icon = true,
     .slot_band = SLOT_HEBREW,
     .slot_left = SLOT_SUNSET,
     .slot_mid = SLOT_SECDATE,
@@ -120,6 +122,10 @@ static AppTimer *s_alt_timer = NULL;
 // startup, as TimeStyle does, so that every watch running this face does not
 // hit the API on the same two ticks of the clock.
 static uint8_t s_wx_minute;
+
+// Whether the phone is reachable. Peeked at startup and kept current by the
+// connection handler, so the overlay does not have to ask on every frame.
+static bool s_bt_connected = true;
 
 static void save_weather(void) {
   persist_write_data(PERSIST_KEY_WEATHER, &s_wx, sizeof(s_wx));
@@ -642,16 +648,20 @@ static GDrawCommandImage *wx_icon(uint8_t cond) {
 // Pebble Draw Commands carry their own colours, so an icon has to be repainted
 // before it is drawn in a box whose ink is not the colour it was authored in.
 // Taken from TimeStyle's util.c (MIT), which is also where the icons come from.
-static bool wx_recolor_cb(GDrawCommand *command, uint32_t index, void *context) {
-  const GColor *ink = (const GColor *)context;
-  gdraw_command_set_fill_color(command, *ink);
-  gdraw_command_set_stroke_color(command, *ink);
+static bool pdc_recolor_cb(GDrawCommand *command, uint32_t index, void *context) {
+  const GColor *c = (const GColor *)context;
+  gdraw_command_set_fill_color(command, c[0]);
+  gdraw_command_set_stroke_color(command, c[1]);
   return true;
 }
 
-static void wx_recolor(GDrawCommandImage *img, GColor ink) {
-  gdraw_command_list_iterate(gdraw_command_image_get_command_list(img), wx_recolor_cb, &ink);
+static void pdc_recolor(GDrawCommandImage *img, GColor fill, GColor stroke) {
+  GColor c[2] = {fill, stroke};
+  gdraw_command_list_iterate(gdraw_command_image_get_command_list(img), pdc_recolor_cb, c);
 }
+
+// The weather icons are solid shapes, so they take one colour throughout.
+static void wx_recolor(GDrawCommandImage *img, GColor ink) { pdc_recolor(img, ink, ink); }
 
 // A stale reading keeps its place but loses its confidence: the same shape in a
 // muted ink, so it reads as information we are no longer standing behind. Which
@@ -843,7 +853,7 @@ static void refresh(time_t now) {
   if (any_next_slot() && (now >= s_next_stale || now < s_next_from)) update_next_events(now);
 }
 
-static void canvas_update(Layer *layer, GContext *ctx) {
+static void draw_face(Layer *layer, GContext *ctx) {
   // Two rectangles, and the difference matters. bounds is the whole screen and
   // is what the background must cover, or the area under an appearing Timeline
   // Peek shows whatever was there before. vis is the part not covered by an
@@ -1101,6 +1111,55 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   }
 }
 
+// The disconnect indicator: the Bluetooth rune with a strike through it, drawn
+// in the right-hand gutter between the clock and the shaot line. That gutter is
+// dead space at every time of day because the clock is centred, which is why
+// the indicator is an overlay and belongs to none of the five regions.
+//
+// The strike is what makes it self-describing. A plain rune is the symbol for
+// Bluetooth *working* almost everywhere else, and while this one only ever
+// appears when the phone is gone, a glance should not have to know that.
+#define BT_BOX 25
+
+// One stroke: up the left diagonal, down the stem, back out the other diagonal.
+// Drawn rather than loaded because it has to read at 25px, and TimeStyle's
+// icon -- a phone with a cross -- carries more detail than survives at that
+// size. Below about 20px the diagonals collapse and it stops reading at all.
+static void bt_rune(GContext *ctx, int cx, int top, int h) {
+  const int r = (h * 3) / 10;
+  const int y0 = top, y1 = top + (h * 3) / 10, y3 = top + (h * 7) / 10, y4 = top + h;
+  const int xl = cx - r, xr = cx + r;
+  graphics_draw_line(ctx, GPoint(xl, y1), GPoint(xr, y3));
+  graphics_draw_line(ctx, GPoint(xr, y3), GPoint(cx, y4));
+  graphics_draw_line(ctx, GPoint(cx, y4), GPoint(cx, y0));
+  graphics_draw_line(ctx, GPoint(cx, y0), GPoint(xr, y1));
+  graphics_draw_line(ctx, GPoint(xr, y1), GPoint(xl, y3));
+}
+
+static void draw_bt_overlay(GContext *ctx, GRect bounds, GRect vis) {
+  if (!s_settings.bt_icon || s_bt_connected) return;
+
+  const int vis_bottom = vis.origin.y + vis.size.h;
+  const int footer_top = vis_bottom - FOOTER_ZONE_H;
+  const int mid = (BAND_H + footer_top) / 2;
+  const int x = bounds.size.w - BT_BOX - 2;
+  const int y = mid - BT_BOX / 2;
+
+  graphics_context_set_stroke_color(ctx, s_fg);
+  graphics_context_set_stroke_width(ctx, 2);
+  bt_rune(ctx, x + BT_BOX / 2, y + 1, 23);
+  graphics_draw_line(ctx, GPoint(x + 1, y + 23), GPoint(x + 23, y + 1));
+  graphics_context_set_stroke_width(ctx, 1);
+}
+
+static void canvas_update(Layer *layer, GContext *ctx) {
+  draw_face(layer, ctx);
+  // After the face, and outside it: draw_face() gives up early when the
+  // unobstructed area is too short for the footer, and a disconnect indicator
+  // that vanishes under a Timeline Peek is not doing its job.
+  draw_bt_overlay(ctx, layer_get_bounds(layer), layer_get_unobstructed_bounds(layer));
+}
+
 // --- services ---------------------------------------------------------------
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
@@ -1172,9 +1231,11 @@ static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
 }
 
 static void connection_handler(bool connected) {
+  s_bt_connected = connected;
   // Reconnecting is the first chance to catch up on whatever was missed while
   // the phone was away, and it costs nothing when the data is already current.
   if (connected) request_weather();
+  layer_mark_dirty(s_canvas);
 }
 
 static void subscribe_tick(void) {
@@ -1287,6 +1348,8 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.slot_right = (uint8_t)v; settings_changed = true; }
     } else if (k == MESSAGE_KEY_Metric) {
       if (tuple_to_int(t, &v)) { s_settings.metric = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_DisconnectIcon) {
+      if (tuple_to_int(t, &v)) { s_settings.bt_icon = (v != 0); settings_changed = true; }
 
     // Weather. Temperatures arrive in Celsius whatever the units setting says,
     // so switching units redraws immediately instead of waiting for a fetch.
@@ -1441,6 +1504,7 @@ static void init(void) {
   // two watches have to have been launched in the same second of the same
   // minute to collide, and nothing breaks if they do.
   s_wx_minute = (uint8_t)(time(NULL) % 60);
+  s_bt_connected = connection_service_peek_pebble_app_connection();
 
   // Callbacks must be registered before opening. The inbox has to hold eleven
   // weather keys arriving together, which does not fit the old 256.

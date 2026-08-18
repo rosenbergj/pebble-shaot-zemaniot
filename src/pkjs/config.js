@@ -150,6 +150,12 @@ module.exports = [
         label: "Temperatures in Celsius",
         defaultValue: false,
       },
+      {
+        type: "toggle",
+        messageKey: "DisconnectIcon",
+        label: "Mark when the phone is out of range",
+        defaultValue: true,
+      },
     ],
   },
   {
