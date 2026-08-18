@@ -100,6 +100,17 @@ static bool s_have_location = false;
 #define LEAD_GOTHIC24 4
 #define LEAD_LECO42 8
 #define LEAD_ROBOTO49 9
+// Liberation Sans Bold, the bundled Hebrew-capable face. Tuned by eye against
+// the same baselines the Gothic sizes sit on.
+#define LEAD_HEB24 5
+#define LEAD_HEB18 4
+#define LEAD_HEB14 3
+
+// Footer box widths when one box has to be wider than a third of the screen.
+#define BOX_PAD 8         // breathing room either side of a month name
+#define BOX_WIDE_MAX 96   // past this the neighbours get too cramped to read
+#define BOX_NARROW_MIN 52 // a neighbour narrower than this cannot hold "12:58"
+
 
 #define CIVIL_Y 46
 
@@ -126,6 +137,12 @@ static GFont s_font_bold18;   // Gothic 18 Bold, for a band line that will not f
 static GFont s_font_bold14;   // Gothic 14 Bold, likewise
 static GFont s_font_label;    // Gothic 14
 static GFont s_font_civil;    // Roboto 49 or the shaot face
+// Liberation Sans Bold, bundled. Covers Latin and Hebrew in one face, which is
+// what lets a mixed line be drawn in a single call -- and the firmware reorders
+// the Hebrew run itself, so the strings stay in logical order.
+static GFont s_font_heb24;
+static GFont s_font_heb18;
+static GFont s_font_heb14;
 static int s_lead_civil;      // leading of whichever civil face is selected
 
 static GColor s_bg, s_fg, s_dim, s_accent, s_on_accent, s_rule;
@@ -304,6 +321,11 @@ typedef enum {
   SLOT_LAYOUT_GAUGE,  // a drawn gauge in place of the label, value below
 } SlotLayout;
 
+// Whether this kind's value row can contain a Hebrew month name.
+static bool slot_has_hebrew(uint8_t kind) {
+  return kind == SLOT_HEBREW || kind == SLOT_DATES_SEC_HEB || kind == SLOT_DATES_HEB_SEC;
+}
+
 // Fills label and value, and says how the box should lay them out.
 static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
                                char *label, size_t label_n, char *value, size_t value_n) {
@@ -479,8 +501,12 @@ static void draw_battery_gauge(GContext *ctx, int pct, bool charging, GColor ink
   }
 }
 
+// The box has to be wider than any line this face can produce, or the text
+// wraps *during measurement* and the width comes back capped at the box -- so a
+// line that does not fit measures as though it does, and every caller that
+// shrinks text to fit is silently defeated.
 static GSize measure(const char *text, GFont font) {
-  return graphics_text_layout_get_content_size(text, font, GRect(0, 0, 200, 60),
+  return graphics_text_layout_get_content_size(text, font, GRect(0, 0, 1000, 60),
                                                GTextOverflowModeTrailingEllipsis,
                                                GTextAlignmentLeft);
 }
@@ -499,11 +525,35 @@ typedef struct {
   int y;
 } BandFace;
 
+// The value row of a footer box, shrunk to fit its third of the screen. Hebrew
+// month names are wider than their transliterations -- "Heshvan" fits at 24
+// where "adar 1" in Hebrew script does not -- and dy keeps the smaller sizes
+// sitting on roughly the same optical centre.
+typedef struct {
+  GFont font;
+  int lead;
+  int dy;
+} BoxFace;
+
+static BoxFace box_face(const char *text, int width, bool heb) {
+  const BoxFace ladder[] = {
+      {heb ? s_font_heb24 : s_font_bold24, heb ? LEAD_HEB24 : LEAD_GOTHIC24, 0},
+      {heb ? s_font_heb18 : s_font_bold18, heb ? LEAD_HEB18 : 3, 3},
+      {heb ? s_font_heb14 : s_font_bold14, heb ? LEAD_HEB14 : LEAD_GOTHIC14, 5},
+  };
+  const int n = (int)(sizeof(ladder) / sizeof(ladder[0]));
+  for (int i = 0; i < n - 1; i++) {
+    if (measure(text, ladder[i].font).w <= width) return ladder[i];
+  }
+  return ladder[n - 1];
+}
+
 static BandFace band_face(const char *text, int width) {
+  const bool heb = s_settings.hebrew_script;
   const BandFace ladder[] = {
-      {s_font_bold24, LEAD_GOTHIC24, 5},
-      {s_font_bold18, 3, 9},
-      {s_font_bold14, LEAD_GOTHIC14, 12},
+      {heb ? s_font_heb24 : s_font_bold24, heb ? LEAD_HEB24 : LEAD_GOTHIC24, 5},
+      {heb ? s_font_heb18 : s_font_bold18, heb ? LEAD_HEB18 : 3, 9},
+      {heb ? s_font_heb14 : s_font_bold14, heb ? LEAD_HEB14 : LEAD_GOTHIC14, 12},
   };
   const int n = (int)(sizeof(ladder) / sizeof(ladder[0]));
   for (int i = 0; i < n - 1; i++) {
@@ -678,7 +728,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, s_accent);
   graphics_fill_rect(ctx, GRect(0, 0, bounds.size.w, BAND_H), 0, GCornerNone);
 
-  char label[24], value[40], band[68];  // both parts plus ": " and the NUL
+  char band[68];  // both parts plus ": " and the NUL
   band_content(s_settings.slot_band, &lt, band, sizeof(band));
   BandFace bf = band_face(band, bounds.size.w - 6);
   draw_centered(ctx, band, bf.font, bf.lead, s_on_accent, bf.y, 0, bounds.size.w);
@@ -755,26 +805,65 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   // every slot is user-configurable, only the fill colour is.
   int footer_h = vis_bottom - footer_top - 1;
   int third = bounds.size.w / 3;
+  const uint8_t kinds[3] = {s_settings.slot_left, s_settings.slot_mid, s_settings.slot_right};
+
+  // Content first, because the widths depend on it.
+  char labels[3][24], values[3][40];
+  SlotLayout layouts[3];
+  for (int i = 0; i < 3; i++) {
+    layouts[i] = slot_content(kinds[i], &lt, false, labels[i], sizeof(labels[i]), values[i],
+                              sizeof(values[i]));
+  }
+
+  // A month name is the only thing a box can hold that outgrows a third of the
+  // screen, and everything it sits beside -- a time, a gauge -- has slack to
+  // spare. So when exactly one box is showing one, it takes the width its name
+  // actually measures and the other two give up the difference equally. Two
+  // date boxes at once would have nothing to borrow from, so the split stays
+  // even and box_face() shrinks the type instead.
+  int widths[3] = {third + 1, third + 1, bounds.size.w - 2 * third};
+  int date_box = -1, date_boxes = 0;
+  for (int i = 0; i < 3; i++) {
+    if (kinds[i] == SLOT_HEBREW) {
+      date_box = i;
+      date_boxes++;
+    }
+  }
+  if (date_boxes == 1) {
+    bool heb = s_settings.hebrew_script;
+    int want = measure(values[date_box], heb ? s_font_heb24 : s_font_bold24).w + BOX_PAD;
+    if (want > BOX_WIDE_MAX) want = BOX_WIDE_MAX;
+    int narrow = (bounds.size.w - want) / 2;
+    if (want > widths[date_box] && narrow >= BOX_NARROW_MIN) {
+      for (int i = 0; i < 3; i++) widths[i] = (i == date_box) ? want : narrow;
+    }
+  }
+  int xs[3] = {0, widths[0], widths[0] + widths[1]};
+  widths[2] = bounds.size.w - xs[2];  // the last box absorbs any rounding
+
   graphics_context_set_fill_color(ctx, s_rule);
   graphics_fill_rect(ctx, GRect(0, footer_top, bounds.size.w, 1), 0, GCornerNone);
   graphics_context_set_fill_color(ctx, s_accent);
-  graphics_fill_rect(ctx, GRect(0, footer_top + 1, third + 1, footer_h), 0, GCornerNone);
-  graphics_fill_rect(ctx, GRect(2 * third, footer_top + 1, bounds.size.w - 2 * third, footer_h),
-                     0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(0, footer_top + 1, widths[0] + 1, footer_h), 0, GCornerNone);
+  graphics_fill_rect(ctx, GRect(xs[2], footer_top + 1, widths[2], footer_h), 0, GCornerNone);
 
-  const uint8_t kinds[3] = {s_settings.slot_left, s_settings.slot_mid, s_settings.slot_right};
   for (int i = 0; i < 3; i++) {
     bool on_fill = (i != 1);
     GColor ink = on_fill ? s_on_accent : s_fg;
-    int x = i * third;
-    int w = (i == 2) ? bounds.size.w - 2 * third : third + 1;
+    int x = xs[i];
+    int w = widths[i];
 
-    SlotLayout layout =
-        slot_content(kinds[i], &lt, false, label, sizeof(label), value, sizeof(value));
+    SlotLayout layout = layouts[i];
+    const char *label = labels[i];
+    const char *value = values[i];
+    // A Hebrew month name can only appear in the value row, and only when the
+    // wearer has asked for Hebrew script. The label row above it is always
+    // Latin ("30th of"), so it stays Gothic.
+    BoxFace vf = box_face(value, w, s_settings.hebrew_script && slot_has_hebrew(kinds[i]));
     if (layout == SLOT_LAYOUT_SPLIT) {
       // A date split over both lines: same size and weight, no label.
       draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 3, x, w);
-      draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 29, x, w);
+      draw_centered(ctx, value, vf.font, vf.lead, ink, footer_top + 29 + vf.dy, x, w);
     } else {
       // The gauge occupies the label row, which is why the box needs no
       // retuning: the percentage stays exactly where the value always sat.
@@ -784,7 +873,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
         draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, on_fill ? s_on_accent : s_dim,
                       footer_top + 6, x, w);
       }
-      draw_centered(ctx, value, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 24, x, w);
+      draw_centered(ctx, value, vf.font, vf.lead, ink, footer_top + 24 + vf.dy, x, w);
     }
   }
 }
@@ -906,6 +995,8 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.tick_seconds = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_Countdown) {
       if (tuple_to_int(t, &v)) { s_settings.countdown = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_HebrewScript) {
+      if (tuple_to_int(t, &v)) { s_settings.hebrew_script = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_CivilFont) {
       if (tuple_to_int(t, &v)) { s_settings.civil_font = (uint8_t)v; settings_changed = true; }
     } else if (k == MESSAGE_KEY_SlotBand) {
@@ -989,6 +1080,9 @@ static void init(void) {
   s_font_bold18 = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   s_font_bold14 = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
   s_font_label = fonts_get_system_font(FONT_KEY_GOTHIC_14);
+  s_font_heb24 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_HEBREW_24));
+  s_font_heb18 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_HEBREW_18));
+  s_font_heb14 = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_HEBREW_14));
   apply_settings();
 
   BatteryChargeState batt = battery_state_service_peek();

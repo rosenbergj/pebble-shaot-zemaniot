@@ -99,6 +99,15 @@ module.exports = [
           "the bottom.",
       },
       {
+        type: "toggle",
+        messageKey: "HebrewScript",
+        label: "Hebrew month names in Hebrew",
+        defaultValue: false,
+        description:
+          "Writes the month as \u05D0\u05DC\u05D5\u05DC rather than Elul, " +
+          "everywhere the Hebrew date appears. The day stays a numeral.",
+      },
+      {
         type: "select",
         messageKey: "SlotBand",
         label: "Top band",

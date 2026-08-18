@@ -36,6 +36,7 @@ src/c/hebdate.c     Hebrew calendar
 src/c/solar.c       NOAA sun events
 src/c/trig.c        trigonometry (libm's cannot be used here -- see below)
 src/c/numparse.c    integer parsing (newlib's strtol cannot be used here)
+resources/fonts/    Liberation Sans Bold, bundled for Hebrew (see below)
 src/pkjs/index.js   phone side: geolocation -> LAT/LON
 src/pkjs/config.js  Clay settings page
 test/c/             host harness for the pure modules
@@ -110,6 +111,25 @@ watch.
   Roboto has no `.` either, which is why the shaot line is Leco. Anything
   alphabetic on those lines, like `am`/`pm`, has to be set in a second face
   beside them and positioned with `graphics_text_layout_get_content_size()`.
+- **The firmware reorders right-to-left text itself.** A Hebrew string drawn
+  with `graphics_draw_text` comes out in the correct visual order from
+  *logical* byte order -- the month names in `hebdate.c` are stored the way
+  they are read, and nothing reverses them. Storing them pre-reversed, or
+  reversing at runtime, produces backwards text. Verified on the emulator by
+  drawing both orders side by side.
+- **No system font carries Hebrew glyphs**, so Hebrew script needs a bundled
+  one, and it must cover Latin too: one line can hold `Mon Aug 17 / 5 אלול`,
+  and a single `graphics_draw_text` call takes a single font. Liberation Sans
+  Bold covers both and is close enough to Gothic to sit beside it; Noto Sans
+  Hebrew has **no Latin at all**, which would have forced splitting each line
+  into runs and measuring them. `characterRegex` keeps the resource to the two
+  blocks actually used. The licence is in `resources/fonts/`.
+- **Measure text in a box wider than any line it can produce.** `measure()`
+  passes a 1000px-wide rect on purpose: `graphics_text_layout_get_content_size`
+  *wraps* the text inside the rect it is given, so measuring inside the real
+  200px band returns a width that never exceeds 200 -- and every ladder that
+  shrinks text to fit is silently defeated. The band's fallback to 18pt had
+  never once fired.
 - **`M_PI` is not defined** — the toolchain compiles without GNU extensions.
 - **`pebble build` can fail while `pebble install` happily pushes the previous
   `.pbw`.** Never redirect build output to `/dev/null`.

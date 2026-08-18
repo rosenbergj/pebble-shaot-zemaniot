@@ -1,7 +1,7 @@
 {
   "name": "shaot",
   "author": "Josh Rosenberg",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "keywords": [
     "pebble-app"
   ],
@@ -36,7 +36,8 @@
       "SlotRight",
       "AccentColor",
       "TickSeconds",
-      "Countdown"
+      "Countdown",
+      "HebrewScript"
     ],
     "resources": {
       "media": [
@@ -45,6 +46,24 @@
           "name": "MENU_ICON",
           "file": "images/menuicon.png",
           "menuIcon": true
+        },
+        {
+          "type": "font",
+          "name": "FONT_HEBREW_24",
+          "file": "fonts/LiberationSans-Bold.ttf",
+          "characterRegex": "[\\u0020-\\u007E\\u05D0-\\u05EA]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_HEBREW_18",
+          "file": "fonts/LiberationSans-Bold.ttf",
+          "characterRegex": "[\\u0020-\\u007E\\u05D0-\\u05EA]"
+        },
+        {
+          "type": "font",
+          "name": "FONT_HEBREW_14",
+          "file": "fonts/LiberationSans-Bold.ttf",
+          "characterRegex": "[\\u0020-\\u007E\\u05D0-\\u05EA]"
         }
       ]
     }
