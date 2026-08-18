@@ -1,0 +1,27 @@
+{
+  "name": "touchprobe",
+  "author": "Josh Rosenberg",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Touch Probe",
+    "uuid": "9cca9a76-ac7d-47fd-a936-59ae13fc451f",
+    "sdkVersion": "3",
+    "enableMultiJS": false,
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "capabilities": [],
+    "messageKeys": [],
+    "resources": {
+      "media": []
+    }
+  }
+}
