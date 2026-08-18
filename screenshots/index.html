@@ -2,44 +2,324 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Shaot watchface — chosen layout</title>
-<meta http-equiv="refresh" content="30">
+<title>Shaot watchface — screenshots</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   body { background: #1a1a1c; color: #ddd; font-family: system-ui, sans-serif;
          margin: 0; padding: 2em; }
-  h1 { font-size: 1.3em; font-weight: 600; }
-  p.note { color: #999; max-width: 52em; line-height: 1.55; }
-  .row { display: flex; flex-wrap: wrap; gap: 2.5em; margin-top: 1.5em;
-         align-items: flex-start; }
-  figure { margin: 0; }
-  figure.big img { width: 300px; }
-  figure.actual img { width: 200px; }
-  img { image-rendering: pixelated; border: 1px solid #444; border-radius: 10px;
-        display: block; }
-  figcaption { margin-top: .6em; font-size: .9em; color: #999; }
+  h1 { font-size: 1.3em; font-weight: 600; margin: 0 0 .3em; }
+  p.note { color: #999; max-width: 52em; line-height: 1.55; margin: .3em 0 0; }
   a { color: #6cf; }
+  .grid { display: flex; flex-wrap: wrap; gap: 1.6em; margin-top: 2em;
+          align-items: flex-start; }
+  figure { margin: 0; max-width: 220px; }
+  img { image-rendering: pixelated; border: 1px solid #444; border-radius: 8px;
+        display: block; max-width: 100%; background: #000; }
+  figcaption { margin-top: .5em; font-size: .82em; color: #999;
+               word-break: break-all; }
+  figcaption .when { color: #666; }
 </style>
 </head>
 <body>
-<h1>D, with filled outer slots and the secular date</h1>
-<p class="note">Live emulator screenshot. The Hebrew date sits in the accent band, civil
-time and shaot keep their different faces, and the outer two slot positions are filled
-with the accent color. All three slots stay user-configurable — the middle one shows
-weekday over month/date purely as an example of compact secular date content. The fill
-is fixed to the outer positions, with only its color a setting.</p>
-<p class="note">This shot is after sunset, so the shaot clock has flipped into the night
-half-day (0.38 of 12) and the Hebrew date has already rolled over to 29 Av. Sunset and
-battery are the sample outer slots; only the battery figure is faked.</p>
-
-<div class="row">
-  <figure class="big">
-    <img src="layout-4-band-date-boxes.png" alt="chosen layout, 1.5x">
-    <figcaption>1.5×</figcaption>
+<h1>Shaot watchface — screenshots</h1>
+<p class="note">Newest first. Emulator captures at 200×228 unless they are
+comparison strips, which are wider. Also here:
+<a href="layout-choice.html">the layout-choice page</a> from the design stage.</p>
+<div class="grid">
+  <figure>
+    <a href="chg-plug-compare.png"><img src="chg-plug-compare.png" alt="chg-plug-compare.png" loading="lazy"></a>
+    <figcaption>chg-plug-compare.png<br><span class="when">2026-08-17 20:00</span></figcaption>
   </figure>
-  <figure class="actual">
-    <img src="layout-4-band-date-boxes.png" alt="chosen layout, true size">
-    <figcaption>true size (200×228, as on the watch)</figcaption>
+  <figure>
+    <a href="chg-5-plug-flipped.png"><img src="chg-5-plug-flipped.png" alt="chg-5-plug-flipped.png" loading="lazy"></a>
+    <figcaption>chg-5-plug-flipped.png<br><span class="when">2026-08-17 20:00</span></figcaption>
+  </figure>
+  <figure>
+    <a href="chg-4-bolt.png"><img src="chg-4-bolt.png" alt="chg-4-bolt.png" loading="lazy"></a>
+    <figcaption>chg-4-bolt.png<br><span class="when">2026-08-17 19:57</span></figcaption>
+  </figure>
+  <figure>
+    <a href="chg-compare.png"><img src="chg-compare.png" alt="chg-compare.png" loading="lazy"></a>
+    <figcaption>chg-compare.png<br><span class="when">2026-08-17 19:57</span></figcaption>
+  </figure>
+  <figure>
+    <a href="chg-3-plug.png"><img src="chg-3-plug.png" alt="chg-3-plug.png" loading="lazy"></a>
+    <figcaption>chg-3-plug.png<br><span class="when">2026-08-17 19:57</span></figcaption>
+  </figure>
+  <figure>
+    <a href="chg-2-diagonal.png"><img src="chg-2-diagonal.png" alt="chg-2-diagonal.png" loading="lazy"></a>
+    <figcaption>chg-2-diagonal.png<br><span class="when">2026-08-17 19:57</span></figcaption>
+  </figure>
+  <figure>
+    <a href="chg-1-stripes.png"><img src="chg-1-stripes.png" alt="chg-1-stripes.png" loading="lazy"></a>
+    <figcaption>chg-1-stripes.png<br><span class="when">2026-08-17 19:57</span></figcaption>
+  </figure>
+  <figure>
+    <a href="ct-tick-d.png"><img src="ct-tick-d.png" alt="ct-tick-d.png" loading="lazy"></a>
+    <figcaption>ct-tick-d.png<br><span class="when">2026-08-17 17:29</span></figcaption>
+  </figure>
+  <figure>
+    <a href="ct-tick-c.png"><img src="ct-tick-c.png" alt="ct-tick-c.png" loading="lazy"></a>
+    <figcaption>ct-tick-c.png<br><span class="when">2026-08-17 17:29</span></figcaption>
+  </figure>
+  <figure>
+    <a href="ct-tick-b.png"><img src="ct-tick-b.png" alt="ct-tick-b.png" loading="lazy"></a>
+    <figcaption>ct-tick-b.png<br><span class="when">2026-08-17 17:28</span></figcaption>
+  </figure>
+  <figure>
+    <a href="ct-tick-a.png"><img src="ct-tick-a.png" alt="ct-tick-a.png" loading="lazy"></a>
+    <figcaption>ct-tick-a.png<br><span class="when">2026-08-17 17:28</span></figcaption>
+  </figure>
+  <figure>
+    <a href="ct-min-b.png"><img src="ct-min-b.png" alt="ct-min-b.png" loading="lazy"></a>
+    <figcaption>ct-min-b.png<br><span class="when">2026-08-17 17:27</span></figcaption>
+  </figure>
+  <figure>
+    <a href="ct-min-a.png"><img src="ct-min-a.png" alt="ct-min-a.png" loading="lazy"></a>
+    <figcaption>ct-min-a.png<br><span class="when">2026-08-17 17:27</span></figcaption>
+  </figure>
+  <figure>
+    <a href="ct-after.png"><img src="ct-after.png" alt="ct-after.png" loading="lazy"></a>
+    <figcaption>ct-after.png<br><span class="when">2026-08-17 17:26</span></figcaption>
+  </figure>
+  <figure>
+    <a href="ct-before.png"><img src="ct-before.png" alt="ct-before.png" loading="lazy"></a>
+    <figcaption>ct-before.png<br><span class="when">2026-08-17 17:26</span></figcaption>
+  </figure>
+  <figure>
+    <a href="ct2.png"><img src="ct2.png" alt="ct2.png" loading="lazy"></a>
+    <figcaption>ct2.png<br><span class="when">2026-08-17 17:26</span></figcaption>
+  </figure>
+  <figure>
+    <a href="countdown.png"><img src="countdown.png" alt="countdown.png" loading="lazy"></a>
+    <figcaption>countdown.png<br><span class="when">2026-08-17 17:26</span></figcaption>
+  </figure>
+  <figure>
+    <a href="batt-32.png"><img src="batt-32.png" alt="batt-32.png" loading="lazy"></a>
+    <figcaption>batt-32.png<br><span class="when">2026-08-17 17:17</span></figcaption>
+  </figure>
+  <figure>
+    <a href="batt-low-0.png"><img src="batt-low-0.png" alt="batt-low-0.png" loading="lazy"></a>
+    <figcaption>batt-low-0.png<br><span class="when">2026-08-17 17:17</span></figcaption>
+  </figure>
+  <figure>
+    <a href="batt-low-20.png"><img src="batt-low-20.png" alt="batt-low-20.png" loading="lazy"></a>
+    <figcaption>batt-low-20.png<br><span class="when">2026-08-17 17:17</span></figcaption>
+  </figure>
+  <figure>
+    <a href="batt-charging.png"><img src="batt-charging.png" alt="batt-charging.png" loading="lazy"></a>
+    <figcaption>batt-charging.png<br><span class="when">2026-08-17 17:17</span></figcaption>
+  </figure>
+  <figure>
+    <a href="batt-mid.png"><img src="batt-mid.png" alt="batt-mid.png" loading="lazy"></a>
+    <figcaption>batt-mid.png<br><span class="when">2026-08-17 17:11</span></figcaption>
+  </figure>
+  <figure>
+    <a href="batt-0.png"><img src="batt-0.png" alt="batt-0.png" loading="lazy"></a>
+    <figcaption>batt-0.png<br><span class="when">2026-08-17 17:10</span></figcaption>
+  </figure>
+  <figure>
+    <a href="batt-10.png"><img src="batt-10.png" alt="batt-10.png" loading="lazy"></a>
+    <figcaption>batt-10.png<br><span class="when">2026-08-17 17:10</span></figcaption>
+  </figure>
+  <figure>
+    <a href="batt-50.png"><img src="batt-50.png" alt="batt-50.png" loading="lazy"></a>
+    <figcaption>batt-50.png<br><span class="when">2026-08-17 17:10</span></figcaption>
+  </figure>
+  <figure>
+    <a href="batt-100.png"><img src="batt-100.png" alt="batt-100.png" loading="lazy"></a>
+    <figcaption>batt-100.png<br><span class="when">2026-08-17 17:10</span></figcaption>
+  </figure>
+  <figure>
+    <a href="batt-78.png"><img src="batt-78.png" alt="batt-78.png" loading="lazy"></a>
+    <figcaption>batt-78.png<br><span class="when">2026-08-17 17:10</span></figcaption>
+  </figure>
+  <figure>
+    <a href="both-dates.png"><img src="both-dates.png" alt="both-dates.png" loading="lazy"></a>
+    <figcaption>both-dates.png<br><span class="when">2026-08-17 14:15</span></figcaption>
+  </figure>
+  <figure>
+    <a href="hebrew-script-plain.png"><img src="hebrew-script-plain.png" alt="hebrew-script-plain.png" loading="lazy"></a>
+    <figcaption>hebrew-script-plain.png<br><span class="when">2026-08-17 14:14</span></figcaption>
+  </figure>
+  <figure>
+    <a href="dates-heb-sec-oct.png"><img src="dates-heb-sec-oct.png" alt="dates-heb-sec-oct.png" loading="lazy"></a>
+    <figcaption>dates-heb-sec-oct.png<br><span class="when">2026-08-17 14:14</span></figcaption>
+  </figure>
+  <figure>
+    <a href="dates-sec-heb-hebrew.png"><img src="dates-sec-heb-hebrew.png" alt="dates-sec-heb-hebrew.png" loading="lazy"></a>
+    <figcaption>dates-sec-heb-hebrew.png<br><span class="when">2026-08-17 14:13</span></figcaption>
+  </figure>
+  <figure>
+    <a href="dates-sec-heb-oct.png"><img src="dates-sec-heb-oct.png" alt="dates-sec-heb-oct.png" loading="lazy"></a>
+    <figcaption>dates-sec-heb-oct.png<br><span class="when">2026-08-17 14:13</span></figcaption>
+  </figure>
+  <figure>
+    <a href="dates-heb-sec-aug.png"><img src="dates-heb-sec-aug.png" alt="dates-heb-sec-aug.png" loading="lazy"></a>
+    <figcaption>dates-heb-sec-aug.png<br><span class="when">2026-08-17 14:13</span></figcaption>
+  </figure>
+  <figure>
+    <a href="dates-sec-heb-aug.png"><img src="dates-sec-heb-aug.png" alt="dates-sec-heb-aug.png" loading="lazy"></a>
+    <figcaption>dates-sec-heb-aug.png<br><span class="when">2026-08-17 14:13</span></figcaption>
+  </figure>
+  <figure>
+    <a href="next-slots.png"><img src="next-slots.png" alt="next-slots.png" loading="lazy"></a>
+    <figcaption>next-slots.png<br><span class="when">2026-08-17 14:01</span></figcaption>
+  </figure>
+  <figure>
+    <a href="next-2100.png"><img src="next-2100.png" alt="next-2100.png" loading="lazy"></a>
+    <figcaption>next-2100.png<br><span class="when">2026-08-17 14:01</span></figcaption>
+  </figure>
+  <figure>
+    <a href="next-2000.png"><img src="next-2000.png" alt="next-2000.png" loading="lazy"></a>
+    <figcaption>next-2000.png<br><span class="when">2026-08-17 14:01</span></figcaption>
+  </figure>
+  <figure>
+    <a href="next-1000.png"><img src="next-1000.png" alt="next-1000.png" loading="lazy"></a>
+    <figcaption>next-1000.png<br><span class="when">2026-08-17 14:01</span></figcaption>
+  </figure>
+  <figure>
+    <a href="next-0300.png"><img src="next-0300.png" alt="next-0300.png" loading="lazy"></a>
+    <figcaption>next-0300.png<br><span class="when">2026-08-17 14:01</span></figcaption>
+  </figure>
+  <figure>
+    <a href="fix-24h-boxes.png"><img src="fix-24h-boxes.png" alt="fix-24h-boxes.png" loading="lazy"></a>
+    <figcaption>fix-24h-boxes.png<br><span class="when">2026-08-17 13:54</span></figcaption>
+  </figure>
+  <figure>
+    <a href="fix-back12h.png"><img src="fix-back12h.png" alt="fix-back12h.png" loading="lazy"></a>
+    <figcaption>fix-back12h.png<br><span class="when">2026-08-17 13:54</span></figcaption>
+  </figure>
+  <figure>
+    <a href="fix-24h.png"><img src="fix-24h.png" alt="fix-24h.png" loading="lazy"></a>
+    <figcaption>fix-24h.png<br><span class="when">2026-08-17 13:53</span></figcaption>
+  </figure>
+  <figure>
+    <a href="fix-12h.png"><img src="fix-12h.png" alt="fix-12h.png" loading="lazy"></a>
+    <figcaption>fix-12h.png<br><span class="when">2026-08-17 13:53</span></figcaption>
+  </figure>
+  <figure>
+    <a href="bug-pair.png"><img src="bug-pair.png" alt="bug-pair.png" loading="lazy"></a>
+    <figcaption>bug-pair.png<br><span class="when">2026-08-17 13:53</span></figcaption>
+  </figure>
+  <figure>
+    <a href="bug-24h.png"><img src="bug-24h.png" alt="bug-24h.png" loading="lazy"></a>
+    <figcaption>bug-24h.png<br><span class="when">2026-08-17 13:53</span></figcaption>
+  </figure>
+  <figure>
+    <a href="bug-12h.png"><img src="bug-12h.png" alt="bug-12h.png" loading="lazy"></a>
+    <figcaption>bug-12h.png<br><span class="when">2026-08-17 13:52</span></figcaption>
+  </figure>
+  <figure>
+    <a href="clock-variants.png"><img src="clock-variants.png" alt="clock-variants.png" loading="lazy"></a>
+    <figcaption>clock-variants.png<br><span class="when">2026-08-17 13:48</span></figcaption>
+  </figure>
+  <figure>
+    <a href="clk-secs-24h.png"><img src="clk-secs-24h.png" alt="clk-secs-24h.png" loading="lazy"></a>
+    <figcaption>clk-secs-24h.png<br><span class="when">2026-08-17 13:44</span></figcaption>
+  </figure>
+  <figure>
+    <a href="clk-24h.png"><img src="clk-24h.png" alt="clk-24h.png" loading="lazy"></a>
+    <figcaption>clk-24h.png<br><span class="when">2026-08-17 13:44</span></figcaption>
+  </figure>
+  <figure>
+    <a href="clk-ampm-leco.png"><img src="clk-ampm-leco.png" alt="clk-ampm-leco.png" loading="lazy"></a>
+    <figcaption>clk-ampm-leco.png<br><span class="when">2026-08-17 13:44</span></figcaption>
+  </figure>
+  <figure>
+    <a href="clk-ampm-roboto.png"><img src="clk-ampm-roboto.png" alt="clk-ampm-roboto.png" loading="lazy"></a>
+    <figcaption>clk-ampm-roboto.png<br><span class="when">2026-08-17 13:44</span></figcaption>
+  </figure>
+  <figure>
+    <a href="tf-check.png"><img src="tf-check.png" alt="tf-check.png" loading="lazy"></a>
+    <figcaption>tf-check.png<br><span class="when">2026-08-17 13:43</span></figcaption>
+  </figure>
+  <figure>
+    <a href="facepicker-noicon.png"><img src="facepicker-noicon.png" alt="facepicker-noicon.png" loading="lazy"></a>
+    <figcaption>facepicker-noicon.png<br><span class="when">2026-08-17 13:32</span></figcaption>
+  </figure>
+  <figure>
+    <a href="facepicker.png"><img src="facepicker.png" alt="facepicker.png" loading="lazy"></a>
+    <figcaption>facepicker.png<br><span class="when">2026-08-17 13:31</span></figcaption>
+  </figure>
+  <figure>
+    <a href="launcher.png"><img src="launcher.png" alt="launcher.png" loading="lazy"></a>
+    <figcaption>launcher.png<br><span class="when">2026-08-17 13:31</span></figcaption>
+  </figure>
+  <figure>
+    <a href="icon-candidates.png"><img src="icon-candidates.png" alt="icon-candidates.png" loading="lazy"></a>
+    <figcaption>icon-candidates.png<br><span class="when">2026-08-17 13:29</span></figcaption>
+  </figure>
+  <figure>
+    <a href="qv-on.png"><img src="qv-on.png" alt="qv-on.png" loading="lazy"></a>
+    <figcaption>qv-on.png<br><span class="when">2026-08-17 13:22</span></figcaption>
+  </figure>
+  <figure>
+    <a href="qv-off.png"><img src="qv-off.png" alt="qv-off.png" loading="lazy"></a>
+    <figcaption>qv-off.png<br><span class="when">2026-08-17 13:22</span></figcaption>
+  </figure>
+  <figure>
+    <a href="quickview-on.png"><img src="quickview-on.png" alt="quickview-on.png" loading="lazy"></a>
+    <figcaption>quickview-on.png<br><span class="when">2026-08-17 13:17</span></figcaption>
+  </figure>
+  <figure>
+    <a href="rollover-after-sunset.png"><img src="rollover-after-sunset.png" alt="rollover-after-sunset.png" loading="lazy"></a>
+    <figcaption>rollover-after-sunset.png<br><span class="when">2026-08-17 13:12</span></figcaption>
+  </figure>
+  <figure>
+    <a href="rollover-after.png"><img src="rollover-after.png" alt="rollover-after.png" loading="lazy"></a>
+    <figcaption>rollover-after.png<br><span class="when">2026-08-17 13:12</span></figcaption>
+  </figure>
+  <figure>
+    <a href="rollover-before.png"><img src="rollover-before.png" alt="rollover-before.png" loading="lazy"></a>
+    <figcaption>rollover-before.png<br><span class="when">2026-08-17 13:11</span></figcaption>
+  </figure>
+  <figure>
+    <a href="band-tweak-secdate.png"><img src="band-tweak-secdate.png" alt="band-tweak-secdate.png" loading="lazy"></a>
+    <figcaption>band-tweak-secdate.png<br><span class="when">2026-08-17 12:59</span></figcaption>
+  </figure>
+  <figure>
+    <a href="band-tweak-sunset.png"><img src="band-tweak-sunset.png" alt="band-tweak-sunset.png" loading="lazy"></a>
+    <figcaption>band-tweak-sunset.png<br><span class="when">2026-08-17 12:58</span></figcaption>
+  </figure>
+  <figure>
+    <a href="band-tweak-1.png"><img src="band-tweak-1.png" alt="band-tweak-1.png" loading="lazy"></a>
+    <figcaption>band-tweak-1.png<br><span class="when">2026-08-17 12:58</span></figcaption>
+  </figure>
+  <figure>
+    <a href="c-port-phaseb.png"><img src="c-port-phaseb.png" alt="c-port-phaseb.png" loading="lazy"></a>
+    <figcaption>c-port-phaseb.png<br><span class="when">2026-08-16 22:14</span></figcaption>
+  </figure>
+  <figure>
+    <a href="latest.png"><img src="latest.png" alt="latest.png" loading="lazy"></a>
+    <figcaption>latest.png<br><span class="when">2026-08-11 23:30</span></figcaption>
+  </figure>
+  <figure>
+    <a href="slots-swapped.png"><img src="slots-swapped.png" alt="slots-swapped.png" loading="lazy"></a>
+    <figcaption>slots-swapped.png<br><span class="when">2026-08-11 20:49</span></figcaption>
+  </figure>
+  <figure>
+    <a href="layout-4-band-date-boxes.png"><img src="layout-4-band-date-boxes.png" alt="layout-4-band-date-boxes.png" loading="lazy"></a>
+    <figcaption>layout-4-band-date-boxes.png<br><span class="when">2026-08-11 20:35</span></figcaption>
+  </figure>
+  <figure>
+    <a href="layout-3-band-3slot-roomy.png"><img src="layout-3-band-3slot-roomy.png" alt="layout-3-band-3slot-roomy.png" loading="lazy"></a>
+    <figcaption>layout-3-band-3slot-roomy.png<br><span class="when">2026-08-11 17:44</span></figcaption>
+  </figure>
+  <figure>
+    <a href="layout-2-band-3slot-div.png"><img src="layout-2-band-3slot-div.png" alt="layout-2-band-3slot-div.png" loading="lazy"></a>
+    <figcaption>layout-2-band-3slot-div.png<br><span class="when">2026-08-11 17:43</span></figcaption>
+  </figure>
+  <figure>
+    <a href="layout-1-band-2slot.png"><img src="layout-1-band-2slot.png" alt="layout-1-band-2slot.png" loading="lazy"></a>
+    <figcaption>layout-1-band-2slot.png<br><span class="when">2026-08-11 17:43</span></figcaption>
+  </figure>
+  <figure>
+    <a href="layout-0-band-3slot.png"><img src="layout-0-band-3slot.png" alt="layout-0-band-3slot.png" loading="lazy"></a>
+    <figcaption>layout-0-band-3slot.png<br><span class="when">2026-08-11 17:43</span></figcaption>
   </figure>
 </div>
+<p class="note" style="margin-top:2em">Generated by
+<code>tools/screenshot-index.py</code> at 2026-08-17 20:00.</p>
 </body>
 </html>
