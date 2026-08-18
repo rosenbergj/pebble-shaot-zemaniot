@@ -298,6 +298,20 @@ straight to the app instead:
 pebble send-app-message --emulator emery --int 10011=1   # Countdown on
 ```
 
+**Seeding Clay's own store** is a different job, and the only way to exercise
+the settings re-send without driving the config page by hand. pypkjs keeps
+localStorage as a `dbm.dumb` file named for the app UUID:
+
+```sh
+~/.local/share/pebble-sdk/<sdk>/emery/localstorage/<uuid>.{dir,dat,bak}
+```
+
+Write `clay-settings` into it as a JSON string of flat key/value pairs — select
+values as strings, toggles as booleans, exactly as a real save leaves them.
+`pebble wipe` clears the watch's own storage but not this, so wiping and then
+seeding reproduces the case the re-send exists for: watch on defaults, phone
+holding the wearer's real choices.
+
 **The keys must be the numeric ids, not the names** — those are generated into
 `build/src/message_keys.auto.c`, so read them from there after a build. This
 path also exercises the real `inbox_received` handler, which a hardcoded default
