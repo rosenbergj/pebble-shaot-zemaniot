@@ -36,7 +36,9 @@ src/c/hebdate.c     Hebrew calendar
 src/c/solar.c       NOAA sun events
 src/c/trig.c        trigonometry (libm's cannot be used here -- see below)
 src/c/numparse.c    integer parsing (newlib's strtol cannot be used here)
+src/c/weather.c     forecast day choice, unit conversion, staleness
 resources/fonts/    Liberation Sans Bold, bundled for Hebrew (see below)
+resources/data/     weather icons, from TimeStyle (MIT; licence alongside)
 src/pkjs/index.js   phone side: geolocation -> LAT/LON
 src/pkjs/config.js  Clay settings page
 test/c/             host harness for the pure modules
@@ -145,6 +147,11 @@ watch.
   headers' own advice, in the "User interaction in watchfaces" note, turns out
   to be current after all. None of this is testable in the emulator: there is no
   `emu-touch` and no touch endpoint in the protocol.
+- **The emulator's clock resyncs to the host within seconds of being set.**
+  `pebble emu-set-time` does take — twice, like `emu-battery` — but it does not
+  hold, so anything triggered by the hour cannot be tested by moving the clock
+  and then interacting. This is why the forecast's 18:00 cutoff lives in
+  `weather.c` as `weather_wanted_ymd()` and is checked on the host instead.
 - **`M_PI` is not defined** — the toolchain compiles without GNU extensions.
 - **`pebble build` can fail while `pebble install` happily pushes the previous
   `.pbw`.** Never redirect build output to `/dev/null`.
@@ -165,6 +172,41 @@ watch.
   pattern also matches the shell running it.
 - Installing over a running watchface can leave the old one on screen. If a
   screenshot looks stale, `pebble kill && pebble wipe` and reinstall.
+
+## Weather
+
+The phone fetches from **Open-Meteo** (free, no API key) and sends the result
+over AppMessage; the watch never touches the network. Modelled on TimeStyle,
+whose weather icons this uses (MIT, licence in `resources/data/`).
+
+- **The watch asks; the phone does not push.** Only the watch knows whether any
+  slot is showing weather, and there is no point spending a radio wake and an
+  HTTP fetch on a face that is not displaying it. The request is an empty
+  message; the phone treats anything from the watch as one. It fires at launch,
+  once an hour at a minute derived from the launch time, and on Bluetooth
+  reconnect. The per-watch minute is TimeStyle's idea: a fixed `tm_min % 30`
+  would have every watch running this face hit the API on the same two ticks.
+- **Temperature travels in Celsius** and is converted on the watch, so changing
+  the units setting redraws immediately rather than waiting for a fetch.
+- **The watch picks the forecast day, not the phone.** The box means today
+  until 18:00 local and tomorrow after, and that has to roll over on time even
+  when no fetch happens. So the phone sends *both* days, each stamped with the
+  local date it describes, and `weather_pick_day()` selects. The stamp is also
+  what makes going offline across midnight safe: Open-Meteo's day 0 quietly
+  becomes yesterday, and an unstamped payload would be shown as today's.
+- **Degrading:** never-fetched shows `--°` centred, with no icon. Data older
+  than `WEATHER_STALE_SECS` (3h, six missed refreshes) keeps its place but is
+  drawn in a muted ink, icon included — still readable, visibly not live. The
+  whole `WeatherData` struct is persisted, so a relaunch is not blank.
+- **The accelerometer tap** swaps current conditions for the forecast, and back
+  after `ALT_VIEW_HOLD_MS` or on a second tap. It sets `s_alt_view`, one flag
+  for the whole face rather than one per slot, so anything else that wants a
+  tap-driven second face can read the same flag. It reverts on its own because
+  screen touch does not reach a watchface (see above) and some accelerometer
+  taps are a jostled wrist rather than a decision.
+- **Icons are Pebble Draw Commands** (`type: "raw"` in `package.json`, 25x25,
+  ~1.8KB for all twelve). They carry their own colours, so `wx_recolor()`
+  repaints one before it is drawn in a box whose ink differs.
 
 ## Driving settings and time in the emulator
 
