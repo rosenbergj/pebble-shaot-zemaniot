@@ -1092,8 +1092,17 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   // countdown can appear up to a minute after sunset, which is the same lag
   // everything else on the face already has in that mode.
   subscribe_tick();
-  // Once an hour, at a minute of this watch's own choosing.
-  if (tick_time->tm_min == s_wx_minute && tick_time->tm_sec == 0) request_weather();
+  // Once an hour, at a minute of this watch's own choosing -- but every five
+  // minutes while a weather slot is configured and has nothing to show. The
+  // launch request can be sent before the phone's JavaScript is running, and
+  // waiting out the rest of the hour to discover that is too long to sit
+  // looking at an empty box.
+  if (tick_time->tm_sec == 0) {
+    const bool waiting = !s_wx.have_current;
+    if (tick_time->tm_min == s_wx_minute || (waiting && tick_time->tm_min % 5 == 0)) {
+      request_weather();
+    }
+  }
   layer_mark_dirty(s_canvas);
 }
 
@@ -1341,6 +1350,11 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   if (settings_changed) {
     apply_settings();
     subscribe_tick();
+    // Turning a weather slot on is exactly when the wearer expects weather, and
+    // it is otherwise up to an hour until the next scheduled request. This
+    // cannot loop: a weather payload carries no settings keys, so it cannot set
+    // settings_changed and ask again.
+    request_weather();
     save_settings();
   }
   // Do the recompute here, in the message callback, rather than leaving it for
