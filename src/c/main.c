@@ -179,6 +179,20 @@ static void save_weather(void) {
 // line. Nothing else is ever drawn there, so it costs no other element room.
 #define COUNTDOWN_LABEL_Y 95
 
+// The disconnect indicator's box, in the right-hand gutter. Declared up here
+// with the layout constants because the countdown block below has to keep clear
+// of it, not only draw_bt_overlay().
+#define BT_BOX 25
+
+// The countdown's accent block. It stops short of the screen edges on both
+// sides: the reading is only ever a few glyphs wide, and the right-hand gutter
+// belongs to the disconnect icon, which must stay legible while the countdown
+// is running -- that is exactly when a wearer wants to know the phone is gone.
+#define COUNTDOWN_BOX_TOP 107
+#define COUNTDOWN_BOX_BOTTOM 149
+#define COUNTDOWN_BOX_PAD 10  // either side of the widest reading
+#define COUNTDOWN_BT_GAP 4    // clear space left of the disconnect icon
+
 // The am/pm marker, shown only when ticking once a minute on a 12-hour clock.
 #define MERIDIEM_GAP 5
 #define MERIDIEM_NUDGE 3  // lifts it off the very bottom of the text box
@@ -992,7 +1006,8 @@ static void draw_face(Layer *layer, GContext *ctx) {
   // watched, so the countdown takes the line rather than a box. Ordinary
   // seconds, not chalakim: it is a wall-clock wait, and the label says so.
   char shaot[16];
-  if (countdown_active(now)) {
+  const bool counting = countdown_active(now);
+  if (counting) {
     shaot_format_countdown((int)(s_tzeit_at - now), shaot, sizeof(shaot));
     draw_centered(ctx, "till nightfall", s_font_label, LEAD_GOTHIC14, s_dim, COUNTDOWN_LABEL_Y, 0,
                   bounds.size.w);
@@ -1005,7 +1020,31 @@ static void draw_face(Layer *layer, GContext *ctx) {
     shaot_format(shaot_chalakim_now(shaot_ms, s_br.start_ms, s_br.end_ms),
                  s_settings.offset6, s_settings.with_minutes, shaot, sizeof(shaot));
   }
-  draw_centered(ctx, shaot, s_font_shaot, LEAD_LECO42, s_fg, 112, 0, bounds.size.w);
+  if (counting) {
+    // Sized to the widest ordinary reading rather than to the digits on screen,
+    // so the block does not step narrower when the minutes drop to one digit.
+    // A window longer than an hour formats as H:MM:SS, which is wider still --
+    // measure the string too, so that grows the block instead of spilling out.
+    const int now_w = measure(shaot, s_font_shaot).w;
+    const int wide_w = measure("00:00", s_font_shaot).w;
+    const int bw = (now_w > wide_w ? now_w : wide_w) + 2 * COUNTDOWN_BOX_PAD;
+
+    // Centred, then pushed left only as far as the disconnect icon requires.
+    // The nudge does not depend on whether the phone is actually connected: a
+    // block that slid sideways when Bluetooth dropped would draw the eye to the
+    // wrong thing, and the icon is the one that should be doing that.
+    const int icon_left = bounds.size.w - BT_BOX - 2 - COUNTDOWN_BT_GAP;
+    int bx = (bounds.size.w - bw) / 2;
+    if (bx + bw > icon_left) bx = icon_left - bw;
+    if (bx < 0) bx = 0;
+
+    graphics_context_set_fill_color(ctx, s_accent);
+    graphics_fill_rect(ctx, GRect(bx, COUNTDOWN_BOX_TOP, bw, COUNTDOWN_BOX_BOTTOM - COUNTDOWN_BOX_TOP),
+                       0, GCornerNone);
+    draw_centered(ctx, shaot, s_font_shaot, LEAD_LECO42, s_on_accent, 112, bx, bw);
+  } else {
+    draw_centered(ctx, shaot, s_font_shaot, LEAD_LECO42, s_fg, 112, 0, bounds.size.w);
+  }
 
   // Footer. Anchored to the bottom of the unobstructed area, so it rides up
   // ahead of an appearing Peek instead of disappearing under it, and is dropped
@@ -1167,7 +1206,6 @@ static void draw_face(Layer *layer, GContext *ctx) {
 // The strike is what makes it self-describing. A plain rune is the symbol for
 // Bluetooth *working* almost everywhere else, and while this one only ever
 // appears when the phone is gone, a glance should not have to know that.
-#define BT_BOX 25
 
 // One stroke: up the left diagonal, down the stem, back out the other diagonal.
 // Drawn rather than loaded because it has to read at 25px, and TimeStyle's

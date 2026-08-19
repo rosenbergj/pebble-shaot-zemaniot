@@ -237,6 +237,15 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   than `WEATHER_STALE_SECS` (3h, six missed refreshes) keeps its place but is
   drawn in a muted ink, icon included — still readable, visibly not live. The
   whole `WeatherData` struct is persisted, so a relaunch is not blank.
+- **The countdown gets an accent block**, drawn behind the Leco line while it
+  is running, with the reading in the on-accent ink. It is sized from the
+  measured string but never narrower than `00:00`, so it holds still as the
+  minutes drop to one digit and grows rather than clips if a window ever runs
+  past an hour. It is centred, then pushed left only as far as the disconnect
+  icon's gutter requires — unconditionally, not only while disconnected, since a
+  block that slid sideways when Bluetooth dropped would pull the eye away from
+  the icon that is the actual news. At 200px wide nothing pushes.
+
 - **The forecast has two ways onto the screen.** The "Weather now/forecast"
   slot shows current conditions and swaps on a tap; the "Weather forecast" slot
   is that same forecast rendering pinned open, with no gesture and no revert.
