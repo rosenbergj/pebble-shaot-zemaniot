@@ -50,6 +50,11 @@ typedef enum {
   // open. One kind rather than two: the wearer picks "weather" and taps to see
   // the other half, which is the whole point of the toggle.
   SLOT_WEATHER = 12,
+  // The forecast held open: the same rendering, with no gesture and no revert.
+  // It does not swap its fill the way a tapped box does -- the swapped fill
+  // means "this box is showing the other half of itself just now", which a box
+  // configured this way never is.
+  SLOT_WEATHER_FC = 13,
 } SlotKind;
 
 typedef struct {
@@ -405,9 +410,38 @@ static int wx_display_temp(int celsius) {
   return s_settings.metric ? celsius : weather_c_to_f(celsius);
 }
 
+// Whether a slot of this kind is showing the forecast at this moment: the
+// pinned kind always, the flipping kind only while a tap is open.
+static bool kind_shows_forecast(uint8_t kind) {
+  return kind == SLOT_WEATHER_FC || (kind == SLOT_WEATHER && s_alt_view);
+}
+
+// Whether anything on the face needs a weather payload at all. This gates the
+// fetch, and is deliberately not the same question as whether a tap does
+// something: a face whose only weather box is the pinned forecast wants the
+// data every hour and wants nothing to do with the gesture.
+static bool any_weather_slot(void) {
+  const uint8_t k[4] = {s_settings.slot_band, s_settings.slot_left, s_settings.slot_mid,
+                        s_settings.slot_right};
+  for (int i = 0; i < 4; i++) {
+    if (k[i] == SLOT_WEATHER || k[i] == SLOT_WEATHER_FC) return true;
+  }
+  return false;
+}
+
 // Whether a tap would visibly change anything. A gesture that silently does
-// nothing is worse than no gesture, so the handler checks before toggling --
-// and this is the place to widen as more slots learn to read s_alt_view.
+// nothing is worse than no gesture, so the handler checks before toggling.
+//
+// **This is the one to widen** as more things learn to read s_alt_view -- the
+// suspend-the-countdown idea in the plan file would add a term here, true while
+// the countdown is running, so a tap reaches it on a face carrying no weather
+// at all. Widen this and not any_weather_slot(), which asks a different
+// question: adding the countdown there would spend a radio wake every hour
+// fetching weather that nothing on the face can display.
+//
+// The pinned forecast is deliberately absent from both terms below. It reads
+// the weather but looks identical before and after a tap, so a face showing
+// only that should leave the gesture inert.
 static bool tap_has_effect(void) {
   return s_settings.slot_left == SLOT_WEATHER || s_settings.slot_mid == SLOT_WEATHER ||
          s_settings.slot_right == SLOT_WEATHER || s_settings.slot_band == SLOT_WEATHER;
@@ -477,10 +511,12 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
     case SLOT_NEXT_RISE_SET_TZEIT:
       next_event_content(true, true, true, label, label_n, value, value_n);
       return SLOT_LAYOUT_LABEL;
-    case SLOT_WEATHER: {
+    case SLOT_WEATHER:
+    case SLOT_WEATHER_FC: {
+      const bool fc = kind_shows_forecast(kind);
       const int32_t wanted = wx_wanted_ymd(lt);
-      const int day = s_alt_view ? weather_pick_day(&s_wx, wanted) : -1;
-      if (s_alt_view) {
+      const int day = fc ? weather_pick_day(&s_wx, wanted) : -1;
+      if (fc) {
         // Naming the day rather than saying "forecast" is the whole label-side
         // cue: it is what tells the wearer which day they are looking at, and
         // it changes at the cutoff without a tap.
@@ -1070,10 +1106,10 @@ static void draw_face(Layer *layer, GContext *ctx) {
         const bool stale = weather_is_stale(&s_wx, (int32_t)time(NULL));
         const GColor wink = stale ? wx_muted(ink) : ink;
         const GColor lab = stale ? wink : (on_fill ? s_on_accent : s_dim);
-        const int day = s_alt_view ? weather_pick_day(&s_wx, wx_wanted_ymd(&lt)) : -1;
-        const bool have = s_alt_view ? (day >= 0) : (bool)s_wx.have_current;
-        GDrawCommandImage *icon =
-            have ? wx_icon(s_alt_view ? s_wx.day_cond[day] : s_wx.cond) : NULL;
+        const bool fc = kind_shows_forecast(kinds[i]);
+        const int day = fc ? weather_pick_day(&s_wx, wx_wanted_ymd(&lt)) : -1;
+        const bool have = fc ? (day >= 0) : (bool)s_wx.have_current;
+        GDrawCommandImage *icon = have ? wx_icon(fc ? s_wx.day_cond[day] : s_wx.cond) : NULL;
         if (icon) wx_recolor(icon, wink);
 
         if (!have) {
@@ -1082,7 +1118,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
           continue;
         }
 
-        if (!s_alt_view) {
+        if (!fc) {
           // Current conditions are one number, which fits beside the icon on a
           // single line at 18pt.
           draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 6, x, w);
@@ -1212,7 +1248,7 @@ static void battery_handler(BatteryChargeState state) {
 // HTTP fetch on a face that is not displaying it. The phone treats any message
 // from us as the request; we send nothing else.
 static void request_weather(void) {
-  if (!tap_has_effect()) return;
+  if (!any_weather_slot()) return;
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
   dict_write_uint8(iter, 0, 0);

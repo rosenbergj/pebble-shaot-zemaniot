@@ -20,7 +20,8 @@ var SLOT_OPTIONS = [
   { label: "Next sunrise or sunset", value: 8 },
   { label: "Next sunrise, sunset, or nightfall", value: 9 },
   { label: "Battery", value: 5 },
-  { label: "Weather", value: 12 },
+  { label: "Weather now/forecast", value: 12 },
+  { label: "Weather forecast", value: 13 },
 ];
 
 // Both dates at once will not fit a footer box, which is a third of the screen
@@ -138,10 +139,9 @@ module.exports = [
       {
         type: "text",
         defaultValue:
-          "A weather box shows current conditions. Tap the watch to swap it " +
-          "for the forecast, which shows today's high and low until 6pm and " +
-          "tomorrow's after that. It swaps back on its own after a few " +
-          "seconds, or on a second tap.",
+          "\"Weather now/forecast\" shows current conditions. Tap the watch " +
+          "to swap it for the forecast for a few seconds. Forecasts show " +
+          "current day's high until 6pm and current night's low until 6am.",
       },
       {
         type: "toggle",
