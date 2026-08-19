@@ -350,6 +350,25 @@ static void test_weather(void) {
   check(weather_wanted_ymd(2026, 12, 31, 19) == 20270101, "new year's eve");
   check(weather_wanted_ymd(2024, 2, 28, 19) == 20240229, "evening before a leap day");
 
+  group("which day's low");
+  // The low is a pre-dawn reading, so from the small-hours cutoff onward the
+  // next one due belongs to tomorrow -- including through the afternoon, when
+  // the box itself still reads "today".
+  check(weather_low_ymd(2026, 8, 18, 0) == 20260818, "just after midnight, tonight's low is still ahead");
+  check(weather_low_ymd(2026, 8, 18, 5) == 20260818, "the hour before the low cutoff is today's");
+  check(weather_low_ymd(2026, 8, 18, 6) == 20260819, "the low cutoff hour itself is tomorrow's");
+  check(weather_low_ymd(2026, 8, 18, 14) == 20260819, "an afternoon labelled today shows tomorrow's low");
+  check(weather_low_ymd(2026, 8, 18, 17) == 20260819, "the hour before the main cutoff is tomorrow's");
+  // Past the main cutoff the box names tomorrow, so the two rules agree and
+  // the pair on screen belongs to one day again.
+  check(weather_low_ymd(2026, 8, 18, 18) == weather_wanted_ymd(2026, 8, 18, 18),
+        "at the main cutoff the low and the named day agree");
+  check(weather_low_ymd(2026, 8, 18, 23) == weather_wanted_ymd(2026, 8, 18, 23),
+        "late evening keeps them agreed");
+  check(weather_low_ymd(2026, 8, 31, 9) == 20260901, "morning of a month end rolls the low");
+  check(weather_low_ymd(2026, 12, 31, 9) == 20270101, "new year's eve rolls the low");
+  check(weather_low_ymd(2024, 2, 28, 9) == 20240229, "a leap day is the next low");
+
   group("forecast day selection");
   WeatherData w;
   memset(&w, 0, sizeof(w));

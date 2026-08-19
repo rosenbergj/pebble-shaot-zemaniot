@@ -201,6 +201,15 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   would have every watch running this face hit the API on the same two ticks.
 - **Temperature travels in Celsius** and is converted on the watch, so changing
   the units setting redraws immediately rather than waiting for a fetch.
+- **The high and the low can belong to different days.** A daily minimum is a
+  pre-dawn reading, so "today's low" is already behind you by mid-morning. From
+  06:00 the low is taken from the next day — the one due around dawn tomorrow,
+  which is the next one the wearer will actually feel. Between 06:00 and 18:00
+  that means the box reads `today` over tomorrow's low, and that is deliberate.
+  From 18:00 the box names tomorrow anyway and the two agree again. Both rules
+  live in `weather.c` (`weather_wanted_ymd()`, `weather_low_ymd()`) and are
+  host-tested at every boundary hour, because the emulator cannot hold a clock
+  long enough to check them.
 - **The watch picks the forecast day, not the phone.** The box means today
   until 18:00 local and tomorrow after, and that has to roll over on time even
   when no fetch happens. So the phone sends *both* days, each stamped with the

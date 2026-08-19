@@ -389,6 +389,16 @@ static int32_t wx_wanted_ymd(const struct tm *lt) {
   return weather_wanted_ymd(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday, lt->tm_hour);
 }
 
+// The low can come from a different day than the high; see weather_low_ymd().
+// Falls back to the named day when we do not hold the other one, which happens
+// only to a payload fetched before local midnight, and that reading is already
+// old enough to be drawn muted.
+static int wx_low_day(const struct tm *lt, int named_day) {
+  const int32_t ymd = weather_low_ymd(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday, lt->tm_hour);
+  const int day = weather_pick_day(&s_wx, ymd);
+  return (day >= 0) ? day : named_day;
+}
+
 static int wx_display_temp(int celsius) {
   return s_settings.metric ? celsius : weather_c_to_f(celsius);
 }
@@ -490,7 +500,7 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
                      : kWday[(lt->tm_wday + 1) % 7]);
         if (day >= 0) {
           snprintf(value, value_n, "%d/%d", wx_display_temp(s_wx.day_high_c[day]),
-                   wx_display_temp(s_wx.day_low_c[day]));
+                   wx_display_temp(s_wx.day_low_c[wx_low_day(lt, day)]));
         } else {
           snprintf(value, value_n, "--/--");
         }

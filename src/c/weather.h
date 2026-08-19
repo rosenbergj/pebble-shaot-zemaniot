@@ -35,6 +35,11 @@ typedef enum {
 // high stops being useful at about the point it stops being achievable.
 #define WEATHER_CUTOFF_HOUR 18
 
+// From this hour the low is taken from the *next* day, whatever day the box is
+// naming. A daily minimum lands just before dawn, so by mid-morning today's is
+// hours behind you while tomorrow's is the next one you will actually feel.
+#define WEATHER_LOW_CUTOFF_HOUR 6
+
 // Six missed refreshes at TimeStyle's half-hourly cadence. Past this the
 // reading is shown faded rather than as though it were current.
 #define WEATHER_STALE_SECS (3 * 60 * 60)
@@ -76,6 +81,15 @@ int32_t weather_next_ymd(int32_t ymd);
 // which the emulator cannot help with, since its clock resyncs to the host's
 // within seconds of being set.
 int32_t weather_wanted_ymd(int year, int mon1, int mday, int hour);
+
+// The date whose low the box should show, which is not always the date the box
+// names. A day's minimum is a pre-dawn reading, so showing "today's low" after
+// breakfast means showing a temperature already behind you; from
+// WEATHER_LOW_CUTOFF_HOUR the next one due is tomorrow's. After the main cutoff
+// the box names tomorrow anyway and this agrees with it, so the two rules meet
+// rather than fight. It is deliberate that between the two hours the box reads
+// "today" over a low belonging to tomorrow: the useful low is the next one.
+int32_t weather_low_ymd(int year, int mon1, int mday, int hour);
 
 // Index of the forecast describing wanted_ymd, or -1 if we do not hold it.
 int weather_pick_day(const WeatherData *w, int32_t wanted_ymd);
