@@ -6,15 +6,14 @@
 // always a string, and converts only numbers and booleans. The watch parses
 // them; see tuple_to_int() in src/c/main.c.
 
-// Sunrise, sunset and nightfall show today's, rolling over at local midnight,
-// so they are steady all day and can name a time already past. The "Next"
-// kinds instead show whichever of their events comes soonest, labelled with its
-// name, so they change through the day and after nightfall read tomorrow's.
+// Sunset and nightfall show today's, rolling over at local midnight, so they
+// are steady all day and can name a time already past. The "Next" kinds instead
+// show whichever of their events comes soonest, labelled with its name, so they
+// change through the day and after nightfall read tomorrow's.
 var SLOT_OPTIONS = [
   { label: "Nothing", value: 0 },
   { label: "Hebrew date", value: 1 },
   { label: "Weekday and date", value: 2 },
-  { label: "Sunrise", value: 6 },
   { label: "Sunset", value: 3 },
   { label: "Nightfall (tzeit)", value: 4 },
   { label: "Next sunset or nightfall", value: 7 },

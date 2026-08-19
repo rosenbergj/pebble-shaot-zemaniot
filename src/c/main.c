@@ -34,7 +34,11 @@ typedef enum {
   SLOT_SUNSET = 3,
   SLOT_TZEIT = 4,
   SLOT_BATTERY = 5,
-  SLOT_SUNRISE = 6,
+  // 6 was a sunrise-only box, removed because "today's sunrise" has no obvious
+  // rollover hour: midnight leaves it naming a sunrise already hours past, and
+  // nothing else is clearly better without a use case to judge against. The
+  // number stays retired -- a watch may still have 6 saved, and it should draw
+  // an empty box rather than turn into whatever took its place.
   SLOT_NEXT_SET_TZEIT = 7,       // sunset or nightfall
   SLOT_NEXT_RISE_SET = 8,        // sunrise or sunset
   SLOT_NEXT_RISE_SET_TZEIT = 9,  // any of the three
@@ -208,10 +212,8 @@ static HebrewDate s_heb;
 // very next frame. Cached strings did not: they were rewritten only on a day
 // change or a bracket flip, and Pebble raises no event when the time format
 // changes, so nothing could invalidate them.
-static time_t s_sunrise_at;
 static time_t s_sunset_at;
 static time_t s_tzeit_at;
-static bool s_have_sunrise;
 static bool s_have_sunset;
 static bool s_have_tzeit;
 
@@ -455,11 +457,6 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
       snprintf(value, value_n, "%s %d %s / %s %d", WDAYS[lt->tm_wday], s_heb.day,
                hebdate_month_name(s_heb.year, s_heb.month, s_settings.hebrew_script),
                GMONTHS[lt->tm_mon], lt->tm_mday);
-      return SLOT_LAYOUT_LABEL;
-    case SLOT_SUNRISE:
-      snprintf(label, label_n, "sunrise");
-      if (s_have_sunrise) format_hhmm(s_sunrise_at, value, value_n);
-      else snprintf(value, value_n, "--:--");
       return SLOT_LAYOUT_LABEL;
     case SLOT_SUNSET:
       snprintf(label, label_n, "sunset");
@@ -765,16 +762,11 @@ static BandFace band_face(const char *text, int width) {
 // time_t, which is the basis solar.c works in. Deliberately not mktime(): this
 // platform's newlib has burned us twice, in sin() and in strtol().
 static void update_solar_times(void) {
-  s_have_sunrise = false;
   s_have_sunset = false;
   s_have_tzeit = false;
 
   double midnight_ms = (double)time_start_of_today() * 1000.0;
-  double sunrise_ms, sunset_ms, tzeit_ms;
-  if (solar_next_event(midnight_ms, s_lat, s_lon, SUNRISE_SET_ANGLE, true, &sunrise_ms)) {
-    s_sunrise_at = (time_t)(sunrise_ms / 1000.0);
-    s_have_sunrise = true;
-  }
+  double sunset_ms, tzeit_ms;
   if (!solar_next_event(midnight_ms, s_lat, s_lon, SUNRISE_SET_ANGLE, false, &sunset_ms)) return;
   s_sunset_at = (time_t)(sunset_ms / 1000.0);
   s_have_sunset = true;
