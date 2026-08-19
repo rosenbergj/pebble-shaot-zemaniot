@@ -477,10 +477,17 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
         // Naming the day rather than saying "forecast" is the whole label-side
         // cue: it is what tells the wearer which day they are looking at, and
         // it changes at the cutoff without a tap.
+        //
+        // Tomorrow is named, not called "tomorrow": the icon takes 25 of the
+        // box's 67 pixels, and the eight letters broke across two lines and
+        // pushed the temperatures out of the box. A weekday fits in three and
+        // says more. The wanted day is only ever today or the next, so the
+        // name is always one step round from today's.
+        static const char *kWday[7] = {"sun", "mon", "tue", "wed", "thu", "fri", "sat"};
         snprintf(label, label_n, "%s",
                  wanted == weather_ymd(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday)
                      ? "today"
-                     : "tomorrow");
+                     : kWday[(lt->tm_wday + 1) % 7]);
         if (day >= 0) {
           snprintf(value, value_n, "%d/%d", wx_display_temp(s_wx.day_high_c[day]),
                    wx_display_temp(s_wx.day_low_c[day]));

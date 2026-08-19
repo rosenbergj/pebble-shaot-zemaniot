@@ -226,7 +226,11 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   permanent, since its meaning depends on being out of the ordinary.
 - **The day word is load-bearing.** The forecast rolls from today to tomorrow
   at the cutoff, so a layout without it leaves no way to tell whose high is on
-  screen. That is what ruled out the arrangements with the largest type.
+  screen. That is what ruled out the arrangements with the largest type. It
+  reads `today` or, past the cutoff, the weekday it names (`wed`) — the icon
+  leaves the label under 40px, where "tomorrow" broke across two lines and
+  pushed the temperatures out of the box. A weekday fits in three letters and
+  says more than an abbreviation of "tomorrow" would.
 - **Icons are Pebble Draw Commands** (`type: "raw"` in `package.json`, 25x25,
   ~1.8KB for all twelve). They carry their own colours, so `wx_recolor()`
   repaints one before it is drawn in a box whose ink differs.
