@@ -237,6 +237,15 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   than `WEATHER_STALE_SECS` (3h, six missed refreshes) keeps its place but is
   drawn in a muted ink, icon included — still readable, visibly not live. The
   whole `WeatherData` struct is persisted, so a relaunch is not blank.
+- **The forecast has two ways onto the screen.** The "Weather now/forecast"
+  slot shows current conditions and swaps on a tap; the "Weather forecast" slot
+  is that same forecast rendering pinned open, with no gesture and no revert.
+  The pinned one does not swap its fill — the swap means "this box is showing
+  the other half of itself just now", which a permanently-configured box never
+  is. Two predicates keep this straight and answer different questions:
+  `tap_has_effect()` names only the flipping kind, so a face carrying just the
+  pinned forecast leaves the gesture inert, while `any_weather_slot()` names
+  both and is what gates the fetch.
 - **The accelerometer tap** swaps current conditions for the forecast, and back
   after `ALT_VIEW_HOLD_MS` or on a second tap. It sets `s_alt_view`, one flag
   for the whole face rather than one per slot, so anything else that wants a
