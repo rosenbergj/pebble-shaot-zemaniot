@@ -499,8 +499,11 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
                      ? "today"
                      : kWday[(lt->tm_wday + 1) % 7]);
         if (day >= 0) {
-          snprintf(value, value_n, "%d/%d", wx_display_temp(s_wx.day_high_c[day]),
-                   wx_display_temp(s_wx.day_low_c[wx_low_day(lt, day)]));
+          // Ordered by when they are due, not by which is larger.
+          const int hi = wx_display_temp(s_wx.day_high_c[day]);
+          const int lo = wx_display_temp(s_wx.day_low_c[wx_low_day(lt, day)]);
+          const bool low_first = weather_low_first(lt->tm_hour);
+          snprintf(value, value_n, "%d/%d", low_first ? lo : hi, low_first ? hi : lo);
         } else {
           snprintf(value, value_n, "--/--");
         }

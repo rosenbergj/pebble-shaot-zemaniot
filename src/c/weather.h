@@ -91,6 +91,17 @@ int32_t weather_wanted_ymd(int year, int mon1, int mday, int hour);
 // "today" over a low belonging to tomorrow: the useful low is the next one.
 int32_t weather_low_ymd(int year, int mon1, int mday, int hour);
 
+// True when the pair should read low/high rather than high/low, which is the
+// order the two are actually due in. Between the cutoffs the high is this
+// afternoon's and the low belongs to the following dawn, so high comes first;
+// outside them the next thing due is the low before sunrise, with the high a
+// further ten hours out. Same two hours as the rules above, for the same
+// underlying reason -- they are where the day's turning points sit.
+//
+// Days with an unusual shape, a high at dawn or a low at dusk, will read out of
+// order. That is accepted: the common day is what this serves.
+bool weather_low_first(int hour);
+
 // Index of the forecast describing wanted_ymd, or -1 if we do not hold it.
 int weather_pick_day(const WeatherData *w, int32_t wanted_ymd);
 

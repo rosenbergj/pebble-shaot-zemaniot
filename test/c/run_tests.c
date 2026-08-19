@@ -369,6 +369,23 @@ static void test_weather(void) {
   check(weather_low_ymd(2026, 12, 31, 9) == 20270101, "new year's eve rolls the low");
   check(weather_low_ymd(2024, 2, 28, 9) == 20240229, "a leap day is the next low");
 
+  group("which reading comes first");
+  // The pair reads in the order the two are due. Same hours as the rules above.
+  check(!weather_low_first(6), "at the low cutoff the high is next, so it leads");
+  check(!weather_low_first(12), "midday leads with the high");
+  check(!weather_low_first(17), "the hour before the main cutoff still leads with the high");
+  check(weather_low_first(18), "at the main cutoff the next thing due is the low");
+  check(weather_low_first(23), "late evening leads with the low");
+  check(weather_low_first(0), "midnight leads with the low");
+  check(weather_low_first(5), "the hour before the low cutoff still leads with the low");
+  // The order flips exactly where the low's day does, because both track the
+  // same turning points; a mismatch would show two readings from one day in
+  // the wrong sequence.
+  for (int h = 0; h < 24; h++) {
+    const bool same_day = (weather_low_ymd(2026, 8, 18, h) == weather_wanted_ymd(2026, 8, 18, h));
+    check(weather_low_first(h) == same_day, "order flips with the low's day");
+  }
+
   group("forecast day selection");
   WeatherData w;
   memset(&w, 0, sizeof(w));

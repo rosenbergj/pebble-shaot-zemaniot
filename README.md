@@ -210,6 +210,14 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   live in `weather.c` (`weather_wanted_ymd()`, `weather_low_ymd()`) and are
   host-tested at every boundary hour, because the emulator cannot hold a clock
   long enough to check them.
+- **The pair is ordered by when the two readings are due, not by size.** Before
+  06:00 and after 18:00 it reads low/high, because the next thing coming is the
+  low before sunrise with the high ten hours behind it; in between it reads
+  high/low. The flip lands on the same two hours as the day rule above, and
+  `weather_low_first()` is asserted against `weather_low_ymd()` across all 24 —
+  the order and the low's day are the same question. A day shaped oddly, with
+  its high at dawn or its low at dusk, will read out of sequence; that is
+  accepted rather than modelled.
 - **Neither cutoff hour needs tuning, and that is the point of where they sit.**
   A rollover costs the wearer the gap between the value it retires and the
   temperature outside, so the cheapest moment to change what a number means is

@@ -49,6 +49,10 @@ int32_t weather_low_ymd(int year, int mon1, int mday, int hour) {
   return (hour < WEATHER_LOW_CUTOFF_HOUR) ? today : weather_next_ymd(today);
 }
 
+bool weather_low_first(int hour) {
+  return hour < WEATHER_LOW_CUTOFF_HOUR || hour >= WEATHER_CUTOFF_HOUR;
+}
+
 int weather_pick_day(const WeatherData *w, int32_t wanted_ymd) {
   for (int i = 0; i < WEATHER_DAYS; i++) {
     if ((w->have_days & (1u << i)) && w->day_ymd[i] == wanted_ymd) return i;
