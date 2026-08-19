@@ -157,6 +157,14 @@ watch.
   keeps only the last pair, which looks exactly like a watch-side bug. The
   coordinates are the case that catches this: `main.c` adopts a location only
   when both arrive in the same message.
+- **`battery_state_service_peek()` is not quantised to 10% on PT2.** That is
+  classic-Pebble behaviour; this watch reports values like 32%, so the gauge can
+  show what it is given.
+- **Judge drawn artwork at 1:1, never zoomed.** Every wrong call in the charging
+  icon and disconnect rune came from a 5x crop: vertical stripes look clean
+  enlarged and read as a nearly-full battery at true size, and a hand-drawn
+  Bluetooth rune's diagonals collapse into an asterisk below ~20px. Screenshot
+  candidates in place, at actual size, before choosing.
 - **`M_PI` is not defined** — the toolchain compiles without GNU extensions.
 - **`pebble build` can fail while `pebble install` happily pushes the previous
   `.pbw`.** Never redirect build output to `/dev/null`.
@@ -210,27 +218,20 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   screen touch does not reach a watchface (see above) and some accelerometer
   taps are a jostled wrist rather than a decision.
 - **The two states are laid out differently, because they have to be.** A
-  footer box is 66x57. Current conditions are one number and sit beside the
-  icon on one line under a header. The forecast is two numbers, and in that
-  same arrangement the size ladder drops them to 14pt, which is too small to
-  read at a glance. So the forecast puts the icon and the day word side by side
-  on the top row, freeing the full width beneath for one 24pt line. Stacking
-  the two temperatures under a header reads better still and does not fit: a
-  header plus two 24pt lines needs 62px. Eight arrangements were built and
-  screenshotted in place before this one; anything that keeps the header *and*
-  stacks the temperatures will clip.
+  footer box is 66x57, and the forecast's two numbers will not fit beside the
+  icon at a readable size. Eight arrangements were built and screenshotted in
+  place; the constraints that killed the rest are recorded where the drawing
+  happens, in `draw_face()`. Anything that keeps a header *and* stacks the two
+  temperatures needs 62px in a 57px box and will clip.
 - **Inverting a box is the face's way of saying "this block is doing something
   unusual"**, not a weather-specific trick. A box normally on the accent fill
   is drawn on the background, and the middle box, normally on the background,
   takes the fill. Reuse it for transient states; do not spend it on anything
   permanent, since its meaning depends on being out of the ordinary.
-- **The day word is load-bearing.** The forecast rolls from today to tomorrow
-  at the cutoff, so a layout without it leaves no way to tell whose high is on
-  screen. That is what ruled out the arrangements with the largest type. It
-  reads `today` or, past the cutoff, the weekday it names (`wed`) — the icon
-  leaves the label under 40px, where "tomorrow" broke across two lines and
-  pushed the temperatures out of the box. A weekday fits in three letters and
-  says more than an abbreviation of "tomorrow" would.
+- **The day word is load-bearing.** The forecast rolls at the cutoff, so a
+  layout without it leaves no way to tell whose high is on screen — that is what
+  ruled out the arrangements with the largest type. It reads `today` or, past
+  the cutoff, the weekday it names (`wed`); "tomorrow" does not fit the label.
 - **Icons are Pebble Draw Commands** (`type: "raw"` in `package.json`, 25x25,
   ~1.8KB for all twelve). They carry their own colours, so `wx_recolor()`
   repaints one before it is drawn in a box whose ink differs.
