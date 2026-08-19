@@ -244,7 +244,15 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   past an hour. It is centred, then pushed left only as far as the disconnect
   icon's gutter requires — unconditionally, not only while disconnected, since a
   block that slid sideways when Bluetooth dropped would pull the eye away from
-  the icon that is the actual news. At 200px wide nothing pushes.
+  the icon that is the actual news. At 200px wide nothing pushes: centring
+  already leaves 5px of gutter.
+
+  Its vertical bounds were set by measuring rendered pixels, not by eye. The
+  first attempt put the top border on row 107 with the caption's ink ending at
+  106 — touching. Only five rows separate that ink from the Leco digits' ink at
+  117, so no shift of the block alone clears the caption without crowding the
+  digits; the caption moved up to `COUNTDOWN_LABEL_Y` 92 to make the room. It
+  now reads 6px of gap above the block and 7/8 inside it.
 
 - **The forecast has two ways onto the screen.** The "Weather now/forecast"
   slot shows current conditions and swaps on a tap; the "Weather forecast" slot

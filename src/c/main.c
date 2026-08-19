@@ -177,7 +177,7 @@ static void save_weather(void) {
 
 // The countdown's caption, in the gap between the civil clock and the Leco
 // line. Nothing else is ever drawn there, so it costs no other element room.
-#define COUNTDOWN_LABEL_Y 95
+#define COUNTDOWN_LABEL_Y 92
 
 // The disconnect indicator's box, in the right-hand gutter. Declared up here
 // with the layout constants because the countdown block below has to keep clear
@@ -188,8 +188,8 @@ static void save_weather(void) {
 // sides: the reading is only ever a few glyphs wide, and the right-hand gutter
 // belongs to the disconnect icon, which must stay legible while the countdown
 // is running -- that is exactly when a wearer wants to know the phone is gone.
-#define COUNTDOWN_BOX_TOP 107
-#define COUNTDOWN_BOX_BOTTOM 149
+#define COUNTDOWN_BOX_TOP 110
+#define COUNTDOWN_BOX_BOTTOM 154
 #define COUNTDOWN_BOX_PAD 10  // either side of the widest reading
 #define COUNTDOWN_BT_GAP 4    // clear space left of the disconnect icon
 
