@@ -210,6 +210,15 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   live in `weather.c` (`weather_wanted_ymd()`, `weather_low_ymd()`) and are
   host-tested at every boundary hour, because the emulator cannot hold a clock
   long enough to check them.
+- **Neither cutoff hour needs tuning, and that is the point of where they sit.**
+  A rollover costs the wearer the gap between the value it retires and the
+  temperature outside, so the cheapest moment to change what a number means is
+  when the two are nearly equal. At 06:00 the overnight low is close to the
+  current reading; at 18:00 the day's high is. Anyone dressing to go out reads
+  the current temperature first and the high second, so the low changes meaning
+  while nobody is looking at it, and the high does the same twelve hours later.
+  An hour either way is therefore close to free — do not spend effort refining
+  these hours, and do not move them somewhere the gap is wide.
 - **The watch picks the forecast day, not the phone.** The box means today
   until 18:00 local and tomorrow after, and that has to roll over on time even
   when no fetch happens. So the phone sends *both* days, each stamped with the
