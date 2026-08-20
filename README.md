@@ -183,6 +183,23 @@ watch.
 - A wedged emulator needs SIGTERM (never SIGKILL — it corrupts the flash image),
   `rm -f /tmp/pb-emulator.json`, then `pebble wipe`. Beware `pkill -f`, whose
   pattern also matches the shell running it.
+- **Every `pebble install --emulator` leaves an emulator behind, and nothing
+  reaps it.** The processes reparent to init, so they outlive the session that
+  started them, and an idle `qemu-pebble` still burns ~8% of a core — it does not
+  idle-halt. `/tmp/pb-emulator.json` names only the most recently launched pair,
+  so `pebble kill` stops that one and cannot even see the others. Thirteen had
+  accumulated by 2026-08-20, one of them wedged and spinning a full core, ~200%
+  CPU between them.
+
+  **`tools/session-cleanup.sh` shuts them down**, along with the screenshot
+  gallery server, and the `SessionEnd` hook in `.claude/settings.json` runs it
+  automatically when a session ends. It skips `reason: "clear"`, so clearing
+  context mid-session leaves a running emulator alone. Run it by hand any time.
+  Matching processes is the fiddly part, and the script is written the way it is
+  for two reasons worth keeping: `qemu-pebble` is matched with `pkill -x` on the
+  process name, and `pypkjs` only after filtering to a real python process --
+  plain `pkill -f pypkjs` also matches the shell running it, and kills it
+  mid-cleanup.
 - Installing over a running watchface can leave the old one on screen. If a
   screenshot looks stale, `pebble kill && pebble wipe` and reinstall.
 
