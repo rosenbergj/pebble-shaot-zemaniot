@@ -296,6 +296,26 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   than `WEATHER_STALE_SECS` (3h, six missed refreshes) keeps its place but is
   drawn in a muted ink, icon included — still readable, visibly not live. The
   whole `WeatherData` struct is persisted, so a relaunch is not blank.
+- **Stale data stops a "Weather now/forecast" box offering "now" at all.** Past
+  the threshold it shows the forecast and keeps showing it, with the swapped
+  fill, until a fetch lands. A current temperature is the half of that box with
+  no shelf life — three hours on it is describing weather the wearer is no
+  longer in, and a whole day on it is worthless — while the forecast is still
+  answering the question it was asked. The tap goes inert with it, because a box
+  already showing the forecast has nothing left to flip to; `tap_has_effect()`
+  returns false and the gesture is not offered rather than silently ignored.
+- **`wx_swapped()` is why the fill knows about any of this.** A tapped box and a
+  stale one are the same statement — this box is not doing its usual thing — so
+  they share one predicate and therefore share the inverted fill. They differ
+  only in temperament: a tap lasts seconds and reverts itself, staleness lasts
+  until the phone comes back. Nothing downstream has to know which is in force.
+  The pinned forecast still never swaps, for the reason it never did.
+- **`s_wx_stale` is cached in `refresh()`, not asked at draw time.** Three
+  decisions read it — what the box contains, which way its fill goes, whether
+  the tap does anything — and if they each called `time()` they could disagree
+  inside a single frame, drawing a swapped fill around a box that still said
+  "now". It is set before every early exit in `refresh()`, because unlike the
+  Shabbat predicate it does not need a location to be meaningful.
 - **The countdown gets an accent block**, drawn behind the Leco line while it
   is running, with the reading in the on-accent ink. It is sized from the
   measured string but never narrower than `00:00`, so it holds still as the

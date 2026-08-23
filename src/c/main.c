@@ -128,6 +128,14 @@ static GDrawCommandImage *s_wx_icon[WCOND_COUNT];
 static bool s_alt_view = false;
 static AppTimer *s_alt_timer = NULL;
 
+// Whether the reading behind "now" is too old to be worth a box. Cached in
+// refresh() rather than asked at draw time, because three separate decisions
+// read it -- what a weather box contains, which way its fill goes, and whether
+// the tap does anything -- and they must not be able to disagree inside one
+// frame. It is also the one weather question the drawing used to ask time()
+// for itself.
+static bool s_wx_stale = false;
+
 // Long enough to read a two-number forecast, short enough that a tap from a
 // jostled wrist is not still showing it a minute later. Watchfaces get no
 // screen touch, so every tap here is the accelerometer and some of them are
@@ -436,10 +444,22 @@ static int wx_display_temp(int celsius) {
   return s_settings.metric ? celsius : weather_c_to_f(celsius);
 }
 
+// Whether a "Weather now/forecast" box is currently showing its other half,
+// for either of the two reasons it can be: a tap is holding it open, or the
+// reading behind "now" has gone stale and it has stopped offering "now" at all.
+//
+// Both are "this box is not doing its usual thing", which is why they share a
+// predicate and therefore share the swapped fill. They differ in temperament:
+// a tap is a few seconds and reverts itself, staleness lasts until a fetch
+// lands. Nothing downstream has to care which is in force.
+static bool wx_swapped(void) {
+  return s_alt_view || s_wx_stale;
+}
+
 // Whether a slot of this kind is showing the forecast at this moment: the
-// pinned kind always, the flipping kind only while a tap is open.
+// pinned kind always, the flipping kind while it is swapped.
 static bool kind_shows_forecast(uint8_t kind) {
-  return kind == SLOT_WEATHER_FC || (kind == SLOT_WEATHER && s_alt_view);
+  return kind == SLOT_WEATHER_FC || (kind == SLOT_WEATHER && wx_swapped());
 }
 
 // Whether anything on the face needs a weather payload at all. This gates the
@@ -465,10 +485,15 @@ static bool any_weather_slot(void) {
 // question: adding the countdown there would spend a radio wake every hour
 // fetching weather that nothing on the face can display.
 //
-// The pinned forecast is deliberately absent from both terms below. It reads
+// The pinned forecast is deliberately absent from the terms below. It reads
 // the weather but looks identical before and after a tap, so a face showing
 // only that should leave the gesture inert.
+//
+// Stale data makes the flipping kind inert for the same reason: it is already
+// showing the forecast and has nothing left to flip to, since the whole point
+// of the switch is that "now" is no longer worth offering.
 static bool tap_has_effect(void) {
+  if (s_wx_stale) return false;
   return s_settings.slot_left == SLOT_WEATHER || s_settings.slot_mid == SLOT_WEATHER ||
          s_settings.slot_right == SLOT_WEATHER || s_settings.slot_band == SLOT_WEATHER;
 }
@@ -927,6 +952,9 @@ static void update_shabbat(const struct tm *lt, time_t now) {
 }
 
 static void refresh(time_t now) {
+  // Ahead of every early exit: this one does not depend on having a location,
+  // and a weather box is drawn from it whether or not the solar maths worked.
+  s_wx_stale = weather_is_stale(&s_wx, (int32_t)now);
   // The early exits below all mean "not known", and leaving a stale answer
   // behind would be worse than saying so.
   s_shabbat = SHABBAT_NONE;
@@ -1140,14 +1168,18 @@ static void draw_face(Layer *layer, GContext *ctx) {
   int xs[3] = {0, widths[0], widths[0] + widths[1]};
   widths[2] = bounds.size.w - xs[2];  // the last box absorbs any rounding
 
-  // The outer two boxes carry the accent fill. While the forecast is open, a
-  // weather box swaps: an outer one is drawn on the background and the middle
-  // one takes the fill. With the label naming the day, that is the pair of cues
-  // that says which half you are looking at.
+  // The outer two boxes carry the accent fill. While a weather box is showing
+  // the other half of itself, it swaps: an outer one is drawn on the background
+  // and the middle one takes the fill. With the label naming the day, that is
+  // the pair of cues that says which half you are looking at.
+  //
+  // The pinned forecast never swaps, for the reason the swap exists: it means
+  // "this box is showing the other half of itself just now", which a box
+  // configured that way permanently never is.
   bool filled[3];
   for (int i = 0; i < 3; i++) {
     filled[i] = (i != 1);
-    if (s_alt_view && kinds[i] == SLOT_WEATHER) filled[i] = !filled[i];
+    if (wx_swapped() && kinds[i] == SLOT_WEATHER) filled[i] = !filled[i];
   }
 
   graphics_context_set_fill_color(ctx, s_rule);
@@ -1187,9 +1219,8 @@ static void draw_face(Layer *layer, GContext *ctx) {
       // The gauge occupies the label row, which is why the box needs no
       // retuning: the percentage stays exactly where the value always sat.
       if (layout == SLOT_LAYOUT_WEATHER) {
-        const bool stale = weather_is_stale(&s_wx, (int32_t)time(NULL));
-        const GColor wink = stale ? wx_muted(ink) : ink;
-        const GColor lab = stale ? wink : (on_fill ? s_on_accent : s_dim);
+        const GColor wink = s_wx_stale ? wx_muted(ink) : ink;
+        const GColor lab = s_wx_stale ? wink : (on_fill ? s_on_accent : s_dim);
         const bool fc = kind_shows_forecast(kinds[i]);
         const int day = fc ? weather_pick_day(&s_wx, wx_wanted_ymd(&lt)) : -1;
         const bool have = fc ? (day >= 0) : (bool)s_wx.have_current;
