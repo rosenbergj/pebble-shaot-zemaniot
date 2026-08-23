@@ -1403,12 +1403,22 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   // everything else on the face already has in that mode.
   subscribe_tick();
   // Once an hour, at a minute of this watch's own choosing -- but every five
-  // minutes while a weather slot is configured and has nothing to show. The
-  // launch request can be sent before the phone's JavaScript is running, and
-  // waiting out the rest of the hour to discover that is too long to sit
-  // looking at an empty box.
+  // minutes while the phone is reachable and the box has nothing current to
+  // show. Waiting out the rest of the hour to discover that is too long to sit
+  // looking at an empty or hours-old box.
+  //
+  // Stale counts as well as empty, and that is the whole point of the second
+  // term: after a night with Bluetooth off the watch does have weather, just
+  // old weather, so a gate reading only have_current would leave the morning
+  // -- the one time this matters most -- to the hourly schedule. The chase in
+  // request_weather() is what usually catches this within seconds; this is the
+  // floor under it, for a reconnect that arrived while the chase was already
+  // spent.
+  //
+  // Gated on the link, because asking across a dead one spends a wake to reach
+  // nobody, and the connection handler already asks the moment it is back.
   if (tick_time->tm_sec == 0) {
-    const bool waiting = !s_wx.have_current;
+    const bool waiting = s_bt_connected && (!s_wx.have_current || s_wx_stale);
     if (tick_time->tm_min == s_wx_minute || (waiting && tick_time->tm_min % 5 == 0)) {
       request_weather();
     }
