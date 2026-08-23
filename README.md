@@ -241,6 +241,40 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   once an hour at a minute derived from the launch time, and on Bluetooth
   reconnect. The per-watch minute is TimeStyle's idea: a fixed `tm_min % 30`
   would have every watch running this face hit the API on the same two ticks.
+- **...with one exception, and it earns it.** The phone pushes weather, unasked,
+  when its JavaScript starts (`ready` in `src/pkjs/index.js`). The pull races
+  that startup and loses: the watch asks the instant the Bluetooth link is up,
+  but the phone app has not necessarily started the JavaScript that answers,
+  and `app_message_outbox_send()` is fire-and-forget with no failed-outbox
+  handler. Measured on the emulator, the launch request is lost **every time** —
+  the request arrives before the `appmessage` listener is registered, and the
+  `ready` push is the only thing that delivers weather at all there. Only the
+  phone knows when its JavaScript began running, so this is the one push that
+  is better than a pull. It costs a fetch per JS start even where nothing
+  displays weather; nothing starts it but the watchface.
+- **An unanswered request is chased**, since nothing else can tell. The send is
+  fire-and-forget and the phone speaks only when it has something, so a request
+  that was never heard looks exactly like one whose answer is still coming; the
+  absence of a payload is the only available signal. `weather_retry_ms()` in
+  `weather.c` holds the schedule — 10s, 30s, 60s, then stop — and the timer
+  lives in `main.c`. Growing gaps because the failures differ in kind: a lost
+  race is answered by the first retry, a busy or offline phone wants room. Any
+  arriving payload stands the chase down, including an unprompted one. It is an
+  `AppTimer` and not a count of ticks **on purpose** — the tick rate is a user
+  setting, and a face on minute ticks would round every delay up to a minute.
+- **The five-minute sweep is the floor under that**, not the mechanism. It runs
+  while the link is up and the box has nothing current — `!have_current ||
+  s_wx_stale`. The stale half matters more than the empty half: after a night
+  with Bluetooth off the watch *has* weather, just hours-old weather, so a gate
+  reading `have_current` alone left the morning to the hourly schedule. It is
+  gated on the link because asking across a dead one spends a wake to reach
+  nobody, and the connection handler asks the moment the phone is back.
+- **Saving settings unchanged does not fetch**, which surprised the wearer once.
+  `main.c` drops `settings_changed` when the arriving values memcmp equal to the
+  ones held, so the `request_weather()` below it never runs, and Clay re-sends
+  identical values on every save. Changing any setting and saving does fetch.
+  Left as it is: with the push and the chase in place, a manual force is no
+  longer the thing standing between the wearer and current weather.
 - **Temperature travels in Celsius** and is converted on the watch, so changing
   the units setting redraws immediately rather than waiting for a fetch.
 - **The high and the low can belong to different days.** A daily minimum is a
