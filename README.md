@@ -593,6 +593,12 @@ holding the wearer's real choices.
 path also exercises the real `inbox_received` handler, which a hardcoded default
 would not.
 
+**`pebble emu-bt-connection --connected no` kills `pebble logs`.** The log
+stream rides the same emulated phone link, so it disconnects along with it and
+the tool exits. Bluetooth-drop behaviour therefore cannot be watched live. Test
+whatever the drop was going to exercise at app launch instead, which runs the
+same code down the same path.
+
 **`pebble emu-set-time HH:MM:SS` does not stick.** The emulator's phone bridge
 pushes the real time back within a few seconds, so it is good for one screenshot
 of a moment and useless for watching anything change across it.
@@ -655,7 +661,10 @@ tools/deploy.sh --good   # mark what is in dist/ as known good
 ```
 
 A build refuses to stage unless the tree is clean and `package.json` carries a
-**new version** (bumping it also rewrites `package-lock.json`, so commit both). That version is the only thing a phone can see: the filename
+**new version**. Bumping it also rewrites `package-lock.json`, which carries
+the version in two places — so that file turns up dirty after a build and looks
+like churn worth reverting. It is not; reverting it strands the lockfile at an
+old version. Commit both. The version is the only thing a phone can see: the filename
 never changes, so a build that failed to sync or install is otherwise invisible.
 Check the version the phone reports against `BUILD.txt` before concluding
 anything about a change.
@@ -665,6 +674,15 @@ anything about a change.
 a regression the useful question is what changed since the last good one, and
 `git diff good-1.0.4..HEAD` answers it. Nothing is marked good automatically —
 only wearing it says that.
+
+**`--good` promotes what is in `dist/` *now*, not the build being named.** A
+build confirmed after the next one has been staged cannot be promoted with it:
+the staged `.pbw` was overwritten in place, and `--good` would tag the wrong
+version. Promote it by hand instead — `git tag -a good-<v> <sha>`, then rebuild
+that commit in a throwaway `git worktree` and copy the result over the rollback,
+checking the bundle's `versionLabel` first (`unzip -p <pbw> appinfo.json`). The
+rollback is then a faithful rebuild of the worn commit rather than the bytes
+that were worn: same source, version and UUID, not byte-identical.
 
 All three builds display as "Shaot Zemaniot" on the watch, and the current two
 share a UUID so installing one replaces the other. That is what makes rollback a
