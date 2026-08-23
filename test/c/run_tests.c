@@ -398,8 +398,63 @@ static void test_weather(void) {
   // days worth it: yesterday's payload must not be shown as today's.
   check(weather_pick_day(&w, 20260820) == -1, "a day we do not hold is refused");
   check(weather_pick_day(&w, 20260817) == -1, "a day already past is refused");
+  w.day_ymd[2] = 20260820;
+  w.have_days = 0x7;
+  check(weather_pick_day(&w, 20260820) == 2, "the endurance day matches slot 2");
   w.have_days = 0x1;
   check(weather_pick_day(&w, 20260819) == -1, "slot present but unset is refused");
+
+  group("how long a payload lasts with the phone gone");
+  // The reason WEATHER_DAYS is what it is, written as a test so that trimming
+  // it back fails here rather than on someone's wrist a day into a Shabbat.
+  // A payload fetched on day D stamps D .. D+WEATHER_DAYS-1; walk the clock
+  // forward through it and past it, and check where the box stops answering.
+  memset(&w, 0, sizeof(w));
+  int32_t stamp = weather_ymd(2026, 8, 21);  // a Friday
+  for (int i = 0; i < WEATHER_DAYS; i++) {
+    w.day_ymd[i] = stamp;
+    w.have_days |= (uint8_t)(1u << i);
+    stamp = weather_next_ymd(stamp);
+  }
+  const int32_t last_held = w.day_ymd[WEATHER_DAYS - 1];
+
+  int32_t cur = w.day_ymd[0];
+  for (int off = 0; off <= WEATHER_DAYS; off++) {
+    const int y = (int)(cur / 10000), mo = (int)((cur / 100) % 100), md = (int)(cur % 100);
+    for (int h = 0; h < 24; h++) {
+      const int32_t want = weather_wanted_ymd(y, mo, md, h);
+      const int32_t lowd = weather_low_ymd(y, mo, md, h);
+      const bool have_high = weather_pick_day(&w, want) >= 0;
+      const bool have_low = weather_pick_day(&w, lowd) >= 0;
+      check(have_high == (want <= last_held), "the named day is answerable exactly while held");
+      check(have_low == (lowd <= last_held), "the low's day is answerable exactly while held");
+      // main.c falls back to the named day's low when it cannot get the right
+      // one, which shows a temperature already behind the wearer and says
+      // nothing about it. Pin down when that can happen: only in the window
+      // between the two cutoffs on the very last day the payload covers.
+      if (have_high && !have_low) {
+        check(want == last_held && h >= WEATHER_LOW_CUTOFF_HOUR && h < WEATHER_CUTOFF_HOUR,
+              "a substituted low happens only on the payload's final day");
+      }
+    }
+    cur = weather_next_ymd(cur);
+  }
+
+  // The same thing said in dates, because that is how the promise is made:
+  // fetch on Friday evening, and the box is still right at Saturday dusk --
+  // which two days' worth was not -- correct through Sunday dawn, high-only
+  // through Sunday daytime, and honest about knowing nothing from Sunday
+  // evening on.
+  check(weather_pick_day(&w, weather_wanted_ymd(2026, 8, 22, 18)) >= 0,
+        "Saturday dusk still names a day it holds");
+  check(weather_pick_day(&w, weather_low_ymd(2026, 8, 23, 5)) >= 0,
+        "Sunday before dawn still has the right low");
+  check(weather_pick_day(&w, weather_wanted_ymd(2026, 8, 23, 12)) >= 0,
+        "Sunday midday still has the right high");
+  check(weather_pick_day(&w, weather_low_ymd(2026, 8, 23, 12)) < 0,
+        "Sunday midday has run out of lows");
+  check(weather_pick_day(&w, weather_wanted_ymd(2026, 8, 23, 18)) < 0,
+        "Sunday evening has run out entirely");
 
   group("staleness");
   memset(&w, 0, sizeof(w));

@@ -165,7 +165,7 @@ function fetchWeather(lat, lon) {
     "&longitude=" + lon +
     "&current_weather=true" +
     "&daily=temperature_2m_max,temperature_2m_min,weathercode" +
-    "&timezone=auto&forecast_days=2";
+    "&timezone=auto&forecast_days=3";
 
   var xhr = new XMLHttpRequest();
   xhr.onload = function () {
@@ -183,10 +183,11 @@ function fetchWeather(lat, lon) {
                           json.current_weather.is_day !== 1),
     };
 
-    // Two days is all the forecast toggle can show: today, and tomorrow once
-    // the cutoff has passed.
+    // Three days, though the box only ever shows two. The third is what keeps
+    // it right through a day with no phone; see WEATHER_DAYS in weather.h for
+    // why two runs out around lunchtime the following day.
     var days = json.daily.time || [];
-    for (var i = 0; i < 2 && i < days.length; i++) {
+    for (var i = 0; i < 3 && i < days.length; i++) {
       var ymd = ymdFromISO(days[i]);
       if (!ymd) continue;
       msg["WxDay" + i + "Ymd"] = ymd;

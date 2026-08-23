@@ -49,6 +49,10 @@
       "WxDay1High",
       "WxDay1Low",
       "WxDay1Cond",
+      "WxDay2Ymd",
+      "WxDay2High",
+      "WxDay2Low",
+      "WxDay2Cond",
       "DisconnectIcon",
       "LowBatteryIcon"
     ],

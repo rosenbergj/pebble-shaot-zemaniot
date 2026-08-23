@@ -1453,7 +1453,7 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   const Settings before = s_settings;
   bool settings_changed = false;
   bool weather_changed = false;
-  int32_t day_ymd[WEATHER_DAYS] = {0, 0};
+  int32_t day_ymd[WEATHER_DAYS] = {0};
   bool have_lat = false, have_lon = false;
   int32_t lat_raw = 0, lon_raw = 0;
 
@@ -1521,6 +1521,14 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_wx.day_low_c[1] = (int16_t)v; }
     } else if (k == MESSAGE_KEY_WxDay1Cond) {
       if (tuple_to_int(t, &v)) { s_wx.day_cond[1] = (uint8_t)v; }
+    } else if (k == MESSAGE_KEY_WxDay2Ymd) {
+      if (tuple_to_int(t, &v)) { day_ymd[2] = v; }
+    } else if (k == MESSAGE_KEY_WxDay2High) {
+      if (tuple_to_int(t, &v)) { s_wx.day_high_c[2] = (int16_t)v; }
+    } else if (k == MESSAGE_KEY_WxDay2Low) {
+      if (tuple_to_int(t, &v)) { s_wx.day_low_c[2] = (int16_t)v; }
+    } else if (k == MESSAGE_KEY_WxDay2Cond) {
+      if (tuple_to_int(t, &v)) { s_wx.day_cond[2] = (uint8_t)v; }
 
     } else if (k == MESSAGE_KEY_AccentColor) {
       if (t->type == TUPLE_BYTE_ARRAY && t->length >= 3) {

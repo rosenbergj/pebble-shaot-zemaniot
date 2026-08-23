@@ -259,10 +259,32 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   these hours, and do not move them somewhere the gap is wide.
 - **The watch picks the forecast day, not the phone.** The box means today
   until 18:00 local and tomorrow after, and that has to roll over on time even
-  when no fetch happens. So the phone sends *both* days, each stamped with the
-  local date it describes, and `weather_pick_day()` selects. The stamp is also
-  what makes going offline across midnight safe: Open-Meteo's day 0 quietly
-  becomes yesterday, and an unstamped payload would be shown as today's.
+  when no fetch happens. So the phone sends every day it has, each stamped with
+  the local date it describes, and `weather_pick_day()` selects. The stamp is
+  also what makes going offline across midnight safe: Open-Meteo's day 0
+  quietly becomes yesterday, and an unstamped payload would be shown as today's.
+- **Three days are carried and only two can ever be shown.** The third is not
+  spare capacity; it is how long the box stays right with the phone gone, and
+  the two cutoffs are what make the difference so large. A payload fetched on
+  day D answers for D and D+1, but from 06:00 on D+1 the low wants D+2 and at
+  18:00 on D+1 the box itself rolls to D+2 — so two days ran out around
+  lunchtime the day after the last fetch, first substituting a low already
+  behind the wearer and then going to `--/--`. Found by wearing it across a
+  Shabbat: 26 hours offline and the box had given up by dusk on the second day.
+  The third day pushes both boundaries out by 24 hours, which is what it takes
+  to cross a Shabbat, a flat phone, or a weekend away and still be right.
+
+  The horizon is pinned down in `test/c` under "how long a payload lasts with
+  the phone gone", stated both as invariants over `WEATHER_DAYS` and as four
+  dated assertions, so trimming the third day fails there rather than on
+  someone's wrist. The emulator cannot help: its clock will not hold still
+  long enough to cross even one cutoff.
+- **A substituted low is the failure worth knowing about.** When
+  `weather_pick_day()` cannot find the low's day, `wx_low_day()` falls back to
+  the named day's own low — which by then is a pre-dawn reading already hours
+  past, presented in exactly the same shape as a correct one. Only the muted
+  staleness ink distinguishes it, and that is a weak signal. It is now confined
+  to the last day a payload covers, but it has not been made self-describing.
 - **Degrading:** never-fetched shows `--°` centred, with no icon. Data older
   than `WEATHER_STALE_SECS` (3h, six missed refreshes) keeps its place but is
   drawn in a muted ink, icon included — still readable, visibly not live. The

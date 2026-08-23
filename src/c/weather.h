@@ -27,9 +27,17 @@ typedef enum {
   WCOND_COUNT = 12,
 } WeatherCond;
 
-// Two days is all the forecast toggle can ever show: today, and tomorrow once
-// the cutoff has passed.
-#define WEATHER_DAYS 2
+// The forecast box only ever *shows* two days -- today, and tomorrow once the
+// cutoff has passed -- but a third is held, and it is not spare capacity to be
+// trimmed. It is how long the box survives with the phone gone.
+//
+// A payload fetched on day D answers for D and D+1. From 06:00 on D+1 the low
+// belongs to D+2, and at 18:00 on D+1 the box itself rolls to D+2, so two days
+// runs out around lunchtime the day after the last fetch: first the low is
+// silently replaced by one already behind the wearer, then the whole box goes
+// to --/--. Carrying D+2 pushes both of those a full day out, which is what it
+// takes to cross a Shabbat or a flat phone battery and still be right.
+#define WEATHER_DAYS 3
 
 // Before this hour the forecast box means today; from it, tomorrow. Today's
 // high stops being useful at about the point it stops being achievable.
