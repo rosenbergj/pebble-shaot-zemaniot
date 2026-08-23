@@ -96,6 +96,14 @@ watch.
   with a bounce, so intermediate heights either side of the resting value do
   occur; degrade continuously rather than switching between two cases. Test with
   `pebble emu-set-timeline-quick-view on`.
+
+  **The converse is also a bug.** Anything that sits where Peek never reaches --
+  an indicator in a gutter -- must be placed from `layer_get_bounds()`, or it
+  moves whenever Peek appears. The disconnect icon was anchored to the visible
+  area and rode 29px up the screen every time a timeline card arrived, which
+  reads as news about Bluetooth when the news is something else entirely. Ask
+  which the element is: content competing for the shrinking area, or an overlay
+  in dead space that should hold still.
 - **Never hold `localtime()`'s pointer across another call to it.** It returns
   the address of one static `struct tm` and refills it every time, so a second
   call rewrites what the first returned. Drawing formats solar times, which
@@ -346,6 +354,10 @@ the shaot line, while the phone is unreachable and `DisconnectIcon` is on.
   footer, and an indicator that vanishes under a Timeline Peek is not doing its
   job. The right gutter is dead space at every time of day, since the clock is
   centred, so nothing has to move to make room.
+- **It is anchored to the full bounds and never moves.** `gutter_top()` measures
+  from `layer_get_bounds()`, not from the unobstructed area, so a Timeline Peek
+  does not shift it; see the Peek note under "Platform constraints" for what
+  anchoring it to the visible area did.
 - **The rune is drawn, not a resource.** It has to read at 25px; TimeStyle's
   disconnect icon is a phone with a cross, which carries more detail than
   survives at that size. Below roughly 20px the rune's diagonals collapse and

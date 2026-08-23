@@ -1222,14 +1222,23 @@ static void bt_rune(GContext *ctx, int cx, int top, int h) {
   graphics_draw_line(ctx, GPoint(xr, y1), GPoint(xl, y3));
 }
 
-static void draw_bt_overlay(GContext *ctx, GRect bounds, GRect vis) {
+// The row the gutter overlays sit on. Measured from the *full* bounds, never
+// from the unobstructed area: the gutters are dead space at full height, so
+// there is nothing for these to get out of the way of, and anchoring them to
+// the visible area made the disconnect icon jump 29px up the screen whenever a
+// Timeline Peek appeared. An indicator that moves when unrelated news arrives
+// reads as news itself. The resting rows are far above the peek, so holding
+// still costs no visibility.
+static int gutter_top(GRect bounds) {
+  const int footer_top = bounds.size.h - FOOTER_ZONE_H;
+  return (BAND_H + footer_top) / 2 - BT_BOX / 2;
+}
+
+static void draw_bt_overlay(GContext *ctx, GRect bounds) {
   if (!s_settings.bt_icon || s_bt_connected) return;
 
-  const int vis_bottom = vis.origin.y + vis.size.h;
-  const int footer_top = vis_bottom - FOOTER_ZONE_H;
-  const int mid = (BAND_H + footer_top) / 2;
   const int x = bounds.size.w - BT_BOX - 2;
-  const int y = mid - BT_BOX / 2;
+  const int y = gutter_top(bounds);
 
   graphics_context_set_stroke_color(ctx, s_fg);
   graphics_context_set_stroke_width(ctx, 2);
@@ -1241,9 +1250,10 @@ static void draw_bt_overlay(GContext *ctx, GRect bounds, GRect vis) {
 static void canvas_update(Layer *layer, GContext *ctx) {
   draw_face(layer, ctx);
   // After the face, and outside it: draw_face() gives up early when the
-  // unobstructed area is too short for the footer, and a disconnect indicator
-  // that vanishes under a Timeline Peek is not doing its job.
-  draw_bt_overlay(ctx, layer_get_bounds(layer), layer_get_unobstructed_bounds(layer));
+  // unobstructed area is too short for the footer, and a gutter indicator that
+  // vanishes under a Timeline Peek is not doing its job.
+  const GRect bounds = layer_get_bounds(layer);
+  draw_bt_overlay(ctx, bounds);
 }
 
 // --- services ---------------------------------------------------------------
