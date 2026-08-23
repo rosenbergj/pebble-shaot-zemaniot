@@ -17,6 +17,7 @@
 #include "../../src/c/solar.h"
 #include "../../src/c/trig.h"
 #include "../../src/c/numparse.h"
+#include "../../src/c/shabbat.h"
 #include "../../src/c/weather.h"
 #include "fixtures.h"
 
@@ -469,6 +470,226 @@ static void test_weather(void) {
   check(!weather_is_stale(&w, 999000), "a clock that went backwards is not stale");
 }
 
+// --- Shabbat and yom tov -----------------------------------------------------
+
+// A synthetic sun, so the definition can be walked without dragging solar.c and
+// a location in with it. What the definition turns on is sundown and nightfall,
+// not where they fall, and putting them at fixed hours is what makes a two-year
+// hour-by-hour walk cheap enough to run on every build.
+#define T_SUNRISE 6
+#define T_SUNSET 19
+#define T_TZEIT 20
+
+static int greg_month_len(int y, int m) {
+  static const int len[12] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  if (m == 2) return ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) ? 29 : 28;
+  return len[m - 1];
+}
+
+static void greg_next(int *y, int *m, int *d) {
+  if (++(*d) > greg_month_len(*y, *m)) {
+    *d = 1;
+    if (++(*m) > 12) { *m = 1; (*y)++; }
+  }
+}
+
+// 2026-08-22 was a Saturday; everything else is counted from there, so the
+// weekday never depends on a formula this file would also have to be right about.
+static int wday_for(int y, int m, int d) {
+  const int delta = (int)(hebdate_gregorian_to_jd(y, m, d) -
+                          hebdate_gregorian_to_jd(2026, 8, 22));
+  const int w = (6 + delta % 7) % 7;
+  return w < 0 ? w + 7 : w;
+}
+
+static ShabbatNow moment(int y, int m, int d, int hour, bool second_days) {
+  ShabbatNow n;
+  n.sun_is_up = (hour >= T_SUNRISE && hour < T_SUNSET);
+  const HebrewDate h = hebdate_for_now(y, m, d, hour, n.sun_is_up);
+  n.heb_month = h.month;
+  n.heb_day = h.day;
+  n.wday = wday_for(y, m, d);
+  n.hour = hour;
+  n.before_tzeit = (hour < T_TZEIT);
+  n.second_days = second_days;
+  return n;
+}
+
+// The Hebrew date at midday, which is the one the civil day is named by: the
+// sun is up, so hebdate_for_now() has not rolled it forward.
+static HebrewDate heb_midday(int y, int m, int d) {
+  return hebdate_for_now(y, m, d, 12, true);
+}
+
+static void test_shabbat(void) {
+  group("the yom tov table");
+  // Every (month, day) a Hebrew year can hold, counted both ways. Months 12 and
+  // 13 are in the sweep even though the table has nothing in Adar -- that is
+  // the point: a leap year must not add or move a single date.
+  int two_day = 0, one_day = 0;
+  for (int m = 1; m <= 13; m++) {
+    for (int d = 1; d <= 30; d++) {
+      if (shabbat_is_yom_tov(m, d, true)) two_day++;
+      if (shabbat_is_yom_tov(m, d, false)) one_day++;
+    }
+  }
+  check(two_day == SHABBAT_YOMTOV_COUNT, "thirteen dates with second days kept");
+  check(one_day == SHABBAT_YOMTOV_COUNT_ONE_DAY, "eight dates without them");
+
+  // Rosh Hashana is the exception that stops this being "drop every second
+  // day", so it is worth its own assertion in both modes.
+  check(shabbat_is_yom_tov(HEB_TISHRI, 2, true), "Rosh Hashana II, second days kept");
+  check(shabbat_is_yom_tov(HEB_TISHRI, 2, false), "Rosh Hashana II, second days not kept");
+  check(shabbat_is_yom_tov(HEB_TISHRI, 16, true), "Sukkot II needs second days");
+  check(!shabbat_is_yom_tov(HEB_TISHRI, 16, false), "Sukkot II drops without them");
+  check(shabbat_is_yom_tov(HEB_TISHRI, 23, true), "Simchat Torah needs second days");
+  check(!shabbat_is_yom_tov(HEB_TISHRI, 23, false), "Simchat Torah drops without them");
+
+  // Days that are emphatically not yom tov, and would be easy to include by
+  // accident: the eve of one, the middle of one, and a festival that is not a
+  // yom tov at all.
+  check(!shabbat_is_yom_tov(HEB_TISHRI, 14, true), "erev Sukkot is not yom tov");
+  check(!shabbat_is_yom_tov(HEB_TISHRI, 17, true), "chol hamoed is not yom tov");
+  check(!shabbat_is_yom_tov(HEB_NISAN, 18, true), "chol hamoed Pesach is not yom tov");
+  check(!shabbat_is_yom_tov(HEB_ADAR, 14, true), "Purim is not yom tov");
+  check(!shabbat_is_yom_tov(HEB_VEADAR, 14, true), "nor is Purim in a leap year");
+  // Out of range simply matches nothing, which is what lets clause 4 hand it
+  // heb_day - 1 without checking first.
+  check(!shabbat_is_yom_tov(HEB_TISHRI, 0, true), "day zero matches nothing");
+
+  group("the evening guard");
+  // 2026-08-21 was a Friday, 2026-08-22 the Saturday after it. Neither is
+  // anywhere near a festival, so these isolate the weekday clauses.
+  ShabbatNow n = moment(2026, 8, 21, 4, true);
+  check(!shabbat_is_active(&n), "Friday before dawn is not yet Shabbat");
+  n = moment(2026, 8, 21, 18, true);
+  check(!shabbat_is_active(&n), "Friday with the sun still up is not yet Shabbat");
+  n = moment(2026, 8, 21, T_SUNSET, true);
+  check(shabbat_kind(&n) == SHABBAT_EREV, "Friday sundown starts it");
+  n = moment(2026, 8, 21, 23, true);
+  check(shabbat_kind(&n) == SHABBAT_EREV, "and it survives to midnight");
+  n = moment(2026, 8, 22, 0, true);
+  check(shabbat_kind(&n) == SHABBAT_DAY, "and across it, as Saturday");
+  n = moment(2026, 8, 22, 4, true);
+  check(shabbat_kind(&n) == SHABBAT_DAY, "Saturday before dawn is Shabbat -- no evening guard here");
+  n = moment(2026, 8, 22, T_TZEIT - 1, true);
+  check(shabbat_kind(&n) == SHABBAT_DAY, "the hour before nightfall is still Shabbat");
+  n = moment(2026, 8, 22, T_TZEIT, true);
+  check(!shabbat_is_active(&n), "nightfall ends it");
+
+  group("Shabbat and yom tov, hour by hour for two years");
+  // The definition is four clauses that have to meet exactly, and the failures
+  // worth catching are joins and off-by-one hours rather than single dates. So
+  // walk every hour of two civil years -- which spans two whole Hebrew years of
+  // festivals -- and count what goes wrong rather than asserting inside the
+  // loop, so a single mistake does not print seventeen thousand times.
+  for (int mode = 0; mode < 2; mode++) {
+    const bool second_days = (mode == 1);
+    int changed_off_boundary = 0;   // state moved at an hour that is not one
+    int uncovered_shabbat = 0;      // Friday sundown .. Saturday nightfall gaps
+    int uncovered_yomtov = 0;       // a festival hour that came back inactive
+    int friday_morning = 0;         // the clause-1 trap
+    int small_hours = 0;            // the clause-4 trap
+    int festival_days = 0;
+
+    int y = 2026, m = 1, d = 1;
+    bool prev = false;
+    bool have_prev = false;
+    for (int day = 0; day < 730; day++) {
+      const int wd = wday_for(y, m, d);
+      const HebrewDate today = heb_midday(y, m, d);
+      const bool yt_today = shabbat_is_yom_tov(today.month, today.day, second_days);
+      if (yt_today) festival_days++;
+
+      for (int h = 0; h < 24; h++) {
+        n = moment(y, m, d, h, second_days);
+        const bool active = shabbat_is_active(&n);
+
+        // Nothing may start or stop except at sundown or at nightfall. This is
+        // what would catch a clause firing at civil midnight, which is where
+        // before_tzeit turns over and where a missing evening guard shows up.
+        if (have_prev && active != prev && h != T_SUNSET && h != T_TZEIT) {
+          changed_off_boundary++;
+        }
+        prev = active;
+        have_prev = true;
+
+        // Clauses 1 and 2, stated as coverage rather than as themselves.
+        if ((wd == 5 && h >= T_SUNSET) || (wd == 6 && h < T_TZEIT)) {
+          if (!active) uncovered_shabbat++;
+        }
+        // Clause 3 with clause 4 behind it: a festival runs from the sundown
+        // before its Hebrew date through the nightfall after it, so the civil
+        // day it is named by must be covered right up to T_TZEIT.
+        if (yt_today && h < T_TZEIT && !active) uncovered_yomtov++;
+
+        // The two traps. Both are stated without reference to how the clauses
+        // are written, so they still bite if the implementation is rewritten.
+        if (active && wd == 5 && h < 12 && !yt_today) friday_morning++;
+        if (active && h < T_SUNRISE && wd != 6 && !yt_today) small_hours++;
+      }
+      greg_next(&y, &m, &d);
+    }
+
+    if (second_days) {
+      check(changed_off_boundary == 0, "state only ever moves at sundown or nightfall");
+      check(uncovered_shabbat == 0, "every Friday sundown to Saturday nightfall is covered");
+      check(uncovered_yomtov == 0, "every yom tov is covered to nightfall");
+      check(friday_morning == 0, "Friday morning is never Shabbat");
+      check(small_hours == 0, "the small hours after a festival are not still it");
+      check(festival_days == 26, "two Hebrew years' worth of festivals were met");
+    } else {
+      check(changed_off_boundary == 0, "one-day: state only moves at sundown or nightfall");
+      check(uncovered_shabbat == 0, "one-day: every Shabbat is covered");
+      check(uncovered_yomtov == 0, "one-day: every yom tov is covered to nightfall");
+      check(friday_morning == 0, "one-day: Friday morning is never Shabbat");
+      check(small_hours == 0, "one-day: the small hours after a festival are not still it");
+      check(festival_days == 16, "one-day: eight festivals a year were met");
+    }
+  }
+
+  group("the tail after a festival");
+  // Clause 4 only shows itself on a festival that stands alone. Pesach I is
+  // followed by Pesach II, so clause 3 covers its evening and clause 4 never
+  // fires -- correct, but it proves nothing. Search for one with no festival
+  // and no Shabbat on either side, so the four clauses cannot cover for each
+  // other and each edge is attributable.
+  {
+    int y = 2026, m = 1, d = 1;
+    int py = 2025, pm = 12, pd = 31;
+    bool found = false;
+    for (int day = 0; day < 730; day++) {
+      const HebrewDate today = heb_midday(y, m, d);
+      if (shabbat_is_yom_tov(today.month, today.day, true)) {
+        const ShabbatNow ev = moment(y, m, d, T_SUNSET, true);
+        const HebrewDate yest = heb_midday(py, pm, pd);
+        const int wd = wday_for(y, m, d), pwd = wday_for(py, pm, pd);
+        if (!shabbat_is_yom_tov(ev.heb_month, ev.heb_day, true) &&
+            !shabbat_is_yom_tov(yest.month, yest.day, true) &&
+            wd != 5 && wd != 6 && pwd != 5 && pwd != 6) {
+          found = true;
+          break;
+        }
+      }
+      py = y; pm = m; pd = d;
+      greg_next(&y, &m, &d);
+    }
+    check(found, "the walk met a festival standing clear of Shabbat and of a second day");
+    if (found) {
+      ShabbatNow before = moment(py, pm, pd, T_SUNSET - 1, true);
+      ShabbatNow start = moment(py, pm, pd, T_SUNSET, true);
+      ShabbatNow midday = moment(y, m, d, 12, true);
+      ShabbatNow tail = moment(y, m, d, T_SUNSET, true);
+      ShabbatNow over = moment(y, m, d, T_TZEIT, true);
+      check(!shabbat_is_active(&before), "the afternoon before a festival is ordinary");
+      check(shabbat_kind(&start) == SHABBAT_YOM_TOV, "sundown before it starts it");
+      check(shabbat_kind(&midday) == SHABBAT_YOM_TOV, "the day itself is clause 3");
+      check(shabbat_kind(&tail) == SHABBAT_YT_TZEIT, "the evening after it is clause 4");
+      check(!shabbat_is_active(&over), "nightfall after a festival ends it");
+    }
+  }
+}
+
 int main(void) {
   test_trig();
   test_numparse();
@@ -482,6 +703,7 @@ int main(void) {
   test_display_hours();
   test_zmanim();
   test_weather();
+  test_shabbat();
 
   printf("\n%d checks, %d failures\n", g_checks, g_failures);
   return g_failures ? 1 : 0;

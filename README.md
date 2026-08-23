@@ -37,6 +37,7 @@ src/c/solar.c       NOAA sun events
 src/c/trig.c        trigonometry (libm's cannot be used here -- see below)
 src/c/numparse.c    integer parsing (newlib's strtol cannot be used here)
 src/c/weather.c     forecast day choice, unit conversion, staleness
+src/c/shabbat.c     whether it is Shabbat or yom tov at this moment
 resources/fonts/    Liberation Sans Bold, bundled for Hebrew (see below)
 resources/data/     weather icons, from TimeStyle (MIT; licence alongside)
 src/pkjs/index.js   phone side: geolocation -> LAT/LON
@@ -185,14 +186,20 @@ watch.
   `package.json` as an input to `message_keys.auto.c`, so an incremental build
   fails on `MESSAGE_KEY_<new>` being undeclared while the key sits right there
   in the manifest.
-- **Adding a field to `Settings` resets every wearer's settings.**
-  `load_persisted()` compares the stored size against `sizeof(Settings)` and
-  falls back to the defaults when they differ, which is what stops an old struct
-  being misread through a new layout. The price is that any build adding a
-  setting starts from defaults until the Clay page is saved again — and the
-  defaults are what the wearer gets in the meantime, so choose them as if they
-  were the upgrade experience. Say so in the release note; it is invisible
-  otherwise.
+- **Adding a field to `Settings` makes the watch discard its copy — but the
+  wearer does not normally see that.** `load_persisted()` compares the stored
+  size against `sizeof(Settings)` and falls back to the defaults when they
+  differ, which is what stops an old struct being misread through a new layout.
+  The phone then heals it: `resendSettings()` pushes Clay's stored values on
+  every `ready`, so the real choices are back within a second of launch without
+  anyone opening the settings page. Do not tell the wearer their settings will
+  be reset; in practice they will not notice.
+
+  It still matters what the defaults are, in the two cases the re-send cannot
+  cover: the phone unreachable at launch, and a field so new that Clay has
+  never stored a value for it — a genuinely new setting keeps the watch's
+  default until the page is saved once, because the store has nothing to send.
+  See "Settings, and why the phone re-sends them".
 - A wedged emulator needs SIGTERM (never SIGKILL — it corrupts the flash image),
   `rm -f /tmp/pb-emulator.json`, then `pebble wipe`. Beware `pkill -f`, whose
   pattern also matches the shell running it.
@@ -339,6 +346,68 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
 - **Icons are Pebble Draw Commands** (`type: "raw"` in `package.json`, 25x25,
   ~1.8KB for all twelve). They carry their own colours, so `wx_recolor()`
   repaints one before it is drawn in a box whose ink differs.
+
+## Shabbat and yom tov
+
+`shabbat.c` answers one question — is it Shabbat or yom tov right now — in four
+clauses:
+
+1. any Friday after sundown
+2. any Saturday before nightfall
+3. any yom tov, by Hebrew date
+4. the sundown-to-nightfall window immediately following a yom tov
+
+**Nothing reads the answer yet.** It is computed on every tick into
+`s_shabbat` because that is where the inputs are assembled, and what the face
+should do differently is a separate decision.
+
+- **Clauses 3 and 4 are one idea split in two, and the split is
+  `hebdate_for_now()`.** That function rolls the Hebrew date at *sundown*, not
+  at midnight — see the `sun_is_up` argument, and note that `refresh()` forces
+  the recompute on a bracket flip and not only on a day change. So a yom tov's
+  Hebrew date runs sundown to sundown: the right start, because yom tov begins
+  at sundown, and the wrong end, because it runs to nightfall. Clause 4 is
+  exactly that missing tail, and nothing more.
+- **Clause 4 is bound to the sundown-to-nightfall window, not to the countdown
+  setting.** They are the same stretch of time, and it is tempting to reuse
+  `countdown_active()`. Do not: that is a display toggle, and wiring it in would
+  mean switching the countdown off silently shortened Shabbat.
+- **Clauses 1 and 4 need an evening guard; clause 2 must not have one.** This is
+  the trap in the whole module. "Friday after sundown" read as
+  sun-is-down-and-it-is-Friday also matches Friday at four in the morning, and
+  the same reading of clause 4 keeps Shabbat running all night and most of the
+  next day after a festival ends. Both take `hour >= 12`, the same test
+  `hebdate_for_now()` uses for its own rollover, so the two never disagree about
+  which Jewish day a dark hour belongs to. Clause 2 takes no such guard, because
+  Saturday at four in the morning genuinely is Shabbat. The asymmetry is
+  deliberate and both halves of it are host-tested.
+- **Thirteen dates, or eight with second days off.** Rosh Hashana is two days
+  either way, so this is *not* "drop every second day" and cannot be written as
+  one. Two properties of the list do real work: **none of the thirteen falls in
+  Adar**, so a leap year adds nothing to reason about and the table is the same
+  in all six year lengths; and **none falls on the last day of its Hebrew
+  month**, which is what lets clause 4 ask about `heb_day - 1` with no month
+  arithmetic and no bounds check — day 0 simply matches nothing.
+- **With no location, or where the sun does not set, the answer is
+  `SHABBAT_NONE`.** That is a choice of which way to fail, not an oversight: a
+  watch that had lost its fix would otherwise behave as though it were Shabbat
+  indefinitely, with no way for the wearer to say otherwise. Revisit it once
+  something depends on the answer.
+- **The definition is the test, not the comment.** `test_shabbat()` walks every
+  hour of two civil years — two whole Hebrew years of festivals — in both modes,
+  and counts rather than asserting inside the loop, so one mistake does not
+  print seventeen thousand times. It checks that the state only ever moves at
+  sundown or nightfall, that every Shabbat and every festival is covered to
+  nightfall, and that neither trap above has reopened. Removing the evening
+  guard, giving clause 2 one, and deleting clause 4 were each confirmed to fail
+  it.
+- **The emulator can still check the wiring, which the host cannot.** Move the
+  location rather than the clock, exactly as for the solar events: with the face
+  reporting the clause in a throwaway overlay, sending a longitude far enough
+  west puts nightfall back ahead of the current time and the answer flips from
+  `none` to `day`. Adding the current Hebrew date to the table for one build
+  proves clause 3 is reading `s_heb` and not something else. Both are in
+  `screenshots/shabbat-probe-*.png`.
 
 ## Settings, and why the phone re-sends them
 

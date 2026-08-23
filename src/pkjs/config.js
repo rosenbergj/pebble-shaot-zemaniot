@@ -172,6 +172,21 @@ module.exports = [
   {
     type: "section",
     items: [
+      { type: "heading", defaultValue: "Shabbat and festivals" },
+      {
+        type: "toggle",
+        messageKey: "SecondDays",
+        label: "Second days of festivals",
+        description:
+          "Adds the second day of Sukkot, Shmini Atzeret, Pesach, and " +
+          "Shavuot. Rosh Hashana is two days either way.",
+        defaultValue: true,
+      },
+    ],
+  },
+  {
+    type: "section",
+    items: [
       { type: "heading", defaultValue: "Appearance and battery" },
       {
         type: "color",

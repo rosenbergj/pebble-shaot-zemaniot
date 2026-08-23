@@ -54,7 +54,8 @@
       "WxDay2Low",
       "WxDay2Cond",
       "DisconnectIcon",
-      "LowBatteryIcon"
+      "LowBatteryIcon",
+      "SecondDays"
     ],
     "resources": {
       "media": [

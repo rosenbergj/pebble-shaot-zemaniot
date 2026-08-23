@@ -15,6 +15,7 @@
 
 #include "hebdate.h"
 #include "numparse.h"
+#include "shabbat.h"
 #include "shaot.h"
 #include "solar.h"
 #include "weather.h"
@@ -66,6 +67,7 @@ typedef struct {
   bool metric;     // temperatures in Celsius rather than Fahrenheit
   bool bt_icon;    // show a mark while the phone is unreachable
   bool low_batt_icon;  // show a mark while the battery is at or below the low mark
+  bool second_days;    // festivals keep their second day
   uint8_t slot_band, slot_left, slot_mid, slot_right;
   uint32_t accent;      // 0xRRGGBB
   uint8_t civil_font;   // 0 = Roboto 49, 1 = Leco 42 (matches the shaot face)
@@ -80,6 +82,7 @@ static Settings s_settings = {
     .metric = false,
     .bt_icon = true,
     .low_batt_icon = true,
+    .second_days = true,
     .slot_band = SLOT_HEBREW,
     .slot_left = SLOT_SUNSET,
     .slot_mid = SLOT_SECDATE,
@@ -248,6 +251,11 @@ static time_t s_next_stale;
 static time_t s_next_from;  // the "now" it was computed from, so a backward
                             // jump in the clock invalidates it too
 static int s_last_day = -1;
+// Shabbat or yom tov, recomputed every tick. Nothing reads it yet -- what the
+// face does differently is a separate decision -- but the inputs it needs are
+// only assembled here, so it is computed where they live rather than left to a
+// future caller to rediscover.
+static ShabbatKind s_shabbat = SHABBAT_NONE;
 static int s_battery = 0;
 static bool s_charging = false;
 // Whichever unit is currently subscribed. Zero is no unit, so the first call
@@ -887,7 +895,39 @@ static void update_next_events(time_t now) {
 //
 // Callers are the tick handler and the message handler; drawing only ever reads
 // what this leaves behind.
+// Shabbat and yom tov. Unlike the Hebrew date this cannot be cached until the
+// next day boundary: two of the four clauses turn on the hour and on whether
+// nightfall has passed, so it is recomputed on every tick. That costs a scan of
+// thirteen dates and a few comparisons, which is nothing next to the solar
+// maths beside it -- and like everything else here it stays out of the update
+// proc, which only ever reads what this leaves behind.
+//
+// With no location, or at a latitude where the sun does not set, the answer is
+// SHABBAT_NONE. That is a deliberate choice of which way to fail rather than an
+// oversight: a watch that had lost its fix would otherwise behave as though it
+// were Shabbat indefinitely, with no way for the wearer to say otherwise. It
+// wants revisiting once something actually depends on the answer.
+static void update_shabbat(const struct tm *lt, time_t now) {
+  if (!s_br.valid || !s_have_tzeit) {
+    s_shabbat = SHABBAT_NONE;
+    return;
+  }
+  const ShabbatNow n = {
+      .heb_month = s_heb.month,
+      .heb_day = s_heb.day,
+      .wday = lt->tm_wday,
+      .hour = lt->tm_hour,
+      .sun_is_up = s_br.is_day,
+      .before_tzeit = now < s_tzeit_at,
+      .second_days = s_settings.second_days,
+  };
+  s_shabbat = shabbat_kind(&n);
+}
+
 static void refresh(time_t now) {
+  // The early exits below all mean "not known", and leaving a stale answer
+  // behind would be worse than saying so.
+  s_shabbat = SHABBAT_NONE;
   if (!s_have_location) return;
   double now_ms = (double)now * 1000.0;
 
@@ -910,6 +950,7 @@ static void refresh(time_t now) {
                             lt.tm_hour, s_br.is_day);
     update_solar_times();
   }
+  update_shabbat(&lt, now);
 
   // The combined slots expire on their own schedule -- when the event they are
   // showing happens -- rather than at midnight, and cost three more passes of
@@ -1494,6 +1535,8 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.bt_icon = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_LowBatteryIcon) {
       if (tuple_to_int(t, &v)) { s_settings.low_batt_icon = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_SecondDays) {
+      if (tuple_to_int(t, &v)) { s_settings.second_days = (v != 0); settings_changed = true; }
 
     // Weather. Temperatures arrive in Celsius whatever the units setting says,
     // so switching units redraws immediately instead of waiting for a fetch.

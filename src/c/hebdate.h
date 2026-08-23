@@ -9,6 +9,8 @@
 
 #include <stdbool.h>
 
+#define HEB_NISAN 1
+#define HEB_SIVAN 3
 #define HEB_TISHRI 7
 #define HEB_ADAR 12
 #define HEB_VEADAR 13
