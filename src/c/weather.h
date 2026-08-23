@@ -113,6 +113,19 @@ bool weather_low_first(int hour);
 // Index of the forecast describing wanted_ymd, or -1 if we do not hold it.
 int weather_pick_day(const WeatherData *w, int32_t wanted_ymd);
 
+// How long to wait before asking the phone again when a request went
+// unanswered, in milliseconds, or 0 to stop chasing and leave it to the hourly
+// schedule. `attempt` is how many requests have already gone out without a
+// reply, so the first unanswered request asks with attempt = 1.
+//
+// This exists because the watch cannot tell a request that was never heard
+// from one whose answer is still coming: the send is fire-and-forget and the
+// phone speaks only when it has something. Waiting for the payload and asking
+// again is the only signal available, so the schedule has to be short enough
+// to matter on a wrist and short enough overall not to become a second, faster
+// polling loop running behind the first.
+uint32_t weather_retry_ms(int attempt);
+
 // True once the reading is too old to present as current. Never-fetched data
 // is not stale; it is absent, which the caller distinguishes by have_current.
 bool weather_is_stale(const WeatherData *w, int32_t now);

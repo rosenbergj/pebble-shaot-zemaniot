@@ -67,3 +67,17 @@ bool weather_is_stale(const WeatherData *w, int32_t now) {
   if (now < w->fetched_at) return false;
   return (now - w->fetched_at) > WEATHER_STALE_SECS;
 }
+
+uint32_t weather_retry_ms(int attempt) {
+  // Three chases, then stop: about a minute and three quarters of trying,
+  // which covers a phone app that is slow to start its JavaScript without
+  // turning into a poll. Growing gaps because the failures have different
+  // shapes -- a lost race is answered by the first retry, while a phone that
+  // is busy or has no network needs to be given room rather than asked harder.
+  switch (attempt) {
+    case 1: return 10000;
+    case 2: return 30000;
+    case 3: return 60000;
+    default: return 0;
+  }
+}

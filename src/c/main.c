@@ -150,6 +150,16 @@ static uint8_t s_wx_minute;
 // Whether the phone is reachable. Peeked at startup and kept current by the
 // connection handler, so the overlay does not have to ask on every frame.
 static bool s_bt_connected = true;
+// Chasing an unanswered request. The watch cannot tell a request the phone
+// never heard from one it is still working on -- the send is fire-and-forget
+// and the phone replies only when it has something -- so the absence of a
+// payload is the only signal there is, and these count how long it has been
+// absent. The schedule itself lives in weather.c, where the harness can read
+// it. Deliberately an AppTimer rather than a count of ticks: the tick rate is
+// a user setting, and a face set to minute ticks would otherwise round every
+// delay in that schedule up to the next whole minute.
+static AppTimer *s_wx_retry_timer = NULL;
+static uint8_t s_wx_attempts = 0;
 
 static void save_weather(void) {
   persist_write_data(PERSIST_KEY_WEATHER, &s_wx, sizeof(s_wx));
@@ -1419,12 +1429,45 @@ static void battery_handler(BatteryChargeState state) {
 // currently showing weather -- there is no point spending a radio wake and an
 // HTTP fetch on a face that is not displaying it. The phone treats any message
 // from us as the request; we send nothing else.
-static void request_weather(void) {
-  if (!any_weather_slot()) return;
+static void wx_retry(void *data);
+
+// Arm, re-arm or stand down the chase. Called with the number of requests that
+// have gone unanswered so far; 0 stands it down, which is what a payload does.
+static void wx_schedule_retry(uint8_t attempts) {
+  if (s_wx_retry_timer) {
+    app_timer_cancel(s_wx_retry_timer);
+    s_wx_retry_timer = NULL;
+  }
+  s_wx_attempts = attempts;
+  const uint32_t ms = weather_retry_ms(attempts);
+  if (ms == 0) return;
+  s_wx_retry_timer = app_timer_register(ms, wx_retry, NULL);
+}
+
+static void send_weather_request(void) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
   dict_write_uint8(iter, 0, 0);
   app_message_outbox_send();
+}
+
+static void wx_retry(void *data) {
+  s_wx_retry_timer = NULL;
+  // Nothing to chase across a dead link. The chase is not resumed here either,
+  // because the connection handler starts a fresh one the moment the phone is
+  // back, which is sooner than any delay left in this schedule.
+  if (!s_bt_connected || !any_weather_slot()) return;
+  send_weather_request();
+  wx_schedule_retry((uint8_t)(s_wx_attempts + 1));
+}
+
+static void request_weather(void) {
+  if (!any_weather_slot()) return;
+  send_weather_request();
+  // Start the count over. Every caller of this is a fresh reason to want
+  // weather -- a reconnect, a settings change, the hourly slot -- and each
+  // deserves the full schedule rather than the tail of an older one.
+  wx_schedule_retry(1);
 }
 
 static void alt_view_timeout(void *data) {
@@ -1660,6 +1703,11 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     // ago we heard, and the watch's own clock is the one the wearer is reading.
     s_wx.fetched_at = (int32_t)time(NULL);
     save_weather();
+    // The answer we were chasing. Note that this fires for an unprompted push
+    // too -- the phone sends one when its JavaScript starts -- which is right:
+    // the point of the chase is to have current weather, not to have been the
+    // one who asked for it.
+    wx_schedule_retry(0);
   }
 
   // Both coordinates must be present and in range before either is adopted, so
@@ -1771,6 +1819,7 @@ static void init(void) {
 
 static void deinit(void) {
   save_weather();
+  wx_schedule_retry(0);
   connection_service_unsubscribe();
   accel_tap_service_unsubscribe();
   battery_state_service_unsubscribe();

@@ -468,6 +468,29 @@ static void test_weather(void) {
   // A watch whose clock jumps backwards would otherwise make a fresh reading
   // look arbitrarily old.
   check(!weather_is_stale(&w, 999000), "a clock that went backwards is not stale");
+
+  group("chasing an unanswered request");
+  // The properties that matter, rather than the numbers themselves: the chase
+  // must start, must always end, and must not tighten into a poll.
+  check(weather_retry_ms(1) > 0, "an unanswered request is chased");
+  uint32_t total = 0;
+  int chases = 0;
+  uint32_t prev = 0;
+  for (int attempt = 1; attempt <= 20; attempt++) {
+    const uint32_t ms = weather_retry_ms(attempt);
+    if (ms == 0) break;
+    check(ms >= prev, "each wait is at least as long as the one before it");
+    prev = ms;
+    total += ms;
+    chases++;
+  }
+  check(weather_retry_ms(chases + 1) == 0, "the chase gives up rather than running for ever");
+  check(chases >= 2 && chases <= 4, "a handful of chases, not a polling loop");
+  // Short enough to be worth having on a wrist: the whole schedule has to
+  // finish well inside the five-minute sweep that backs it up, or it is just a
+  // slower copy of it.
+  check(total < 5 * 60 * 1000, "the whole chase finishes inside the sweep that backs it up");
+  check(weather_retry_ms(0) == 0, "no chase before a request has gone unanswered");
 }
 
 // --- Shabbat and yom tov -----------------------------------------------------
