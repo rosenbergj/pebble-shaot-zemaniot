@@ -55,7 +55,8 @@
       "WxDay2Cond",
       "DisconnectIcon",
       "LowBatteryIcon",
-      "SecondDays"
+      "SecondDays",
+      "ShabbatSuppressTaps"
     ],
     "resources": {
       "media": [

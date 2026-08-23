@@ -173,6 +173,12 @@ module.exports = [
         label: "Second days of festivals",
         defaultValue: true,
       },
+      {
+        type: "toggle",
+        messageKey: "ShabbatSuppressTaps",
+        label: "Suppress taps on Shabbat and festivals",
+        defaultValue: true,
+      },
     ],
   },
   {

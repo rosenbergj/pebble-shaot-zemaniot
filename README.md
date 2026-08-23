@@ -357,9 +357,14 @@ clauses:
 3. any yom tov, by Hebrew date
 4. the sundown-to-nightfall window immediately following a yom tov
 
-**Nothing reads the answer yet.** It is computed on every tick into
-`s_shabbat` because that is where the inputs are assembled, and what the face
-should do differently is a separate decision.
+What it changes so far is the accelerometer tap: with "Suppress taps on Shabbat
+and festivals" on, `accel_tap_handler()` returns without toggling, so the
+forecast box does not flip. The check lives in the handler and not in
+`tap_has_effect()`, which answers a question about how the face is configured
+and reads the same all week. The subscription itself is left up rather than
+torn down at each boundary — an early return costs less bookkeeping, and
+nothing then has to notice the exact second Shabbat ends in order to hand the
+gesture back.
 
 - **Clauses 3 and 4 are one idea split in two, and the split is
   `hebdate_for_now()`.** That function rolls the Hebrew date at *sundown*, not

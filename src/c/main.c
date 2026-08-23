@@ -68,6 +68,7 @@ typedef struct {
   bool bt_icon;    // show a mark while the phone is unreachable
   bool low_batt_icon;  // show a mark while the battery is at or below the low mark
   bool second_days;    // festivals keep their second day
+  bool shabbat_no_taps;  // the tap gesture does nothing on Shabbat or yom tov
   uint8_t slot_band, slot_left, slot_mid, slot_right;
   uint32_t accent;      // 0xRRGGBB
   uint8_t civil_font;   // 0 = Roboto 49, 1 = Leco 42 (matches the shaot face)
@@ -83,6 +84,7 @@ static Settings s_settings = {
     .bt_icon = true,
     .low_batt_icon = true,
     .second_days = true,
+    .shabbat_no_taps = true,
     .slot_band = SLOT_HEBREW,
     .slot_left = SLOT_SUNSET,
     .slot_mid = SLOT_SECDATE,
@@ -1396,7 +1398,21 @@ static void alt_view_timeout(void *data) {
 // README.md records. That is also why the view reverts on its own -- some of
 // these taps are a jostled wrist rather than a decision, and a latching mode
 // would sit there until the next one.
+// The first thing s_shabbat is actually used for. Kept out of tap_has_effect(),
+// which answers a question about how the face is configured and is the same all
+// week; this one is about the moment, and reads better where the gesture is
+// handled than folded into a predicate about slots.
+//
+// The subscription is left in place rather than torn down and rebuilt at every
+// boundary: the handler returning early is the same outcome for a fraction of
+// the bookkeeping, and it means nothing has to notice the exact second Shabbat
+// ends in order to give the gesture back.
+static bool taps_suppressed(void) {
+  return s_settings.shabbat_no_taps && s_shabbat != SHABBAT_NONE;
+}
+
 static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
+  if (taps_suppressed()) return;
   if (!tap_has_effect()) return;
   if (s_alt_timer) {
     app_timer_cancel(s_alt_timer);
@@ -1537,6 +1553,8 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.low_batt_icon = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_SecondDays) {
       if (tuple_to_int(t, &v)) { s_settings.second_days = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_ShabbatSuppressTaps) {
+      if (tuple_to_int(t, &v)) { s_settings.shabbat_no_taps = (v != 0); settings_changed = true; }
 
     // Weather. Temperatures arrive in Celsius whatever the units setting says,
     // so switching units redraws immediately instead of waiting for a fetch.
