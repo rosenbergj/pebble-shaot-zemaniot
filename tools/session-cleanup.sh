@@ -17,8 +17,16 @@
 
 # The hook feeds a JSON payload on stdin. Skip /clear: clearing context
 # mid-session should not kill an emulator or gallery still being used.
+#
+# The read is time-limited because "not a TTY" does not mean "something is
+# going to send me a payload and then close". Run from a tool call or a pipe,
+# stdin is an open socket nobody ever writes to, and a bare `cat` blocks on it
+# for ever -- which is worse here than anywhere else, because this script is
+# what a session runs on the way out. It hung a sign-off that way. The hook's
+# payload arrives at once, so the wait only ever elapses when there was
+# nothing coming.
 if [ ! -t 0 ]; then
-    if cat | grep -q '"reason"[[:space:]]*:[[:space:]]*"clear"'; then
+    if timeout 2 cat 2>/dev/null | grep -q '"reason"[[:space:]]*:[[:space:]]*"clear"'; then
         exit 0
     fi
 fi
