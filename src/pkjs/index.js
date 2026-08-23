@@ -266,4 +266,12 @@ Pebble.addEventListener("ready", function () {
   sendCached(); // something immediate, then refine
   update();
   setInterval(update, REFRESH_MS);
+  // Push weather without being asked, which is the one place that is right to
+  // do. The watch requests weather the instant the link comes up, but this
+  // JavaScript is started by the phone app and may not have been listening yet
+  // -- so the request that matters most, the one after a night with Bluetooth
+  // off, is the one most likely to be lost. Only this side knows when it began
+  // running. It costs a fetch per start even on a face carrying no weather
+  // slot; that is accepted, since nothing starts this but the watchface.
+  updateWeather();
 });
