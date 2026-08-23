@@ -492,10 +492,18 @@ static bool any_weather_slot(void) {
 // Stale data makes the flipping kind inert for the same reason: it is already
 // showing the forecast and has nothing left to flip to, since the whole point
 // of the switch is that "now" is no longer worth offering.
+//
+// Note the shape. s_wx_stale narrows the *weather* term and is deliberately not
+// an early return over the whole function: a second term added here -- the
+// suspend-the-countdown idea is the candidate -- must not be switched off
+// because the weather happens to be old. Add such a term as another `||`
+// alongside weather_flips, never above the staleness check.
 static bool tap_has_effect(void) {
-  if (s_wx_stale) return false;
-  return s_settings.slot_left == SLOT_WEATHER || s_settings.slot_mid == SLOT_WEATHER ||
-         s_settings.slot_right == SLOT_WEATHER || s_settings.slot_band == SLOT_WEATHER;
+  const bool weather_flips =
+      !s_wx_stale &&
+      (s_settings.slot_left == SLOT_WEATHER || s_settings.slot_mid == SLOT_WEATHER ||
+       s_settings.slot_right == SLOT_WEATHER || s_settings.slot_band == SLOT_WEATHER);
+  return weather_flips;
 }
 
 // Whether this kind's value row can contain a Hebrew month name.

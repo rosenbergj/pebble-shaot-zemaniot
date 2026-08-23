@@ -155,7 +155,12 @@ watch.
   (`accel_tap_service_subscribe()`) is the only input a watchface gets; the
   headers' own advice, in the "User interaction in watchfaces" note, turns out
   to be current after all. None of this is testable in the emulator: there is no
-  `emu-touch` and no touch endpoint in the protocol.
+  `emu-touch` and no touch endpoint in the protocol. **The
+  accelerometer tap is a different story --
+  `pebble emu-tap --emulator emery --direction x+` drives it end to end**,
+  and is how the Shabbat suppression and the stale box's inertness were
+  checked. Do not read the absence of `emu-touch` as meaning the gesture
+  cannot be exercised here; only *touch* cannot.
 - **The emulator's clock resyncs to the host within seconds of being set.**
   `pebble emu-set-time` does take — twice, like `emu-battery` — but it does not
   hold, so anything triggered by the hour cannot be tested by moving the clock
@@ -296,6 +301,16 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   than `WEATHER_STALE_SECS` (3h, six missed refreshes) keeps its place but is
   drawn in a muted ink, icon included — still readable, visibly not live. The
   whole `WeatherData` struct is persisted, so a relaunch is not blank.
+
+  **That fade is a weak signal, and the numbers are on record.** It is a
+  contrast reduction and nothing else: white to `#ABABAB`, identical glyphs,
+  identical icon, identical position. On the accent fill it drops 6.5:1 to
+  2.8:1 and reads as washed out; on the background box it drops 21:1 to
+  **8.9:1** -- still nearly twice the threshold for ordinary body text, so it
+  simply reads as text. It says nothing about *how* old either: three hours
+  and twenty-six hours look identical. Not noticed on the wrist, which
+  matches. Replacing it is deferred rather than settled;
+  `screenshots/staleness-*.png` are the reference shots.
 - **Stale data stops a "Weather now/forecast" box offering "now" at all.** Past
   the threshold it shows the forecast and keeps showing it, with the swapped
   fill, until a fetch lands. A current temperature is the half of that box with
