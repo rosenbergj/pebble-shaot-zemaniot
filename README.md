@@ -173,6 +173,11 @@ watch.
   enlarged and read as a nearly-full battery at true size, and a hand-drawn
   Bluetooth rune's diagonals collapse into an asterisk below ~20px. Screenshot
   candidates in place, at actual size, before choosing.
+- **`graphics_draw_rect()` ignores the context's stroke width.** Setting it to
+  2 and drawing a rect silently gives a 1px outline; only lines and circles
+  honour it. The low-battery cell draws two nested rects instead, so it carries
+  the same weight as the 2px disconnect rune facing it. Measure the ink -- the
+  difference is invisible at watch size and obvious in a pixel count.
 - **`M_PI` is not defined** — the toolchain compiles without GNU extensions.
 - **`pebble build` can fail while `pebble install` happily pushes the previous
   `.pbw`.** Never redirect build output to `/dev/null`.
@@ -343,21 +348,30 @@ An empty store is left alone: a watch that has never been configured should
 keep its own defaults, and sending an empty dictionary would only churn the
 AppMessage buffers.
 
-## The disconnect indicator
+## The gutter indicators
 
-A struck-through Bluetooth rune in the right-hand gutter, between the clock and
-the shaot line, while the phone is unreachable and `DisconnectIcon` is on.
+Two warnings live in the dead space either side of the centred clock, between
+the band and the shaot line: a struck-through Bluetooth rune on the right while
+the phone is unreachable, and an empty red battery on the left while the charge
+is low. Each has its own toggle, `DisconnectIcon` and `LowBatteryIcon`.
 
-- **It is an overlay, and deliberately not one of the five regions.** It is
+- **They are overlays, and deliberately not part of the five regions.** They are
   drawn from `canvas_update()` after `draw_face()` returns, because
   `draw_face()` gives up early when the unobstructed area is too short for the
   footer, and an indicator that vanishes under a Timeline Peek is not doing its
-  job. The right gutter is dead space at every time of day, since the clock is
+  job. The gutters are dead space at every time of day, since the clock is
   centred, so nothing has to move to make room.
-- **It is anchored to the full bounds and never moves.** `gutter_top()` measures
-  from `layer_get_bounds()`, not from the unobstructed area, so a Timeline Peek
-  does not shift it; see the Peek note under "Platform constraints" for what
-  anchoring it to the visible area did.
+- **They share one anchor row and never move.** `gutter_top()` measures from
+  `layer_get_bounds()`, not from the unobstructed area, so a Timeline Peek does
+  not shift them; see the Peek note under "Platform constraints" for what
+  anchoring them to the visible area did. Both centre on the same row, and both
+  keep a 2px margin from their screen edge, so the pair reads as a matched set
+  when they happen to appear together.
+- **Only one of the two can be checked properly in the emulator.**
+  `pebble emu-battery --percent 12` drives the low-battery mark end to end;
+  a genuine disconnect cannot be produced at all (see below). Screenshots of
+  the pair are in `screenshots/gutter-*.png`, with the rune force-drawn in the
+  two that show both.
 - **The rune is drawn, not a resource.** It has to read at 25px; TimeStyle's
   disconnect icon is a phone with a cross, which carries more detail than
   survives at that size. Below roughly 20px the rune's diagonals collapse and
@@ -374,6 +388,17 @@ the shaot line, while the phone is unreachable and `DisconnectIcon` is on.
   `connection_service_peek_pebble_app_connection()`. Verify by inverting the
   test in a probe build, which proves the icon tracks the flag; the genuine
   disconnected case can only be seen on the watch.
+- **The low-battery cell is drawn empty, and that is the whole point.** A
+  proportional fill would be a second, smaller battery gauge arguing with the
+  one a footer box may already be showing. This one is not a reading, it is a
+  warning; the number is available in a box for anyone who wants it.
+- **It uses the footer gauge's threshold and the footer gauge's exception.**
+  `GAUGE_LOW_PCT`, and nothing while charging -- a low reading on the charger is
+  a state the wearer is already fixing. Two low-battery marks that disagreed
+  about what "low" means would be worse than either alone.
+- **The terminal nub stays on the right** even though the icon sits opposite the
+  rune. Mirroring the placement is the point; mirroring the glyph just stops it
+  looking like a battery.
 
 ## Driving settings and time in the emulator
 

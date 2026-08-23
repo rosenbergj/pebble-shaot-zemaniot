@@ -153,6 +153,18 @@ module.exports = [
         type: "toggle",
         messageKey: "DisconnectIcon",
         label: "Mark when the phone is out of range",
+        description:
+          "A struck-through Bluetooth rune in the right-hand gutter, beside " +
+          "the clock.",
+        defaultValue: true,
+      },
+      {
+        type: "toggle",
+        messageKey: "LowBatteryIcon",
+        label: "Mark when the battery is low",
+        description:
+          "An empty red battery in the left-hand gutter, from 20% down. It " +
+          "goes away on the charger.",
         defaultValue: true,
       },
     ],

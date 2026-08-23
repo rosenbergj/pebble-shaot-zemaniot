@@ -65,6 +65,7 @@ typedef struct {
   bool countdown;  // count down to nightfall between sunset and tzeit
   bool metric;     // temperatures in Celsius rather than Fahrenheit
   bool bt_icon;    // show a mark while the phone is unreachable
+  bool low_batt_icon;  // show a mark while the battery is at or below the low mark
   uint8_t slot_band, slot_left, slot_mid, slot_right;
   uint32_t accent;      // 0xRRGGBB
   uint8_t civil_font;   // 0 = Roboto 49, 1 = Leco 42 (matches the shaot face)
@@ -78,6 +79,7 @@ static Settings s_settings = {
     .countdown = false,
     .metric = false,
     .bt_icon = true,
+    .low_batt_icon = true,
     .slot_band = SLOT_HEBREW,
     .slot_left = SLOT_SUNSET,
     .slot_mid = SLOT_SECDATE,
@@ -1247,6 +1249,45 @@ static void draw_bt_overlay(GContext *ctx, GRect bounds) {
   graphics_context_set_stroke_width(ctx, 1);
 }
 
+// The low-battery indicator: an empty battery outline in the left-hand gutter,
+// mirroring the disconnect icon opposite it. Red rather than the face's ink,
+// for the same reason the footer gauge goes red -- a flat battery should shout
+// the same colour whatever accent the wearer has picked.
+//
+// The cell is drawn empty. A proportional fill would be a second, smaller
+// battery gauge competing with the one a footer box may already be showing;
+// this one is not a reading, it is a warning, and the number is available in a
+// box for anyone who wants it. The terminal nub stays on the right even though
+// the icon is mirrored across the screen: a battery with its terminal on the
+// left stops looking like a battery.
+#define LOWBATT_W 23      // the body, excluding the nub
+#define LOWBATT_H 13
+#define LOWBATT_NUB_W 2
+#define LOWBATT_NUB_H 7
+
+static void draw_lowbatt_overlay(GContext *ctx, GRect bounds) {
+  if (!s_settings.low_batt_icon) return;
+  // Not while charging: a low reading on the charger is a state the wearer is
+  // already fixing, and the footer gauge suppresses its red for the same
+  // reason. Same threshold as the gauge, so the two never disagree.
+  if (s_charging || s_battery > GAUGE_LOW_PCT) return;
+
+  const int x = 2;
+  const int y = gutter_top(bounds) + (BT_BOX - LOWBATT_H) / 2;
+
+  graphics_context_set_stroke_color(ctx, GColorRed);
+  graphics_context_set_fill_color(ctx, GColorRed);
+  // Two nested rects, not one with a stroke width: graphics_draw_rect() ignores
+  // the context's stroke width, so asking for 2px silently draws 1 -- and a 1px
+  // outline is visibly lighter than the 2px disconnect rune facing it across
+  // the screen. Measured, not eyeballed; the two are meant to weigh the same.
+  graphics_draw_rect(ctx, GRect(x, y, LOWBATT_W, LOWBATT_H));
+  graphics_draw_rect(ctx, GRect(x + 1, y + 1, LOWBATT_W - 2, LOWBATT_H - 2));
+  graphics_fill_rect(ctx, GRect(x + LOWBATT_W, y + (LOWBATT_H - LOWBATT_NUB_H) / 2,
+                                LOWBATT_NUB_W, LOWBATT_NUB_H),
+                     0, GCornerNone);
+}
+
 static void canvas_update(Layer *layer, GContext *ctx) {
   draw_face(layer, ctx);
   // After the face, and outside it: draw_face() gives up early when the
@@ -1254,6 +1295,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   // vanishes under a Timeline Peek is not doing its job.
   const GRect bounds = layer_get_bounds(layer);
   draw_bt_overlay(ctx, bounds);
+  draw_lowbatt_overlay(ctx, bounds);
 }
 
 // --- services ---------------------------------------------------------------
@@ -1450,6 +1492,8 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.metric = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_DisconnectIcon) {
       if (tuple_to_int(t, &v)) { s_settings.bt_icon = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_LowBatteryIcon) {
+      if (tuple_to_int(t, &v)) { s_settings.low_batt_icon = (v != 0); settings_changed = true; }
 
     // Weather. Temperatures arrive in Celsius whatever the units setting says,
     // so switching units redraws immediately instead of waiting for a fetch.
