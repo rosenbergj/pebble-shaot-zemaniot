@@ -75,6 +75,25 @@ if [ "${1:-}" = "--good" ]; then
   else
     git tag -a "good-$v" "$sha" -m "confirmed working on hardware"
   fi
+  # BUILD.txt names the rollback file's version, and the promotion just changed
+  # which build that file holds -- so the line has to move with it. Only the
+  # build path used to write this file, which left it naming the *previous*
+  # good build after every promotion. It is read on a phone at the moment a
+  # rollback is wanted, where a stale version number reinstalls the build being
+  # rolled back from.
+  if [ -f "$BUILDINFO" ]; then
+    # All three variants are deleted, including the one written just below, so
+    # that promoting twice rewrites rather than repeats.
+    sed -i -e '/^If it misbehaves, install/,+1d' \
+           -e '/^There is no last-known-good build yet;/,+1d' \
+           -e '/^This build is also the last-known-good one/,+3d' "$BUILDINFO"
+    {
+      echo "This build is also the last-known-good one (good-$v), so"
+      echo "pt2-shaot-watchface-lastgood.pbw is a copy of it. The next build"
+      echo "stages over pt2-shaot-watchface.pbw and leaves this one to roll"
+      echo "back to."
+    } >>"$BUILDINFO"
+  fi
   echo "$v is now last-known-good ($LASTGOOD, tag good-$v)."
   exit 0
 fi

@@ -669,11 +669,18 @@ never changes, so a build that failed to sync or install is otherwise invisible.
 Check the version the phone reports against `BUILD.txt` before concluding
 anything about a change.
 
-`--good` copies the staged build over the rollback and tags the commit
-`good-<version>`. The tags are immutable, one per confirmed build, because after
-a regression the useful question is what changed since the last good one, and
-`git diff good-1.0.4..HEAD` answers it. Nothing is marked good automatically —
-only wearing it says that.
+`--good` copies the staged build over the rollback, tags the commit
+`good-<version>`, and rewrites the rollback line in `BUILD.txt` to name the
+build it just promoted. The tags are immutable, one per confirmed build, because
+after a regression the useful question is what changed since the last good one,
+and `git diff good-1.0.4..HEAD` answers it. Nothing is marked good
+automatically — only wearing it says that.
+
+The `BUILD.txt` rewrite matters because that file is read on a phone at the
+moment a rollback is wanted. It used to be written only by the build path, so
+every promotion left it naming the *previous* good build — pointing at a version
+the rollback file no longer held. Promoting twice rewrites the line rather than
+repeating it.
 
 **`--good` promotes what is in `dist/` *now*, not the build being named.** A
 build confirmed after the next one has been staged cannot be promoted with it:
