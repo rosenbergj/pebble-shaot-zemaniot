@@ -394,9 +394,9 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
 - **The accelerometer tap** swaps current conditions for the forecast, and back
   after `ALT_VIEW_HOLD_MS` or on a second tap. It sets `s_alt_view`, one flag
   for the whole face rather than one per slot, so anything else that wants a
-  tap-driven second face can read the same flag. It reverts on its own because
-  screen touch does not reach a watchface (see above) and some accelerometer
-  taps are a jostled wrist rather than a decision.
+  tap-driven second face can read the same flag — the solar boxes do, see below.
+  It reverts on its own because screen touch does not reach a watchface (see
+  above) and some accelerometer taps are a jostled wrist rather than a decision.
 - **The two states are laid out differently, because they have to be.** A
   footer box is 66x57, and the forecast's two numbers will not fit beside the
   icon at a readable size. Eight arrangements were built and screenshotted in
@@ -415,6 +415,38 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
 - **Icons are Pebble Draw Commands** (`type: "raw"` in `package.json`, 25x25,
   ~1.8KB for all twelve). They carry their own colours, so `wx_recolor()`
   repaints one before it is drawn in a box whose ink differs.
+
+## The solar boxes and the tap
+
+The three "Next" kinds — sunset or nightfall, sunrise or sunset, and all three
+— name whichever of their events comes soonest. A tap moves them on to the one
+after it, on the same `s_alt_view` flag and the same eight-second hold as the
+weather swap, with the same inverted fill.
+
+- **The tap shows the second-soonest of the set, not "the other event".** Those
+  come apart the moment one of the events has already happened today.
+  `update_next_events()` holds the next occurrence of each event independently,
+  so between sunset and nightfall the cached next sunset is already tomorrow's
+  — and second-soonest is therefore tomorrow evening, which is the answer
+  wanted. Anything that reasoned in pairs would have had to special-case that
+  hour.
+- **The ranking is in `solar.c`, not `main.c`.** `solar_rank_event()` takes the
+  candidate times and a parallel `have[]` and returns the index of the rank-th
+  soonest. It is pure so the harness can walk every hour of a year through it,
+  which is the only way to check the ordering: the emulator's clock resyncs
+  within seconds of being set and cannot be held across a sunset.
+- **Only the combo kinds respond.** The fixed "Sunset" and "Nightfall" slots
+  show today's, rolling at local midnight, and have nothing to move on to, so
+  `next_flips()` gates on `kind_needs_next()` and a face carrying only those
+  leaves the gesture inert.
+- **`next_flips()` also counts what actually exists.** At a latitude where the
+  sun does not rise or set, `solar_next_event()` finds nothing and a box can be
+  left with one event; a tap on it would swap the fill and change no text, so
+  the predicate requires two.
+- **The countdown is not part of this.** Suspending the sunset-to-nightfall
+  countdown on a tap was considered and dropped: the gesture is unreliable
+  enough that reaching for it inside a narrow window is its worst case, and one
+  tap already changes every swappable box at once.
 
 ## Shabbat and yom tov
 

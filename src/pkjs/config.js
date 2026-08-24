@@ -9,7 +9,9 @@
 // Sunset and nightfall show today's, rolling over at local midnight, so they
 // are steady all day and can name a time already past. The "Next" kinds instead
 // show whichever of their events comes soonest, labelled with its name, so they
-// change through the day and after nightfall read tomorrow's.
+// change through the day and after nightfall read tomorrow's. A tap moves those
+// on to the event after that one; the fixed kinds above do not respond to it,
+// having nothing to move on to.
 var SLOT_OPTIONS = [
   { label: "Nothing", value: 0 },
   { label: "Hebrew date", value: 1 },
@@ -139,9 +141,15 @@ module.exports = [
       {
         type: "text",
         defaultValue:
-          "\"Weather now/forecast\" shows current conditions. Tap the watch " +
-          "to swap it for the forecast for a few seconds. Forecasts show " +
-          "current day's high until 6pm and current night's low until 6am.",
+          "Tap the watch to swap a box for a few seconds: \"Weather " +
+          "now/forecast\" shows the forecast, and a \"Next sun*\" box " +
+          "shows the sun event after the one it names.",
+      },
+      {
+        type: "text",
+        defaultValue:
+          "Forecasts show the current day's high until 6pm and the current " +
+          "night's low until 6am.",
       },
       {
         type: "toggle",

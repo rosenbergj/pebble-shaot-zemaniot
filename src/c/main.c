@@ -397,31 +397,74 @@ static const char *ordinal_suffix(int n) {
 // Whichever of the requested events comes soonest, labelled with its own name
 // so the slot says what it is showing. The label is the point: a bare time that
 // silently changes meaning at sunset would be worse than no slot at all.
-static void next_event_content(bool want_rise, bool want_set, bool want_tz,
+static bool kind_needs_next(uint8_t k) {
+  return k == SLOT_NEXT_SET_TZEIT || k == SLOT_NEXT_RISE_SET || k == SLOT_NEXT_RISE_SET_TZEIT;
+}
+
+// Which of the three events a "Next" kind is willing to name, in the order
+// next_event_content() lists them: sunrise, sunset, nightfall. Every one of the
+// kinds names sunset, which is why the middle term is just kind_needs_next().
+// Meaningless for any other kind, so ask kind_needs_next() first.
+static void next_kind_wants(uint8_t kind, bool *want) {
+  want[0] = (kind == SLOT_NEXT_RISE_SET || kind == SLOT_NEXT_RISE_SET_TZEIT);
+  want[1] = kind_needs_next(kind);
+  want[2] = (kind == SLOT_NEXT_SET_TZEIT || kind == SLOT_NEXT_RISE_SET_TZEIT);
+}
+
+// How many of a "Next" kind's events actually exist just now. Normally all of
+// the ones it wants -- but at a latitude where the sun does not rise or set,
+// solar_next_event() finds nothing and the box is left with fewer.
+static int next_kind_available(uint8_t kind) {
+  bool want[3];
+  next_kind_wants(kind, want);
+  int n = 0;
+  if (want[0] && s_have_next_rise) n++;
+  if (want[1] && s_have_next_set) n++;
+  if (want[2] && s_have_next_tz) n++;
+  return n;
+}
+
+// Whether a tap would change what a "Next" box says. It needs a second event to
+// move on to, which two of these kinds have and the third has two of -- so this
+// is true wherever such a box is configured, except where the sun has taken the
+// choice away.
+static bool next_flips(uint8_t kind) {
+  return kind_needs_next(kind) && next_kind_available(kind) >= 2;
+}
+
+// Whether a "Next" box is showing the event after the one it usually names.
+// Unlike wx_swapped() this has only the one cause: a tap is holding it open.
+// Nothing else moves a solar box off its usual reading, because unlike a
+// weather reading a sunset does not go stale -- it either happens or it does
+// not, and when it happens the box moves on by itself.
+static bool next_swapped(uint8_t kind) {
+  return s_alt_view && next_flips(kind);
+}
+
+// The soonest of the wanted events at rank 0, and the one after it at rank 1.
+//
+// Ranking the whole set is what makes the tap read correctly at every hour
+// rather than only in daylight. Between sunset and nightfall, for instance, a
+// "sunset or nightfall" box holds a next sunset that is already tomorrow's, so
+// second-soonest is tomorrow evening -- which is the answer wanted, and is not
+// what "the other event" would have given.
+static void next_event_content(bool want_rise, bool want_set, bool want_tz, int rank,
                                char *label, size_t label_n, char *value, size_t value_n) {
-  const char *name = NULL;
-  time_t best = 0;
+  static const char *const NAMES[3] = {"sunrise", "sunset", "tzeit"};
+  // s_next_* is only read where the matching have[] is true, so an unset one is
+  // never converted or compared.
+  const double times[3] = {(double)s_next_rise, (double)s_next_set, (double)s_next_tz};
+  const bool have[3] = {want_rise && s_have_next_rise, want_set && s_have_next_set,
+                        want_tz && s_have_next_tz};
 
-  if (want_rise && s_have_next_rise) {
-    name = "sunrise";
-    best = s_next_rise;
-  }
-  if (want_set && s_have_next_set && (!name || s_next_set < best)) {
-    name = "sunset";
-    best = s_next_set;
-  }
-  if (want_tz && s_have_next_tz && (!name || s_next_tz < best)) {
-    name = "tzeit";
-    best = s_next_tz;
-  }
-
-  if (!name) {
+  const int i = solar_rank_event(times, have, 3, rank);
+  if (i < 0) {
     snprintf(label, label_n, "next");
     snprintf(value, value_n, "--:--");
     return;
   }
-  snprintf(label, label_n, "%s", name);
-  format_hhmm(best, value, value_n);
+  snprintf(label, label_n, "%s", NAMES[i]);
+  format_hhmm((time_t)times[i], value, value_n);
 }
 
 // How a footer box arranges the two rows it is given. The band ignores this: it
@@ -488,12 +531,10 @@ static bool any_weather_slot(void) {
 // Whether a tap would visibly change anything. A gesture that silently does
 // nothing is worse than no gesture, so the handler checks before toggling.
 //
-// **This is the one to widen** as more things learn to read s_alt_view -- the
-// suspend-the-countdown idea in the plan file would add a term here, true while
-// the countdown is running, so a tap reaches it on a face carrying no weather
-// at all. Widen this and not any_weather_slot(), which asks a different
-// question: adding the countdown there would spend a radio wake every hour
-// fetching weather that nothing on the face can display.
+// **This is the one to widen** as more things learn to read s_alt_view. Widen
+// this and not any_weather_slot(), which asks a different question: a term
+// added there would spend a radio wake every hour fetching weather that
+// nothing on the face can display.
 //
 // The pinned forecast is deliberately absent from the terms below. It reads
 // the weather but looks identical before and after a tap, so a face showing
@@ -503,17 +544,21 @@ static bool any_weather_slot(void) {
 // showing the forecast and has nothing left to flip to, since the whole point
 // of the switch is that "now" is no longer worth offering.
 //
-// Note the shape. s_wx_stale narrows the *weather* term and is deliberately not
-// an early return over the whole function: a second term added here -- the
-// suspend-the-countdown idea is the candidate -- must not be switched off
-// because the weather happens to be old. Add such a term as another `||`
-// alongside weather_flips, never above the staleness check.
+// Note the shape. s_wx_stale narrows the *weather* term alone, and is
+// deliberately not an early return over the whole function: a "Next" box has
+// nothing to do with how old the weather is, and switching its tap off because
+// a reading went stale would be a bug the wearer could not explain. Any further
+// term belongs beside these two as another `||`, never above the staleness
+// check.
 static bool tap_has_effect(void) {
   const bool weather_flips =
       !s_wx_stale &&
       (s_settings.slot_left == SLOT_WEATHER || s_settings.slot_mid == SLOT_WEATHER ||
        s_settings.slot_right == SLOT_WEATHER || s_settings.slot_band == SLOT_WEATHER);
-  return weather_flips;
+  const bool next_flips_somewhere =
+      next_flips(s_settings.slot_left) || next_flips(s_settings.slot_mid) ||
+      next_flips(s_settings.slot_right) || next_flips(s_settings.slot_band);
+  return weather_flips || next_flips_somewhere;
 }
 
 // Whether this kind's value row can contain a Hebrew month name.
@@ -572,13 +617,16 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
       else snprintf(value, value_n, "--:--");
       return SLOT_LAYOUT_LABEL;
     case SLOT_NEXT_SET_TZEIT:
-      next_event_content(false, true, true, label, label_n, value, value_n);
+      next_event_content(false, true, true, next_swapped(kind) ? 1 : 0, label, label_n, value,
+                         value_n);
       return SLOT_LAYOUT_LABEL;
     case SLOT_NEXT_RISE_SET:
-      next_event_content(true, true, false, label, label_n, value, value_n);
+      next_event_content(true, true, false, next_swapped(kind) ? 1 : 0, label, label_n, value,
+                         value_n);
       return SLOT_LAYOUT_LABEL;
     case SLOT_NEXT_RISE_SET_TZEIT:
-      next_event_content(true, true, true, label, label_n, value, value_n);
+      next_event_content(true, true, true, next_swapped(kind) ? 1 : 0, label, label_n, value,
+                         value_n);
       return SLOT_LAYOUT_LABEL;
     case SLOT_WEATHER:
     case SLOT_WEATHER_FC: {
@@ -895,10 +943,6 @@ static bool countdown_active(time_t now) {
          now < s_tzeit_at;
 }
 
-static bool kind_needs_next(uint8_t k) {
-  return k == SLOT_NEXT_SET_TZEIT || k == SLOT_NEXT_RISE_SET || k == SLOT_NEXT_RISE_SET_TZEIT;
-}
-
 static bool any_next_slot(void) {
   return kind_needs_next(s_settings.slot_band) || kind_needs_next(s_settings.slot_left) ||
          kind_needs_next(s_settings.slot_mid) || kind_needs_next(s_settings.slot_right);
@@ -1186,10 +1230,15 @@ static void draw_face(Layer *layer, GContext *ctx) {
   int xs[3] = {0, widths[0], widths[0] + widths[1]};
   widths[2] = bounds.size.w - xs[2];  // the last box absorbs any rounding
 
-  // The outer two boxes carry the accent fill. While a weather box is showing
-  // the other half of itself, it swaps: an outer one is drawn on the background
-  // and the middle one takes the fill. With the label naming the day, that is
-  // the pair of cues that says which half you are looking at.
+  // The outer two boxes carry the accent fill. While a box is showing something
+  // other than its usual reading, it swaps: an outer one is drawn on the
+  // background and the middle one takes the fill. With the label naming the day
+  // or the event, that is the pair of cues that says what you are looking at.
+  //
+  // A "Next" box gets the same treatment as a weather one, because a tap does
+  // the same thing to it -- and it needs the cue more, since both of its
+  // readings are a labelled time and only the fill says which is which at a
+  // glance.
   //
   // The pinned forecast never swaps, for the reason the swap exists: it means
   // "this box is showing the other half of itself just now", which a box
@@ -1198,6 +1247,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
   for (int i = 0; i < 3; i++) {
     filled[i] = (i != 1);
     if (wx_swapped() && kinds[i] == SLOT_WEATHER) filled[i] = !filled[i];
+    if (next_swapped(kinds[i])) filled[i] = !filled[i];
   }
 
   graphics_context_set_fill_color(ctx, s_rule);
