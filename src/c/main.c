@@ -58,6 +58,17 @@ typedef enum {
   SLOT_WEATHER_FC = 13,
 } SlotKind;
 
+// What a gutter overlay holds. Either warning can go in either gutter, or
+// neither: the wearer who never leaves the phone behind and the one who never
+// runs the battery down want opposite halves of this, and nobody has to take
+// both. Nothing stops the same warning being picked twice; it then appears on
+// both sides, which is odd but is what was asked for.
+typedef enum {
+  GUTTER_NONE = 0,
+  GUTTER_BT = 1,       // struck-through Bluetooth rune while the phone is gone
+  GUTTER_LOWBATT = 2,  // empty red cell at or below the low mark
+} GutterKind;
+
 typedef struct {
   bool offset6;
   bool with_minutes;
@@ -65,10 +76,9 @@ typedef struct {
   bool hebrew_script;
   bool countdown;  // count down to nightfall between sunset and tzeit
   bool metric;     // temperatures in Celsius rather than Fahrenheit
-  bool bt_icon;    // show a mark while the phone is unreachable
-  bool low_batt_icon;  // show a mark while the battery is at or below the low mark
   bool second_days;    // festivals keep their second day
   bool shabbat_no_taps;  // the tap gesture does nothing on Shabbat or yom tov
+  uint8_t gutter_left, gutter_right;  // GutterKind
   uint8_t slot_band, slot_left, slot_mid, slot_right;
   uint32_t accent;      // 0xRRGGBB
   uint8_t civil_font;   // 0 = Roboto 49, 1 = Leco 42 (matches the shaot face)
@@ -81,10 +91,10 @@ static Settings s_settings = {
     .hebrew_script = false,
     .countdown = false,
     .metric = false,
-    .bt_icon = true,
-    .low_batt_icon = true,
     .second_days = true,
     .shabbat_no_taps = true,
+    .gutter_left = GUTTER_LOWBATT,
+    .gutter_right = GUTTER_BT,
     .slot_band = SLOT_HEBREW,
     .slot_left = SLOT_SUNSET,
     .slot_mid = SLOT_SECDATE,
@@ -100,10 +110,18 @@ static double s_lat = 0;
 static double s_lon = 0;
 static bool s_have_location = false;
 
-#define PERSIST_KEY_SETTINGS 1
+// Key 1 held the settings until the two gutter toggles became two gutter
+// kinds. That swap left sizeof(Settings) unchanged, so the size check below
+// could not tell the old layout from the new one and would have read a pair of
+// bools as a pair of kinds -- "both marks on" coming back as the Bluetooth rune
+// in both gutters. Moving to a new key retires the old blob instead of
+// misreading it; load_persisted() deletes it so the flash is not carrying a
+// struct nothing will ever read again.
+#define PERSIST_KEY_SETTINGS_V1 1
 #define PERSIST_KEY_LAT 2
 #define PERSIST_KEY_LON 3
 #define PERSIST_KEY_WEATHER 4
+#define PERSIST_KEY_SETTINGS 5
 
 // --- weather ----------------------------------------------------------------
 //
@@ -204,19 +222,22 @@ static void save_weather(void) {
 // line. Nothing else is ever drawn there, so it costs no other element room.
 #define COUNTDOWN_LABEL_Y 92
 
-// The disconnect indicator's box, in the right-hand gutter. Declared up here
+// A gutter overlay's box. Both warnings are drawn to this width, whichever
+// gutter they are put in, so a pair reads as a matched set. Declared up here
 // with the layout constants because the countdown block below has to keep clear
-// of it, not only draw_bt_overlay().
-#define BT_BOX 25
+// of the right-hand gutter, not only the overlay code.
+#define GUTTER_W 25
+#define GUTTER_MARGIN 2  // from the screen edge, either side
 
 // The countdown's accent block. It stops short of the screen edges on both
 // sides: the reading is only ever a few glyphs wide, and the right-hand gutter
-// belongs to the disconnect icon, which must stay legible while the countdown
-// is running -- that is exactly when a wearer wants to know the phone is gone.
+// is kept for whatever overlay is configured there, which must stay legible
+// while the countdown is running -- that is exactly when a wearer wants to know
+// the phone is gone.
 #define COUNTDOWN_BOX_TOP 110
 #define COUNTDOWN_BOX_BOTTOM 154
 #define COUNTDOWN_BOX_PAD 10  // either side of the widest reading
-#define COUNTDOWN_BT_GAP 4    // clear space left of the disconnect icon
+#define COUNTDOWN_GUTTER_GAP 4  // clear space left of the right-hand gutter
 
 // The am/pm marker, shown only when ticking once a minute on a 12-hour clock.
 #define MERIDIEM_GAP 5
@@ -318,6 +339,7 @@ static bool coords_sane(double lat, double lon) {
 // would misread an old one. Comparing the stored size catches that and falls
 // back to the defaults rather than showing garbage.
 static void load_persisted(void) {
+  if (persist_exists(PERSIST_KEY_SETTINGS_V1)) persist_delete(PERSIST_KEY_SETTINGS_V1);
   if (persist_exists(PERSIST_KEY_SETTINGS) &&
       persist_get_size(PERSIST_KEY_SETTINGS) == (int)sizeof(Settings)) {
     persist_read_data(PERSIST_KEY_SETTINGS, &s_settings, sizeof(Settings));
@@ -1164,11 +1186,12 @@ static void draw_face(Layer *layer, GContext *ctx) {
     const int wide_w = measure("00:00", s_font_shaot).w;
     const int bw = (now_w > wide_w ? now_w : wide_w) + 2 * COUNTDOWN_BOX_PAD;
 
-    // Centred, then pushed left only as far as the disconnect icon requires.
-    // The nudge does not depend on whether the phone is actually connected: a
-    // block that slid sideways when Bluetooth dropped would draw the eye to the
-    // wrong thing, and the icon is the one that should be doing that.
-    const int icon_left = bounds.size.w - BT_BOX - 2 - COUNTDOWN_BT_GAP;
+    // Centred, then pushed left only as far as the right-hand gutter requires.
+    // The nudge does not depend on whether an overlay is showing there, or even
+    // on one being configured: a block that slid sideways when Bluetooth
+    // dropped would draw the eye to the wrong thing, and the icon is the one
+    // that should be doing that.
+    const int icon_left = bounds.size.w - GUTTER_W - GUTTER_MARGIN - COUNTDOWN_GUTTER_GAP;
     int bx = (bounds.size.w - bw) / 2;
     if (bx + bw > icon_left) bx = icon_left - bw;
     if (bx < 0) bx = 0;
@@ -1375,47 +1398,54 @@ static void bt_rune(GContext *ctx, int cx, int top, int h) {
 // still costs no visibility.
 static int gutter_top(GRect bounds) {
   const int footer_top = bounds.size.h - FOOTER_ZONE_H;
-  return (BAND_H + footer_top) / 2 - BT_BOX / 2;
+  return (BAND_H + footer_top) / 2 - GUTTER_W / 2;
 }
 
-static void draw_bt_overlay(GContext *ctx, GRect bounds) {
-  if (!s_settings.bt_icon || s_bt_connected) return;
+// The left edge of a gutter's box. Both gutters keep the same margin from their
+// screen edge, so a warning weighs the same wherever it is put.
+static int gutter_left_x(GRect bounds, bool left) {
+  return left ? GUTTER_MARGIN : bounds.size.w - GUTTER_W - GUTTER_MARGIN;
+}
 
-  const int x = bounds.size.w - BT_BOX - 2;
+static void draw_bt_overlay(GContext *ctx, GRect bounds, int x) {
+  if (s_bt_connected) return;
+
   const int y = gutter_top(bounds);
 
   graphics_context_set_stroke_color(ctx, s_fg);
   graphics_context_set_stroke_width(ctx, 2);
-  bt_rune(ctx, x + BT_BOX / 2, y + 1, 23);
+  bt_rune(ctx, x + GUTTER_W / 2, y + 1, 23);
   graphics_draw_line(ctx, GPoint(x + 1, y + 23), GPoint(x + 23, y + 1));
   graphics_context_set_stroke_width(ctx, 1);
 }
 
-// The low-battery indicator: an empty battery outline in the left-hand gutter,
-// mirroring the disconnect icon opposite it. Red rather than the face's ink,
-// for the same reason the footer gauge goes red -- a flat battery should shout
-// the same colour whatever accent the wearer has picked.
+// The low-battery indicator: an empty battery outline in whichever gutter it is
+// put in. Red rather than the face's ink, for the same reason the footer gauge
+// goes red -- a flat battery should shout the same colour whatever accent the
+// wearer has picked.
 //
 // The cell is drawn empty. A proportional fill would be a second, smaller
 // battery gauge competing with the one a footer box may already be showing;
 // this one is not a reading, it is a warning, and the number is available in a
-// box for anyone who wants it. The terminal nub stays on the right even though
-// the icon is mirrored across the screen: a battery with its terminal on the
-// left stops looking like a battery.
+// box for anyone who wants it. The terminal nub stays on the right in either
+// gutter, rather than mirroring with the icon: a battery with its terminal on
+// the left stops looking like a battery.
 #define LOWBATT_W 23      // the body, excluding the nub
 #define LOWBATT_H 13
 #define LOWBATT_NUB_W 2
 #define LOWBATT_NUB_H 7
 
-static void draw_lowbatt_overlay(GContext *ctx, GRect bounds) {
-  if (!s_settings.low_batt_icon) return;
+static void draw_lowbatt_overlay(GContext *ctx, GRect bounds, int x) {
   // Not while charging: a low reading on the charger is a state the wearer is
   // already fixing, and the footer gauge suppresses its red for the same
   // reason. Same threshold as the gauge, so the two never disagree.
   if (s_charging || s_battery > GAUGE_LOW_PCT) return;
 
-  const int x = 2;
-  const int y = gutter_top(bounds) + (BT_BOX - LOWBATT_H) / 2;
+  // The nub hangs off the body's right-hand end, so the body starts a nub's
+  // width in from the box on the right and flush with it on the left; either
+  // way the whole icon sits inside the gutter's box.
+  x += GUTTER_W - LOWBATT_W - LOWBATT_NUB_W;
+  const int y = gutter_top(bounds) + (GUTTER_W - LOWBATT_H) / 2;
 
   graphics_context_set_stroke_color(ctx, GColorRed);
   graphics_context_set_fill_color(ctx, GColorRed);
@@ -1430,14 +1460,27 @@ static void draw_lowbatt_overlay(GContext *ctx, GRect bounds) {
                      0, GCornerNone);
 }
 
+// One gutter, drawn as configured. Each warning decides for itself whether the
+// state it reports is in force, so an unset gutter and a gutter whose warning
+// has nothing to say cost the same nothing.
+static void draw_gutter(GContext *ctx, GRect bounds, uint8_t kind, bool left) {
+  if (kind == GUTTER_NONE) return;
+  const int x = gutter_left_x(bounds, left);
+  if (kind == GUTTER_BT) {
+    draw_bt_overlay(ctx, bounds, x);
+  } else if (kind == GUTTER_LOWBATT) {
+    draw_lowbatt_overlay(ctx, bounds, x);
+  }
+}
+
 static void canvas_update(Layer *layer, GContext *ctx) {
   draw_face(layer, ctx);
   // After the face, and outside it: draw_face() gives up early when the
   // unobstructed area is too short for the footer, and a gutter indicator that
   // vanishes under a Timeline Peek is not doing its job.
   const GRect bounds = layer_get_bounds(layer);
-  draw_bt_overlay(ctx, bounds);
-  draw_lowbatt_overlay(ctx, bounds);
+  draw_gutter(ctx, bounds, s_settings.gutter_left, true);
+  draw_gutter(ctx, bounds, s_settings.gutter_right, false);
 }
 
 // --- services ---------------------------------------------------------------
@@ -1689,10 +1732,10 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.slot_right = (uint8_t)v; settings_changed = true; }
     } else if (k == MESSAGE_KEY_Metric) {
       if (tuple_to_int(t, &v)) { s_settings.metric = (v != 0); settings_changed = true; }
-    } else if (k == MESSAGE_KEY_DisconnectIcon) {
-      if (tuple_to_int(t, &v)) { s_settings.bt_icon = (v != 0); settings_changed = true; }
-    } else if (k == MESSAGE_KEY_LowBatteryIcon) {
-      if (tuple_to_int(t, &v)) { s_settings.low_batt_icon = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_GutterLeft) {
+      if (tuple_to_int(t, &v)) { s_settings.gutter_left = (uint8_t)v; settings_changed = true; }
+    } else if (k == MESSAGE_KEY_GutterRight) {
+      if (tuple_to_int(t, &v)) { s_settings.gutter_right = (uint8_t)v; settings_changed = true; }
     } else if (k == MESSAGE_KEY_SecondDays) {
       if (tuple_to_int(t, &v)) { s_settings.second_days = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_ShabbatSuppressTaps) {

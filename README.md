@@ -547,28 +547,42 @@ AppMessage buffers.
 
 ## The gutter indicators
 
-Two warnings live in the dead space either side of the centred clock, between
-the band and the shaot line: a struck-through Bluetooth rune on the right while
-the phone is unreachable, and an empty red battery on the left while the charge
-is low. Each has its own toggle, `DisconnectIcon` and `LowBatteryIcon`.
+Two warnings can live in the dead space either side of the centred clock,
+between the band and the shaot line: a struck-through Bluetooth rune while the
+phone is unreachable, and an empty red battery while the charge is low. Which
+one goes in which gutter is a setting -- `GutterLeft` and `GutterRight`, each
+holding a `GutterKind`, and either may hold nothing. The defaults are the
+placement the pair had when they were fixed: battery left, rune right.
 
-- **They are overlays, and deliberately not part of the five regions.** They are
-  drawn from `canvas_update()` after `draw_face()` returns, because
-  `draw_face()` gives up early when the unobstructed area is too short for the
-  footer, and an indicator that vanishes under a Timeline Peek is not doing its
-  job. The gutters are dead space at every time of day, since the clock is
-  centred, so nothing has to move to make room.
+- **Either warning draws in either gutter.** `draw_gutter()` picks the box from
+  `gutter_left_x()` and hands it to the warning, which then decides for itself
+  whether the state it reports is in force. Both are drawn to `GUTTER_W`, and
+  both keep `GUTTER_MARGIN` from their screen edge, so a pair weighs the same
+  whichever way round it is. Nothing stops the same warning being picked twice;
+  it then appears on both sides, which is odd but is what was asked for.
+- **The countdown block keeps clear of the right-hand gutter whatever is in
+  it** -- including nothing. The reservation was never about Bluetooth; a block
+  that slid sideways when the state changed would pull the eye off the news.
+- **They are overlays, and deliberately not drawn with the rest of the face.**
+  The settings page counts them among the areas the wearer can fill, but they
+  are not slots: they hold warnings, not readings, and nothing is laid out
+  around them. They are drawn from `canvas_update()` after `draw_face()`
+  returns, because `draw_face()` gives up early when the unobstructed area is
+  too short for the footer, and an indicator that vanishes under a Timeline
+  Peek is not doing its job. The gutters are dead space at every time of day,
+  since the clock is centred, so nothing has to move to make room.
 - **They share one anchor row and never move.** `gutter_top()` measures from
   `layer_get_bounds()`, not from the unobstructed area, so a Timeline Peek does
   not shift them; see the Peek note under "Platform constraints" for what
-  anchoring them to the visible area did. Both centre on the same row, and both
-  keep a 2px margin from their screen edge, so the pair reads as a matched set
-  when they happen to appear together.
+  anchoring them to the visible area did. Both centre on the same row whichever
+  gutter they are in, so the pair reads as a matched set when they happen to
+  appear together.
 - **Only one of the two can be checked properly in the emulator.**
   `pebble emu-battery --percent 12` drives the low-battery mark end to end;
   a genuine disconnect cannot be produced at all (see below). Screenshots of
   the pair are in `screenshots/gutter-*.png`, with the rune force-drawn in the
-  two that show both.
+  four that show both -- `gutter-05` and `gutter-06` are the two placements,
+  captured to check that neither icon changes size or row when it moves.
 - **The rune is drawn, not a resource.** It has to read at 25px; TimeStyle's
   disconnect icon is a phone with a cross, which carries more detail than
   survives at that size. Below roughly 20px the rune's diagonals collapse and
@@ -593,9 +607,9 @@ is low. Each has its own toggle, `DisconnectIcon` and `LowBatteryIcon`.
   `GAUGE_LOW_PCT`, and nothing while charging -- a low reading on the charger is
   a state the wearer is already fixing. Two low-battery marks that disagreed
   about what "low" means would be worse than either alone.
-- **The terminal nub stays on the right** even though the icon sits opposite the
-  rune. Mirroring the placement is the point; mirroring the glyph just stops it
-  looking like a battery.
+- **The terminal nub stays on the right** in either gutter. Mirroring the
+  placement is the point; mirroring the glyph just stops it looking like a
+  battery.
 
 ## Driving settings and time in the emulator
 

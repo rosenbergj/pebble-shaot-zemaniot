@@ -34,6 +34,15 @@ var BAND_OPTIONS = SLOT_OPTIONS.concat([
   { label: "Both dates: Hebrew first", value: 11 },
 ]);
 
+// The two gutters: the dead space either side of the centred clock. Both hold
+// the same kinds, and either may hold nothing; picking the same warning twice
+// puts it in both gutters.
+var GUTTER_OPTIONS = [
+  { label: "Nothing", value: 0 },
+  { label: "Bluetooth disconnection", value: 1 },
+  { label: "Low battery", value: 2 },
+];
+
 module.exports = [
   {
     type: "heading",
@@ -98,17 +107,8 @@ module.exports = [
       {
         type: "text",
         defaultValue:
-          "Four areas: the band across the top, then the three boxes along " +
-          "the bottom.",
-      },
-      {
-        type: "toggle",
-        messageKey: "HebrewScript",
-        label: "Hebrew month names in Hebrew",
-        defaultValue: false,
-        description:
-          "Writes the month as \u05D0\u05DC\u05D5\u05DC rather than Elul, " +
-          "everywhere the Hebrew date appears. The day stays a numeral.",
+          "Six areas: the band across the top, the 3 boxes across the " +
+          "bottom, and overlays center-left and center-right.",
       },
       {
         type: "select",
@@ -139,6 +139,20 @@ module.exports = [
         defaultValue: 5,
       },
       {
+        type: "select",
+        messageKey: "GutterLeft",
+        label: "Left gutter",
+        options: GUTTER_OPTIONS,
+        defaultValue: 2,
+      },
+      {
+        type: "select",
+        messageKey: "GutterRight",
+        label: "Right gutter",
+        options: GUTTER_OPTIONS,
+        defaultValue: 1,
+      },
+      {
         type: "text",
         defaultValue:
           "Tap the watch to swap a box for a few seconds: \"Weather " +
@@ -153,21 +167,18 @@ module.exports = [
       },
       {
         type: "toggle",
+        messageKey: "HebrewScript",
+        label: "Hebrew month names in Hebrew",
+        defaultValue: false,
+        description:
+          "Writes the month as \u05D0\u05DC\u05D5\u05DC rather than Elul, " +
+          "everywhere the Hebrew date appears. The day stays a numeral.",
+      },
+      {
+        type: "toggle",
         messageKey: "Metric",
         label: "Temperatures in Celsius",
         defaultValue: false,
-      },
-      {
-        type: "toggle",
-        messageKey: "DisconnectIcon",
-        label: "Mark when the phone is out of range",
-        defaultValue: true,
-      },
-      {
-        type: "toggle",
-        messageKey: "LowBatteryIcon",
-        label: "Mark when the battery is low",
-        defaultValue: true,
       },
     ],
   },
