@@ -572,7 +572,14 @@ straight to the app instead:
 
 ```sh
 pebble send-app-message --emulator emery --int 10011=1   # Countdown on
+pebble send-app-message --emulator emery --int 10000=39950000 10001=-75170000
 ```
+
+**Several keys go in one `--int`, space-separated — repeating the flag silently
+keeps only the last pair.** That matters most for `LAT`/`LON`, which
+`inbox_received()` adopts only when both arrive in the same message, so sending
+them as two flags looks like a message that was ignored rather than a mistake in
+the command.
 
 **Seeding Clay's own store** is a different job, and the only way to exercise
 the settings re-send without driving the config page by hand. pypkjs keeps
