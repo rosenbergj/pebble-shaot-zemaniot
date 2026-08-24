@@ -209,6 +209,117 @@ static void test_zmanim(void) {
   }
 }
 
+// Ranking the next solar events, which is what a "Next sunrise or sunset" box
+// shows and what a tap moves it on to.
+//
+// The tap shows rank 1, and the thing worth checking is that rank 1 is right at
+// every hour rather than only in daylight. The hour-by-hour walk below is the
+// point of this group: the emulator's clock resyncs within seconds of being
+// set, so a day cannot be held still there long enough to watch a box tick past
+// sunset.
+static void test_next_event_ranking(void) {
+  group("ranking picks the soonest, then the one after");
+  {
+    // Declared out of order on purpose: the function sorts, it does not assume.
+    const double t[3] = {300, 100, 200};
+    const bool all[3] = {true, true, true};
+    check(solar_rank_event(t, all, 3, 0) == 1, "rank 0 is the soonest");
+    check(solar_rank_event(t, all, 3, 1) == 2, "rank 1 is the one after it");
+    check(solar_rank_event(t, all, 3, 2) == 0, "rank 2 is the last of them");
+    check(solar_rank_event(t, all, 3, 3) < 0, "there is no fourth of three");
+
+    const bool two[3] = {true, false, true};
+    check(solar_rank_event(t, two, 3, 0) == 2, "an absent event is not a candidate");
+    check(solar_rank_event(t, two, 3, 1) == 0, "and the rank after it skips over it");
+    check(solar_rank_event(t, two, 3, 2) < 0, "two candidates have no third rank");
+
+    const bool one[3] = {false, true, false};
+    check(solar_rank_event(t, one, 3, 0) == 1, "one candidate still has a rank 0");
+    check(solar_rank_event(t, one, 3, 1) < 0,
+          "a box left with one event has nothing for a tap to show");
+
+    const bool none[3] = {false, false, false};
+    check(solar_rank_event(t, none, 3, 0) < 0, "no candidates, no answer");
+
+    const double tie[3] = {100, 100, 100};
+    check(solar_rank_event(tie, all, 3, 0) == 0, "a tie keeps the lower index");
+    check(solar_rank_event(tie, all, 3, 1) == 1, "and hands the next rank to the next one");
+  }
+
+  group("a tap moves a Next box on, at every hour of the year");
+  {
+    // A middle latitude where all three events happen every day.
+    const double lat = 39.95, lon = -75.17;
+    // 2026-01-01T00:00:00Z, walked hourly for a year.
+    const double start_ms = 1767225600000.0;
+    const double HOUR_MS = 3600000.0;
+
+    // The three "Next" kinds, as next_kind_wants() in main.c spells them:
+    // sunset or nightfall, sunrise or sunset, and all three.
+    const bool KINDS[3][3] = {{false, true, true}, {true, true, false}, {true, true, true}};
+
+    int checked = 0, sunset_to_tzeit = 0;
+    for (int h = 0; h < 24 * 365; h++) {
+      const double now = start_ms + h * HOUR_MS;
+      double rise, set, tz;
+      const bool have_all[3] = {
+          solar_next_event(now, lat, lon, SUNRISE_SET_ANGLE, true, &rise),
+          solar_next_event(now, lat, lon, SUNRISE_SET_ANGLE, false, &set),
+          solar_next_event(now, lat, lon, TZEIT_ANGLE, false, &tz),
+      };
+      if (!have_all[0] || !have_all[1] || !have_all[2]) continue;
+      const double t[3] = {rise, set, tz};
+
+      for (int k = 0; k < 3; k++) {
+        const bool have[3] = {KINDS[k][0] && have_all[0], KINDS[k][1] && have_all[1],
+                              KINDS[k][2] && have_all[2]};
+        const int a = solar_rank_event(t, have, 3, 0);
+        const int b = solar_rank_event(t, have, 3, 1);
+        if (a < 0 || b < 0) {
+          check(false, "hour %d kind %d: a Next box should always have both ranks", h, k);
+          continue;
+        }
+        if (t[b] <= t[a]) {
+          check(false, "hour %d kind %d: the tap should show a later time", h, k);
+          continue;
+        }
+        if (a == b) {
+          check(false, "hour %d kind %d: the tap should show a different event", h, k);
+          continue;
+        }
+        checked++;
+      }
+
+      // The case that motivated the feature: between sunset and nightfall, a
+      // "sunset or nightfall" box names tonight's tzeit, and the tap should
+      // reach tomorrow evening's sunset rather than anything today.
+      if (tz < set) {
+        const bool set_tz[3] = {false, true, true};
+        const int a = solar_rank_event(t, set_tz, 3, 0);
+        const int b = solar_rank_event(t, set_tz, 3, 1);
+        if (a != 2 || b != 1) {
+          check(false, "hour %d: between sunset and nightfall, tzeit then tomorrow's sunset", h);
+          continue;
+        }
+        // Tomorrow's sunset, not some sunset days away.
+        const double gap = (t[b] - now) / HOUR_MS;
+        if (gap < 12.0 || gap > 30.0) {
+          check(false, "hour %d: the next sunset should be tomorrow's, not %.1fh away", h, gap);
+          continue;
+        }
+        sunset_to_tzeit++;
+      }
+    }
+    check(checked == 3 * 24 * 365, "every hour of the year ranked, for all three kinds");
+    // The window is about forty minutes, so an hourly walk lands inside it on
+    // roughly two days in three -- enough to say the case above was actually
+    // reached, without pinning the count to the length of a particular dusk.
+    check(sunset_to_tzeit > 150 && sunset_to_tzeit < 365,
+          "the walk should pass through a few hundred sunset-to-nightfall hours, got %d",
+          sunset_to_tzeit);
+  }
+}
+
 // The watch cannot use libm's trigonometry: newlib's sin() overruns the app
 // stack during argument reduction. trig.c replaces it, so it has to be checked
 // against the real thing -- on the host, where libm works.
@@ -725,6 +836,7 @@ int main(void) {
   test_countdown_formatting();
   test_display_hours();
   test_zmanim();
+  test_next_event_ranking();
   test_weather();
   test_shabbat();
 

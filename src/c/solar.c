@@ -133,3 +133,22 @@ bool solar_next_event(double after_ms, double lat, double lon, double angle_deg,
   }
   return false;
 }
+
+int solar_rank_event(const double *t_ms, const bool *have, int n, int rank) {
+  // A selection pass per rank rather than a sort: n is three at most, and the
+  // caller only ever wants the first or second, so the loop below runs twice
+  // over three entries in the worst case.
+  bool taken[SOLAR_RANK_MAX] = {false};
+  int pick = -1;
+  if (n > SOLAR_RANK_MAX) n = SOLAR_RANK_MAX;
+  for (int r = 0; r <= rank; r++) {
+    pick = -1;
+    for (int i = 0; i < n; i++) {
+      if (!have[i] || taken[i]) continue;
+      if (pick < 0 || t_ms[i] < t_ms[pick]) pick = i;
+    }
+    if (pick < 0) return -1;
+    taken[pick] = true;
+  }
+  return pick;
+}
