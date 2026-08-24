@@ -6,15 +6,13 @@
 #   tools/deploy.sh --good   mark what is in dist/ as known good
 #
 # dist/ is scp'd to a file share and installed from a phone, so it holds only
-# three files and each of them means something:
+# two builds and each of them means something:
 #
 #   pt2-shaot-watchface.pbw           the latest build -- install this one
 #   pt2-shaot-watchface-lastgood.pbw  the rollback -- install this if that fails
-#   pt2-shaot-watchface-phase4-js.pbw the pre-port JavaScript build
 #
-# dist/ is gitignored, so nothing here can be restored by git. The script never
-# writes to the two older files except through --good, and it verifies the
-# JavaScript build is intact on every run.
+# dist/ is gitignored, so nothing here can be restored by git. The rollback is
+# never written except through --good.
 
 set -euo pipefail
 
@@ -24,25 +22,6 @@ DIST=dist
 PBW="$DIST/pt2-shaot-watchface.pbw"
 LASTGOOD="$DIST/pt2-shaot-watchface-lastgood.pbw"
 BUILDINFO="$DIST/BUILD.txt"
-
-# The pre-port build is the only thing here that cannot be rebuilt from a commit:
-# it came from a tree that no longer builds. Checked on every run so a mistake
-# surfaces now rather than when it is needed.
-JS_PBW="$DIST/pt2-shaot-watchface-phase4-js.pbw"
-JS_SHA=4712f5bf7cef90559fee912303e4c14b5008abeb3c4dbe081accd1dbbc360489
-
-check_js_build() {
-  if [ ! -f "$JS_PBW" ]; then
-    echo "FATAL: $JS_PBW is missing. It cannot be rebuilt; recover it before continuing." >&2
-    exit 1
-  fi
-  local have
-  have=$(sha256sum "$JS_PBW" | cut -d' ' -f1)
-  if [ "$have" != "$JS_SHA" ]; then
-    echo "FATAL: $JS_PBW has changed. Expected $JS_SHA, got $have." >&2
-    exit 1
-  fi
-}
 
 version() { python3 -c 'import json; print(json.load(open("package.json"))["version"])'; }
 
@@ -54,8 +33,6 @@ deployed_version() {
 deployed_sha() {
   [ -f "$BUILDINFO" ] && sed -n 's/^commit: //p' "$BUILDINFO" || true
 }
-
-check_js_build
 
 # --- promote ----------------------------------------------------------------
 
@@ -144,8 +121,8 @@ sha=$(git rev-parse HEAD)
     echo "If it misbehaves, install pt2-shaot-watchface-lastgood.pbw, which is"
     echo "${lastgood:-an earlier build}."
   else
-    echo "There is no last-known-good build yet; pt2-shaot-watchface-phase4-js.pbw"
-    echo "is the only fallback, and it is the pre-port JavaScript face."
+    echo "There is no last-known-good build yet, so there is nothing to roll"
+    echo "back to. Confirm this one on the watch and run tools/deploy.sh --good."
   fi
 } >"$BUILDINFO"
 

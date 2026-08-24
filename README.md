@@ -700,9 +700,6 @@ phone screen: unique UUID *and* unique `displayName`.
 - `pt2-shaot-watchface.pbw` — the latest build. This is the one to install.
 - `pt2-shaot-watchface-lastgood.pbw` — the rollback: the most recent build
   confirmed working on the watch. Install this if the latest misbehaves.
-- `pt2-shaot-watchface-phase4-js.pbw` — the last JavaScript build (tag
-  `phase4-complete`). **Never overwrite it**: `dist/` is gitignored, so git
-  cannot restore it, and the tree it came from no longer builds.
 - `BUILD.txt` — what is staged: version, commit, and which build the rollback is.
 
 The filenames are stable so that installing never involves a choice about which
@@ -744,8 +741,8 @@ checking the bundle's `versionLabel` first (`unzip -p <pbw> appinfo.json`). The
 rollback is then a faithful rebuild of the worn commit rather than the bytes
 that were worn: same source, version and UUID, not byte-identical.
 
-All three builds display as "Shaot Zemaniot" on the watch, and the current two
-share a UUID so installing one replaces the other. That is what makes rollback a
+Both builds display as "Shaot Zemaniot" on the watch and share a UUID, so
+installing one replaces the other. That is what makes rollback a
 single install. Give a build a distinct `displayName` *and* UUID whenever two are
 meant to be installed at once for comparison, as `tools/probe*` do.
 
