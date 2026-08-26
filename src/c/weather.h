@@ -151,3 +151,10 @@ bool weather_is_stale(const WeatherData *w, int32_t now);
 // relocation from a fix that landed a few hundred metres off the last one, not
 // to track anybody across an afternoon.
 bool weather_moved_far(double lat1, double lon1, double lat2, double lon2);
+
+// The same separation as a number of kilometres. Nothing on the face needs it
+// -- the predicate above is the whole decision -- but tools/probe-loc reports
+// it, and asserting a distance is a sharper test than asserting a boolean
+// either side of the threshold. Shares its arithmetic with weather_moved_far()
+// so the two cannot disagree.
+double weather_move_km(double lat1, double lon1, double lat2, double lon2);

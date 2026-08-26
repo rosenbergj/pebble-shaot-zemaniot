@@ -94,8 +94,11 @@ uint32_t weather_retry_ms(int attempt) {
 #define PI 3.14159265358979323846
 #define DEG (PI / 180.0)
 
-bool weather_moved_far(double lat1, double lon1, double lat2, double lon2) {
-  double dlat = lat2 - lat1;
+// Separation squared, in degrees of latitude. Equirectangular: flat-earth error
+// over a few hundred kilometres is nothing against a threshold as coarse as the
+// one this feeds, and squared so the predicate below needs no root at all.
+static double sep2_deg(double lat1, double lon1, double lat2, double lon2) {
+  const double dlat = lat2 - lat1;
   double dlon = lon2 - lon1;
   // The short way round the antimeridian. Without this, crossing it reads as
   // most of the way round the world, which is true of the number and not of
@@ -107,8 +110,14 @@ bool weather_moved_far(double lat1, double lon1, double lat2, double lon2) {
   // counted at its equatorial length everywhere, so a move in the far north
   // would measure larger than it is and cross the threshold early.
   const double east = dlon * sz_cos(((lat1 + lat2) * 0.5) * DEG);
+  return east * east + dlat * dlat;
+}
+
+bool weather_moved_far(double lat1, double lon1, double lat2, double lon2) {
   const double limit = WEATHER_MOVE_KM / KM_PER_DEG;
-  // Equirectangular and compared squared: no sqrt, and flat-earth error over a
-  // few hundred kilometres is nothing against a threshold this coarse.
-  return (east * east + dlat * dlat) > (limit * limit);
+  return sep2_deg(lat1, lon1, lat2, lon2) > (limit * limit);
+}
+
+double weather_move_km(double lat1, double lon1, double lat2, double lon2) {
+  return sz_sqrt(sep2_deg(lat1, lon1, lat2, lon2)) * KM_PER_DEG;
 }

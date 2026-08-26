@@ -699,6 +699,38 @@ static void test_moved_far(void) {
   check(!weather_moved_far(0.0, 179.9, 0.0, -179.9), "0.2 deg across the line");
   check(weather_moved_far(0.0, 179.5, 0.0, -179.5), "1 deg across the line");
 
+  group("the distance agrees with the predicate that shares its arithmetic");
+  // Philadelphia to New York is about 130km great-circle; equirectangular at
+  // this separation is within a kilometre of that.
+  {
+    double d = weather_move_km(phl_lat, phl_lon, 40.71, -74.01);
+    check(d > 125.0 && d < 135.0, "Philadelphia to New York is ~130km, got %.1f", d);
+  }
+  // One degree of latitude, anywhere, is KM_PER_DEG by construction.
+  {
+    double d = weather_move_km(0.0, 0.0, 1.0, 0.0);
+    check(d > 111.0 && d < 111.4, "a degree of latitude is ~111km, got %.3f", d);
+  }
+  // A degree of longitude at 60 north is half one at the equator.
+  {
+    double eq = weather_move_km(0.0, 0.0, 0.0, 1.0);
+    double up = weather_move_km(60.0, 0.0, 60.0, 1.0);
+    check(up > eq * 0.49 && up < eq * 0.51,
+          "%.1fkm at 60 north against %.1fkm at the equator", up, eq);
+  }
+  check(weather_move_km(phl_lat, phl_lon, phl_lat, phl_lon) == 0.0, "no distance to here");
+  // The two functions must agree at the threshold from both sides, which is
+  // the whole reason they share sep2_deg().
+  {
+    double near_lat = phl_lat + (24.0 / 111.195), far_lat = phl_lat + (26.0 / 111.195);
+    check(weather_move_km(phl_lat, phl_lon, near_lat, phl_lon) < WEATHER_MOVE_KM &&
+              !weather_moved_far(phl_lat, phl_lon, near_lat, phl_lon),
+          "24km: both say inside");
+    check(weather_move_km(phl_lat, phl_lon, far_lat, phl_lon) > WEATHER_MOVE_KM &&
+              weather_moved_far(phl_lat, phl_lon, far_lat, phl_lon),
+          "26km: both say outside");
+  }
+
   group("the poles do not break it");
   // cos() of a mean latitude of 90 is 0, so every longitude collapses to the
   // same point and only the latitude difference is left. That is the right

@@ -1,0 +1,31 @@
+{
+  "name": "shaot-probe-loc",
+  "author": "Josh Rosenberg",
+  "version": "1.0.0",
+  "keywords": [
+    "pebble-app"
+  ],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Shaot Loc Probe",
+    "uuid": "07fd71c2-03ed-45dd-a823-47e13c325af9",
+    "sdkVersion": "3",
+    "targetPlatforms": [
+      "emery"
+    ],
+    "watchapp": {
+      "watchface": true
+    },
+    "capabilities": [
+      "location"
+    ],
+    "messageKeys": [
+      "LAT",
+      "LON"
+    ],
+    "resources": {
+      "media": []
+    }
+  }
+}

@@ -32,3 +32,6 @@ tools/probe-float/src/c/shaot.*
 tools/probe-float/src/c/hebdate.*
 tools/probe-float/src/c/solar.*
 tools/probe-float/src/c/trig.*
+tools/probe-loc/src/c/solar.*
+tools/probe-loc/src/c/trig.*
+tools/probe-loc/src/c/weather.*

@@ -727,8 +727,35 @@ The watch returns no logs, so `tools/` holds diagnostic watchfaces:
 | `tools/probe-int` | integer-only; proves the project builds into a working app |
 | `tools/probe` | adds libm and the solar maths |
 | `tools/probe-float` | staged: reports exactly which operation failed |
+| `tools/probe-loc` | what the location path is doing, and when |
 
 Each has `build.sh` and its own UUID so it installs alongside the watchface.
+
+`probe-loc` answers a different kind of question from the other three. They ask
+whether the app runs at all; it asks **what the phone has told the watch, and
+when**. The face shows no coordinates, so a position update is invisible on it
+except as a sunset time that moved -- which is the same evidence a new day
+produces. The probe shows the coordinates in force, how long ago they arrived,
+a persisted log of the last six messages with the distance each one moved, and
+whether that distance crossed `WEATHER_MOVE_KM`. It reports the distance from
+the shipping `weather_move_km()` rather than a copy, so the number on screen is
+the one the face's own predicate tests.
+
+Its phone side is a deliberate **mirror** of the location half of
+`src/pkjs/index.js`, not a symlink -- the real one drags in Clay and the whole
+settings surface. What has to stay in step is the schedule: when a fix is taken,
+how stale a cached one may be, and what wakes the phone at all. Change that
+there and change it here, or the probe stops reporting on the thing it exists
+for.
+
+Two things it taught while being written. **The log has to be persisted**,
+because swapping watchfaces is also how a fresh fix is forced, and the whole
+question is what changed when it did. And **`app_message_open()` wants explicit
+sizes**: opened with `app_message_inbox_size_maximum()` it took the first
+message and silently dropped every one after it, with nothing on screen to say
+so. It now opens `(512, 64)` like the face, and registers
+`inbox_dropped`/`outbox_failed` handlers that log -- a probe that ignores a
+message in silence is worse than no probe.
 
 `probe-float` is the technique worth remembering: **it writes each stage number
 to persistent storage before attempting that stage**, and runs the risky work
