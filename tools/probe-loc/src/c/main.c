@@ -200,7 +200,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
 
   for (int i = 0; i < s_log.n; i++) {
     const LocEvent *e = &s_log.ev[(s_log.head + LOG_N - 1 - i + LOG_N) % LOG_N];
-    char age[12];
+    char age[20];  // the format's worst case, not its likely one
     fmt_clock(c, sizeof(c), (time_t)e->at);
     // "~" because it is how stale the fix already was when it arrived, not how
     // long ago it arrived. A high number here with the phone in a pocket means

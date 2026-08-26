@@ -778,7 +778,18 @@ how stale a cached one may be, and what wakes the phone at all. Change that
 there and change it here, or the probe stops reporting on the thing it exists
 for.
 
-Two things it taught while being written. **The log has to be persisted**,
+**A watchapp with a phone side needs `"enableMultiJS": true`.** Without it the
+build emits `src/pkjs/index.js` into the bundle as `index.js`, which nothing
+runs -- the phone app loads `pebble-js-app.js` and finds none. The app installs,
+the watch side works, and the phone side is simply never there: no location, no
+answer to any request, no error anywhere. Two build warnings say so
+(`message_keys.json will not be included`, `pebble-js-app.js does not exist`)
+and they are easy to wave off after checking that the JS is in the bundle,
+because it is -- under the wrong name. `tools/probe`, `probe-int` and
+`probe-float` never caught this: none of them has a phone side. **Check the
+bundle for `pebble-js-app.js`, not for a `.js`.**
+
+Two more things it taught while being written. **The log has to be persisted**,
 because swapping watchfaces is also how a fresh fix is forced, and the whole
 question is what changed when it did. And **`app_message_open()` wants explicit
 sizes**: opened with `app_message_inbox_size_maximum()` it took the first

@@ -1,7 +1,7 @@
 {
   "name": "shaot-probe-loc",
   "author": "Josh Rosenberg",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "keywords": [
     "pebble-app"
   ],
@@ -11,6 +11,7 @@
     "displayName": "Shaot Loc Probe",
     "uuid": "07fd71c2-03ed-45dd-a823-47e13c325af9",
     "sdkVersion": "3",
+    "enableMultiJS": true,
     "targetPlatforms": [
       "emery"
     ],
