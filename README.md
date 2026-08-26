@@ -252,11 +252,30 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   phone knows when its JavaScript began running, so this is the one push that
   is better than a pull. It costs a fetch per JS start even where nothing
   displays weather; nothing starts it but the watchface.
-- **Moving asks for weather; standing still does not.** The phone samples
-  position at JS start and then every six hours (`REFRESH_MS`) -- it does not
-  watch it, so a walk, a run or an afternoon of errands produce no location
-  message at all. What arrives is a handful of fixes a day, and the watch
-  compares each against the one it holds: identical coordinates are not a
+- **Position is topped up on the hourly weather wake, and that is a solar
+  decision, not a weather one.** `topUpLocation()` runs from the `appmessage`
+  handler, so it rides a radio wake already being spent, and it asks with a
+  30-minute `maximumAge` so the phone can hand back a fix some other app paid
+  for instead of powering up its receiver. Startup keeps the tight 60-second
+  `maximumAge`: a half-hour-old fix at `ready` could still be the departure
+  gate, which is the one case that must not happen.
+
+  The reason is the shaot arithmetic. **A 10km move east or west slides sunrise
+  and sunset together by about 28 seconds, and against a proportional hour that
+  is seven to eleven chalakim** depending on the season -- visible on a face
+  that displays them. North-south costs much less, under a chalek, because it
+  moves the two ends in opposite directions and leaves midday alone. The error
+  applies at rest as much as in transit: the face runs on wherever the last fix
+  landed, so on the old six-hour interval it was bounded by how far the wearer
+  ranged in a day, not by anything the code did.
+
+  `REFRESH_MS` stays at six hours as the floor. A face displaying no weather
+  never asks for any, so nothing wakes the phone hourly and the top-up never
+  runs; that interval is what keeps such a face correct.
+- **Moving asks for weather; standing still does not.** The phone does not
+  watch position -- it samples it, so a walk, a run or an afternoon of errands
+  produce no location message at all. What arrives is a fix an hour, and the
+  watch compares each against the one it holds: identical coordinates are not a
   change and do nothing, and a change past `WEATHER_MOVE_KM` (25km) also calls
   `request_weather()`. Below that the fetch would return the same Open-Meteo
   grid cell, which is about 11km across, so it would buy nothing.
@@ -283,10 +302,11 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   a watch reboot: each one gives a fresh `ready`, hence a fresh fix, and both
   the solar maths and the weather follow within seconds. **Saving settings does
   not** -- it asks for weather, but the phone answers from its stored
-  coordinates and never takes a fix. Worth knowing on a road trip, where the
-  link never drops and nothing restarts the JavaScript, so an arrival waits out
-  the rest of the six-hour interval. A flight brings the link down and back on
-  its own and needs none of this.
+  coordinates and never takes a fix. Rarely needed now that the hourly wake
+  tops position up -- an arrival is picked up within the hour even on a road
+  trip, where the link never drops and nothing restarts the JavaScript -- but
+  it is the way to have it immediately. A flight brings the link down and back
+  on its own and needs none of this.
 - **An unanswered request is chased**, since nothing else can tell. The send is
   fire-and-forget and the phone speaks only when it has something, so a request
   that was never heard looks exactly like one whose answer is still coming; the

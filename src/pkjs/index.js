@@ -19,12 +19,24 @@ var messageKeys = require("message_keys");
 // because the JavaScript runtime could not afford the per-key memory.
 var clay = new Clay(clayConfig);
 
-var REFRESH_MS = 21600000; // 6 h; a fix this old is still fine for solar maths
+// The fallback interval, for when nothing else is asking. A fix this old is
+// *not* fine for the solar maths -- see topUpLocation() for what it costs --
+// which is why the hourly weather wake carries a top-up. This remains the floor
+// under a face that displays no weather at all.
+var REFRESH_MS = 21600000; // 6 h
 var MAX_FAILURES = 3;
 
 // Same options TimeStyle uses: 15s is generous for a cold fix, and a 60s
-// maximumAge avoids re-fixing when something already has one.
+// maximumAge avoids re-fixing when something already has one. Used where the
+// answer has to be about *here*: at startup, which is what a flight looks like
+// from this side -- a 30-minute-old fix could still be the departure gate.
 var GEO_OPTIONS = { timeout: 15000, maximumAge: 60000 };
+
+// ...and used where being an hour sharper matters more than being minutes
+// fresher. A generous maximumAge is the whole point: the phone hands back a fix
+// some other app already paid for rather than powering up its receiver, which
+// is what makes asking this often affordable at all.
+var GEO_OPTIONS_CHEAP = { timeout: 15000, maximumAge: 1800000 }; // 30 min
 
 var failures = 0;
 
@@ -73,6 +85,26 @@ function onError() {
 
 function update() {
   navigator.geolocation.getCurrentPosition(onSuccess, onError, GEO_OPTIONS);
+}
+
+// A cheap top-up, run whenever this side is awake anyway.
+//
+// Position is what the shaot arithmetic is built on, and the error is larger
+// than it looks: a 10km move east or west slides sunrise and sunset together by
+// about 28 seconds, and against a proportional hour that is eight chalakim --
+// visible on a face that displays them. That applies at rest as much as in
+// transit. A fix taken at one end of an ordinary day's travel is what the face
+// runs on until the next one, so on a six-hour interval the error is bounded by
+// how far the wearer ranges, not by anything here.
+//
+// Asking hourly instead costs much less than it sounds. The watch already wakes
+// the radio every hour for weather, so this rides a wake that is paid for, and
+// most calls are answered from a fix taken for something else. No error path:
+// a refusal or a timeout is answered by the next hour coming round, and
+// escalating through onError would turn a top-up into a retry storm.
+function topUpLocation() {
+  navigator.geolocation.getCurrentPosition(onSuccess, function () {},
+                                           GEO_OPTIONS_CHEAP);
 }
 
 // --- weather ----------------------------------------------------------------
@@ -230,7 +262,13 @@ function updateWeather() {
 }
 
 // Any message from the watch is a request for weather; it sends nothing else.
+//
+// Position is topped up on the same wake. The fetch below still goes out
+// against the stored coordinates rather than waiting on the fix, because the
+// two differ only when the wearer has moved, and a move large enough to matter
+// has the watch ask again the moment the new coordinates land.
 Pebble.addEventListener("appmessage", function () {
+  topUpLocation();
   updateWeather();
 });
 
@@ -275,6 +313,9 @@ Pebble.addEventListener("ready", function () {
   resendSettings();
   sendCached(); // something immediate, then refine
   update();
+  // Kept as the floor, not the main schedule. A face configured with no weather
+  // box never asks for weather, so nothing wakes this side hourly and the
+  // top-up above never runs; this is what keeps that case correct.
   setInterval(update, REFRESH_MS);
   // Push weather without being asked, which is the one place that is right to
   // do. The watch requests weather the instant the link comes up, but this
