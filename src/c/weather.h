@@ -52,18 +52,6 @@ typedef enum {
 // reading is shown faded rather than as though it were current.
 #define WEATHER_STALE_SECS (3 * 60 * 60)
 
-// How far the wearer has to have moved before a fetch is worth spending on the
-// new position. Open-Meteo's forecast grid is roughly 11km, so a move smaller
-// than that returns the same cell and buys nothing at all; this sits well
-// above it. A walk, errands or a trip across town stay inside it, and so does
-// the wander between two fixes taken in the same place. Leaving the metro area
-// does not.
-//
-// Nothing here reduces how often weather is asked for. The hourly request
-// stands on its own -- the temperature and the forecast move whether or not
-// the wearer does -- and this only adds a request when the place they are
-// asking about has changed.
-#define WEATHER_MOVE_KM 25.0
 
 typedef struct {
   int32_t fetched_at;  // unix time of the last successful fetch, 0 = never
@@ -143,18 +131,14 @@ uint32_t weather_retry_ms(int attempt);
 // is not stale; it is absent, which the caller distinguishes by have_current.
 bool weather_is_stale(const WeatherData *w, int32_t now);
 
-// True when two positions are far enough apart that the forecast for one is no
-// longer an answer about the other -- WEATHER_MOVE_KM, above.
+// How far apart two positions are, in kilometres. Nothing on the face needs it:
+// coordinates are adopted whatever the distance, and weather is fetched behind
+// every fix, so there is no threshold left to test. It exists for
+// tools/probe-loc, which reports how far each hourly fix moved -- and a distance
+// is a sharper thing to assert in the host tests than a boolean either side of
+// a cutoff.
 //
-// The phone samples position a few times a day rather than watching it, so
-// this is asked only of fixes that far apart in time. It exists to tell a real
-// relocation from a fix that landed a few hundred metres off the last one, not
-// to track anybody across an afternoon.
-bool weather_moved_far(double lat1, double lon1, double lat2, double lon2);
-
-// The same separation as a number of kilometres. Nothing on the face needs it
-// -- the predicate above is the whole decision -- but tools/probe-loc reports
-// it, and asserting a distance is a sharper test than asserting a boolean
-// either side of the threshold. Shares its arithmetic with weather_moved_far()
-// so the two cannot disagree.
+// Equirectangular: a good answer over a few hundred kilometres and a rough one
+// across a continent, which is the right trade for a number read on a 200px
+// screen.
 double weather_move_km(double lat1, double lon1, double lat2, double lon2);

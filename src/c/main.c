@@ -306,6 +306,7 @@ static TimeUnits s_tick_unit = 0;
 
 static void subscribe_tick(void);
 static void request_weather(void);
+static void hourly_request(void);
 
 static void apply_settings(void) {
   uint8_t r = (s_settings.accent >> 16) & 0xFF;
@@ -1510,9 +1511,12 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   //
   // Gated on the link, because asking across a dead one spends a wake to reach
   // nobody, and the connection handler already asks the moment it is back.
-  if (tick_time->tm_sec == 0) {
-    const bool waiting = s_bt_connected && (!s_wx.have_current || s_wx_stale);
-    if (tick_time->tm_min == s_wx_minute || (waiting && tick_time->tm_min % 5 == 0)) {
+  if (tick_time->tm_sec == 0 && s_bt_connected) {
+    if (tick_time->tm_min == s_wx_minute) {
+      // Ungated: this is the position top-up, which every face needs.
+      hourly_request();
+    } else if ((!s_wx.have_current || s_wx_stale) && tick_time->tm_min % 5 == 0) {
+      // The catch-up, which is about weather alone and stays gated on it.
       request_weather();
     }
   }
@@ -1547,11 +1551,31 @@ static void wx_schedule_retry(uint8_t attempts) {
   s_wx_retry_timer = app_timer_register(ms, wx_retry, NULL);
 }
 
-static void send_weather_request(void) {
+// The one message this watch sends. WantWx says whether a weather box is on the
+// face; the phone tops up its position either way and only spends a fetch when
+// the flag is set.
+//
+// It used to be an empty message, and the phone treated anything arriving as a
+// request for weather. That was fine while weather was the only reason to speak
+// -- but position is what the shaot arithmetic runs on, and gating the only
+// message on `any_weather_slot()` left a face with no weather box sampling
+// position every six hours instead of every hour. The default face has no
+// weather box.
+static void send_request(bool want_weather) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
-  dict_write_uint8(iter, 0, 0);
+  dict_write_uint8(iter, MESSAGE_KEY_WantWx, want_weather ? 1 : 0);
   app_message_outbox_send();
+}
+
+// The hourly wake, sent whatever the face is showing. The phone answers it by
+// taking a fix, sending the coordinates, and only then fetching weather with
+// those very coordinates -- so the reading is always for where the fix says the
+// wearer is, with no offset between the two to reason about.
+static void hourly_request(void) {
+  const bool wx = any_weather_slot();
+  send_request(wx);
+  if (wx) wx_schedule_retry(1);
 }
 
 static void wx_retry(void *data) {
@@ -1560,13 +1584,13 @@ static void wx_retry(void *data) {
   // because the connection handler starts a fresh one the moment the phone is
   // back, which is sooner than any delay left in this schedule.
   if (!s_bt_connected || !any_weather_slot()) return;
-  send_weather_request();
+  send_request(true);
   wx_schedule_retry((uint8_t)(s_wx_attempts + 1));
 }
 
 static void request_weather(void) {
   if (!any_weather_slot()) return;
-  send_weather_request();
+  send_request(true);
   // Start the count over. Every caller of this is a fresh reason to want
   // weather -- a reconnect, a settings change, the hourly slot -- and each
   // deserves the full schedule rather than the tail of an older one.
@@ -1614,7 +1638,9 @@ static void connection_handler(bool connected) {
   s_bt_connected = connected;
   // Reconnecting is the first chance to catch up on whatever was missed while
   // the phone was away, and it costs nothing when the data is already current.
-  if (connected) request_weather();
+  // Position as well as weather: a link that has been down is exactly when the
+  // watch is most likely to be somewhere new.
+  if (connected) hourly_request();
   layer_mark_dirty(s_canvas);
 }
 
@@ -1823,12 +1849,10 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   // to throw away the bracket and the next-event cache and recompute the lot
   // for an answer already on screen.
   bool location_changed = false;
-  bool moved_far = false;
   if (have_lat && have_lon) {
     double lat = lat_raw / 1000000.0;
     double lon = lon_raw / 1000000.0;
     if (coords_sane(lat, lon) && !(s_have_location && lat == s_lat && lon == s_lon)) {
-      moved_far = s_have_location && weather_moved_far(s_lat, s_lon, lat, lon);
       s_lat = lat;
       s_lon = lon;
       location_changed = true;
@@ -1841,18 +1865,12 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     s_last_day = -1;
     s_next_stale = 0;    // and the next-event cache, which is also per-location
     save_location();
-    // The solar maths is now right for the new place, and the weather is not:
-    // the phone fetches for its stored coordinates, and the fetch it makes when
-    // its JavaScript starts races the fix that produced these and loses. So the
-    // reading on screen after a flight describes the airport left behind, and
-    // nothing would replace it until the hourly slot came round -- up to an
-    // hour of confidently wrong weather. Asking here costs one request, and
-    // only past WEATHER_MOVE_KM so that the everyday case of a fix landing a
-    // few hundred metres from the last one spends nothing.
-    //
-    // The first fix of all is not a move: there is nothing to have moved from,
-    // and init() has already asked.
-    if (moved_far) request_weather();
+    // Nothing is asked for here. Coordinates only ever change in two places --
+    // the startup fix and the hourly wake -- and both sequence a weather fetch
+    // behind the fix, so a payload for these very coordinates is already on its
+    // way. A "we have moved, ask again" rule lived here for a while; once both
+    // paths were sequenced it had nothing left to catch and only spent a
+    // duplicate request.
   }
   if (settings_changed && memcmp(&before, &s_settings, sizeof(Settings)) == 0) {
     settings_changed = false;
@@ -1926,7 +1944,7 @@ static void init(void) {
       .pebble_app_connection_handler = connection_handler,
   });
 
-  // Spread the hourly weather fetch across the hour without pulling in rand():
+  // Spread the hourly wake across the hour without pulling in rand():
   // two watches have to have been launched in the same second of the same
   // minute to collide, and nothing breaks if they do.
   s_wx_minute = (uint8_t)(time(NULL) % 60);
@@ -1937,7 +1955,7 @@ static void init(void) {
   app_message_register_inbox_received(inbox_received);
   app_message_open(512, 64);
 
-  request_weather();
+  hourly_request();
 }
 
 static void deinit(void) {

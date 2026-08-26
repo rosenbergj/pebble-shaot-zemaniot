@@ -19,11 +19,6 @@ var messageKeys = require("message_keys");
 // because the JavaScript runtime could not afford the per-key memory.
 var clay = new Clay(clayConfig);
 
-// The fallback interval, for when nothing else is asking. A fix this old is
-// *not* fine for the solar maths -- see topUpLocation() for what it costs --
-// which is why the hourly weather wake carries a top-up. This remains the floor
-// under a face that displays no weather at all.
-var REFRESH_MS = 21600000; // 6 h
 var MAX_FAILURES = 3;
 
 // Same options TimeStyle uses: 15s is generous for a cold fix, and a 60s
@@ -74,37 +69,78 @@ function onSuccess(pos) {
 function onError() {
   failures += 1;
   if (failures <= MAX_FAILURES) {
-    update();
+    initialFix();
     return;
   }
   failures = 0;
   // No fix available: fall back to the last known coordinates so a dead GPS
-  // does not leave the watch without a location.
+  // does not leave the watch without a location, and fetch against them rather
+  // than skipping weather entirely. They are the best answer available.
   sendCached();
+  updateWeather();
 }
 
-function update() {
-  navigator.geolocation.getCurrentPosition(onSuccess, onError, GEO_OPTIONS);
+// The startup fix, and the weather that follows it.
+//
+// Weather waits for the fix rather than going out beside it. Racing them is
+// what used to put the departure city on screen after a flight: the fetch went
+// against the coordinates already in storage while the fix that would replace
+// them was still being taken, and the reply arrived stamped with the current
+// time -- so it was not faded, and nothing on the face suggested it was wrong.
+// The cost of waiting is the seconds the fix takes.
+//
+// The tight maximumAge belongs here and nowhere else. A half-hour-old fix could
+// still be the departure gate, and this is the one path that runs on landing.
+//
+// This side cannot know whether a weather box is configured -- only the watch
+// can, which is what WantWx is for -- so the startup fetch is unconditional. It
+// costs one fetch per JS start on a face displaying no weather; that is
+// accepted, since nothing starts this but the watchface.
+function initialFix() {
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      onSuccess(pos);
+      fetchWeather(pos.coords.latitude, pos.coords.longitude);
+    },
+    onError,
+    GEO_OPTIONS
+  );
 }
 
-// A cheap top-up, run whenever this side is awake anyway.
+// The answer to the watch's hourly wake: take a fix, send it, and only then
+// fetch weather with it.
+//
+// Sequencing is the whole point. The two used to run side by side, so the fetch
+// went out against whatever coordinates were already stored while the fix that
+// would replace them was still being taken -- and after a flight that meant a
+// reading for the airport left behind. Waiting costs the seconds the fix takes
+// and removes any offset between position and weather worth reasoning about.
 //
 // Position is what the shaot arithmetic is built on, and the error is larger
 // than it looks: a 10km move east or west slides sunrise and sunset together by
 // about 28 seconds, and against a proportional hour that is eight chalakim --
 // visible on a face that displays them. That applies at rest as much as in
-// transit. A fix taken at one end of an ordinary day's travel is what the face
-// runs on until the next one, so on a six-hour interval the error is bounded by
-// how far the wearer ranges, not by anything here.
+// transit, since the face runs on wherever the last fix landed.
 //
-// Asking hourly instead costs much less than it sounds. The watch already wakes
-// the radio every hour for weather, so this rides a wake that is paid for, and
-// most calls are answered from a fix taken for something else. No error path:
-// a refusal or a timeout is answered by the next hour coming round, and
-// escalating through onError would turn a top-up into a retry storm.
-function topUpLocation() {
-  navigator.geolocation.getCurrentPosition(onSuccess, function () {},
-                                           GEO_OPTIONS_CHEAP);
+// Asking hourly costs much less than it sounds. It rides a wake the watch is
+// making anyway, and the generous maximumAge means most calls are answered from
+// a fix some other app already paid for rather than by powering up the receiver.
+//
+// No error path for the fix itself: a refusal is answered by the next hour
+// coming round, and escalating through onError would turn a top-up into a retry
+// storm. A failed fix must not cost the weather, though, so that falls back to
+// the stored coordinates.
+function topUpLocation(wantWeather) {
+  navigator.geolocation.getCurrentPosition(
+    function (pos) {
+      onSuccess(pos);
+      if (wantWeather) fetchWeather(pos.coords.latitude, pos.coords.longitude);
+    },
+    function () {
+      if (wantWeather) updateWeather();
+    },
+    GEO_OPTIONS_CHEAP
+  );
 }
 
 // --- weather ----------------------------------------------------------------
@@ -261,15 +297,13 @@ function updateWeather() {
   );
 }
 
-// Any message from the watch is a request for weather; it sends nothing else.
-//
-// Position is topped up on the same wake. The fetch below still goes out
-// against the stored coordinates rather than waiting on the fix, because the
-// two differ only when the wearer has moved, and a move large enough to matter
-// has the watch ask again the moment the new coordinates land.
-Pebble.addEventListener("appmessage", function () {
-  topUpLocation();
-  updateWeather();
+// The watch sends one kind of message: its hourly wake. WantWx says whether a
+// weather box is on the face, which is the one thing this side cannot know --
+// there is no point spending a fetch on a face that displays no weather. The
+// position top-up happens either way, because every face runs on the sun.
+Pebble.addEventListener("appmessage", function (e) {
+  var p = (e && e.payload) || {};
+  topUpLocation(p.WantWx === 1);
 });
 
 // Clay keeps the settings on the phone. The watch keeps its own copy as a single
@@ -309,20 +343,18 @@ function resendSettings() {
   }
 }
 
+// Weather is pushed here without being asked, which is the one place that is
+// right to do: the watch asks the instant the link comes up, but this JavaScript
+// is started by the phone app and may not be listening yet, so the request that
+// matters most -- the one after a night with Bluetooth off -- is the one most
+// likely to be lost. Only this side knows when it began running. initialFix()
+// carries that push, behind the fix.
+//
+// No interval of this side's own. The watch wakes it every hour, and that wake
+// is ungated -- it arrives whether or not a weather box is configured -- so a
+// second schedule here would only duplicate fixes.
 Pebble.addEventListener("ready", function () {
   resendSettings();
-  sendCached(); // something immediate, then refine
-  update();
-  // Kept as the floor, not the main schedule. A face configured with no weather
-  // box never asks for weather, so nothing wakes this side hourly and the
-  // top-up above never runs; this is what keeps that case correct.
-  setInterval(update, REFRESH_MS);
-  // Push weather without being asked, which is the one place that is right to
-  // do. The watch requests weather the instant the link comes up, but this
-  // JavaScript is started by the phone app and may not have been listening yet
-  // -- so the request that matters most, the one after a night with Bluetooth
-  // off, is the one most likely to be lost. Only this side knows when it began
-  // running. It costs a fetch per start even on a face carrying no weather
-  // slot; that is accepted, since nothing starts this but the watchface.
-  updateWeather();
+  sendCached(); // in case the watch has no location at all; a no-op if it has
+  initialFix();
 });

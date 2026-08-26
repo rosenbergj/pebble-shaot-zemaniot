@@ -252,45 +252,69 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   phone knows when its JavaScript began running, so this is the one push that
   is better than a pull. It costs a fetch per JS start even where nothing
   displays weather; nothing starts it but the watchface.
-- **Position is topped up on the hourly weather wake, and that is a solar
-  decision, not a weather one.** `topUpLocation()` runs from the `appmessage`
-  handler, so it rides a radio wake already being spent, and it asks with a
-  30-minute `maximumAge` so the phone can hand back a fix some other app paid
-  for instead of powering up its receiver. Startup keeps the tight 60-second
-  `maximumAge`: a half-hour-old fix at `ready` could still be the departure
-  gate, which is the one case that must not happen.
+- **The watch sends one message: an hourly wake, and it is ungated.** It carries
+  `WantWx`, saying whether a weather box is on the face -- the one thing the
+  phone cannot know, and the reason weather is pulled rather than pushed. The
+  phone answers by taking a fix, sending the coordinates, and *only then*
+  fetching weather with those very coordinates when the flag is set.
 
-  The reason is the shaot arithmetic. **A 10km move east or west slides sunrise
-  and sunset together by about 28 seconds, and against a proportional hour that
-  is seven to eleven chalakim** depending on the season -- visible on a face
-  that displays them. North-south costs much less, under a chalek, because it
-  moves the two ends in opposite directions and leaves midday alone. The error
-  applies at rest as much as in transit: the face runs on wherever the last fix
-  landed, so on the old six-hour interval it was bounded by how far the wearer
-  ranged in a day, not by anything the code did.
+  **Sequencing is the point.** The fix and the fetch used to run side by side, so
+  the fetch went out against whatever was already stored while the fix that would
+  replace it was still being taken -- and after a flight that meant a reading for
+  the airport left behind. Running them in order costs the seconds the fix takes
+  and leaves no offset between position and weather to reason about. Nor could
+  that offset have been chosen: `s_wx_minute` is `time(NULL) % 60`, an arbitrary
+  minute of the hour, and any timer on the phone would be phased from JS start,
+  so two independent schedules land wherever they land.
 
-  `REFRESH_MS` stays at six hours as the floor. A face displaying no weather
-  never asks for any, so nothing wakes the phone hourly and the top-up never
-  runs; that interval is what keeps such a face correct.
-- **Moving asks for weather; standing still does not.** The phone does not
-  watch position -- it samples it, so a walk, a run or an afternoon of errands
-  produce no location message at all. What arrives is a fix an hour, and the
-  watch compares each against the one it holds: identical coordinates are not a
-  change and do nothing, and a change past `WEATHER_MOVE_KM` (25km) also calls
-  `request_weather()`. Below that the fetch would return the same Open-Meteo
-  grid cell, which is about 11km across, so it would buy nothing.
+  **Ungating it was a bug fix.** The wake used to be `request_weather()`, which
+  returns early on `!any_weather_slot()` -- so a face with no weather box never
+  spoke to the phone at all, and sampled position every six hours instead of
+  every hour. The shipped defaults have no weather box. Position is what the
+  shaot arithmetic runs on and every face needs it; weather is what only some
+  faces show. Only the second belongs behind that gate.
 
-  This is only ever an *extra* request. The hourly slot is untouched: the
-  temperature and the forecast move whether or not the wearer does, and
-  location is not a reason to ask less often.
+  The fix asks with a 30-minute `maximumAge`, so most calls are answered from one
+  some other app already paid for rather than by powering up the receiver, which
+  is what makes hourly affordable. Startup keeps the tight 60-second
+  `maximumAge`: a half-hour-old fix at `ready` could still be the departure gate,
+  and startup after a flight is the one case that must not come from cache.
 
-  Without it the weather lagged the location by up to an hour. `updateWeather()`
-  fetches for the phone's *stored* coordinates and the `ready` push races the
-  fix that would replace them and loses -- so the first reading after a flight
-  described the airport left behind, and because it arrived stamped with the
-  current time it counted as fresh, which stood the chase down and failed the
-  five-minute catch-up gate. Nothing then replaced it until the hourly minute
-  came round.
+  **The error path is asymmetric on purpose.** A refused or timed-out fix is
+  answered by the next hour coming round -- escalating would turn a top-up into a
+  retry storm -- but it must not cost the weather, so that falls back to the
+  stored coordinates rather than being skipped.
+
+  Why it matters at all: **a 10km move east or west slides sunrise and sunset
+  together by about 28 seconds, and against a proportional hour that is seven to
+  eleven chalakim** depending on the season -- visible on a face that displays
+  them. North-south costs under a chalek, moving the two ends in opposite
+  directions and leaving midday alone. The error applies at rest as much as in
+  transit: the face runs on wherever the last fix landed.
+- **Identical coordinates are not a change, and do nothing.** The phone sends
+  its cached pair at every JS start, which used to throw away the bracket and
+  the next-event cache to recompute an answer already on screen.
+
+  A *changed* pair is adopted whatever the distance, and asks for nothing. There
+  was a threshold here for a while -- a move past 25km additionally called
+  `request_weather()` -- and it is worth knowing why it went, because the
+  reasoning is easy to rediscover and rebuild.
+
+  It was written to paper over the startup race: `ready` fetched weather against
+  the stored coordinates while the fix that would replace them was still being
+  taken, so after a flight the box showed the departure city, stamped with the
+  current time -- not faded, since `fetched_at` was now, so the staleness signal
+  said nothing either. Nothing replaced it until the hourly wake, up to an hour
+  later. A "we have moved, ask again" rule fixed that.
+
+  Then both fetch paths were sequenced behind their fix, and the race was gone
+  at the source. Coordinates can only change in two places, `ready` and the
+  hourly wake, and each now fetches weather for the very coordinates it just
+  took -- so the rule had nothing left to catch, and fired a duplicate request
+  every time it did fire. **Fixing an ordering problem retires the rule that was
+  compensating for it.** If a threshold ever looks necessary here again, check
+  first whether some fetch has stopped waiting for its fix.
+
 - **Two fetches can be in the air at once, and the later one wins.** `wxSeq` in
   `index.js` stamps each fetch and the handler drops a reply that is no longer
   the current one. The `ready` push and the fetch triggered by a big move are
@@ -737,9 +761,15 @@ when**. The face shows no coordinates, so a position update is invisible on it
 except as a sunset time that moved -- which is the same evidence a new day
 produces. The probe shows the coordinates in force, how long ago they arrived,
 a persisted log of the last six messages with the distance each one moved, and
-whether that distance crossed `WEATHER_MOVE_KM`. It reports the distance from
-the shipping `weather_move_km()` rather than a copy, so the number on screen is
-the one the face's own predicate tests.
+and how old each fix already was when the phone handed it over. It reports the
+distance from the shipping `weather_move_km()` rather than a copy.
+
+That last column is the one to read for tuning. Nothing refreshes position
+between the hourly wakes, so a fix is only ever fresher than an hour because
+*another app* on the phone asked for one and the OS handed us theirs -- which is
+a fact about how the phone is used, not about this code. `GEO_OPTIONS_CHEAP`
+allows 30 minutes on that bet. The probe is how to find out whether the bet pays
+on a particular phone rather than guessing.
 
 Its phone side is a deliberate **mirror** of the location half of
 `src/pkjs/index.js`, not a symlink -- the real one drags in Clay and the whole

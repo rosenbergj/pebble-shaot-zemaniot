@@ -655,88 +655,66 @@ static HebrewDate heb_midday(int y, int m, int d) {
   return hebdate_for_now(y, m, d, 12, true);
 }
 
-static void test_moved_far(void) {
+static void test_move_km(void) {
   // Coarse coordinates throughout, as everywhere else in this suite.
   const double phl_lat = 39.95, phl_lon = -75.17;
 
-  group("a fix landing near the last one is not a move");
-  check(!weather_moved_far(phl_lat, phl_lon, phl_lat, phl_lon), "identical");
-  // ~1.1km north, and ~850m east at this latitude: GPS wander, or a walk.
-  check(!weather_moved_far(phl_lat, phl_lon, phl_lat + 0.01, phl_lon + 0.01),
-        "a kilometre or so");
-  // ~11km, which is one Open-Meteo grid cell: errands across town.
-  check(!weather_moved_far(phl_lat, phl_lon, phl_lat + 0.1, phl_lon),
-        "ten kilometres");
-  // Just inside 25km, north and south alike.
-  check(!weather_moved_far(phl_lat, phl_lon, phl_lat + 0.2, phl_lon), "22km north");
-  check(!weather_moved_far(phl_lat, phl_lon, phl_lat - 0.2, phl_lon), "22km south");
-
-  group("a relocation is");
-  check(weather_moved_far(phl_lat, phl_lon, phl_lat + 0.3, phl_lon), "33km north");
-  check(weather_moved_far(phl_lat, phl_lon, 40.71, -74.01), "Philadelphia to New York");
-  check(weather_moved_far(phl_lat, phl_lon, 34.05, -118.24), "a transcontinental flight");
-  check(weather_moved_far(phl_lat, phl_lon, 51.51, -0.13), "an ocean");
-
-  group("the threshold is symmetric");
-  check(weather_moved_far(40.71, -74.01, phl_lat, phl_lon) ==
-            weather_moved_far(phl_lat, phl_lon, 40.71, -74.01),
-        "order does not matter for a long move");
-  check(weather_moved_far(phl_lat + 0.01, phl_lon, phl_lat, phl_lon) ==
-            weather_moved_far(phl_lat, phl_lon, phl_lat + 0.01, phl_lon),
-        "order does not matter for a short one");
-
-  group("longitude is scaled by latitude");
-  // 0.3 degrees of longitude is ~33km at the equator and ~13km at 68 north.
-  // Unscaled, the northern pair would cross the threshold the southern one does
-  // and the face would refetch every time a fix wobbled inside a Norwegian
-  // town.
-  check(weather_moved_far(0.0, 0.0, 0.0, 0.3), "0.3 deg of longitude at the equator");
-  check(!weather_moved_far(68.0, 15.0, 68.0, 15.3), "the same 0.3 deg at 68 north");
-
-  group("the antimeridian is crossed the short way");
-  // Two points 0.2 degrees apart with 359.8 between them by the naive
-  // subtraction. Near the equator, where the scaling cannot hide the error.
-  check(!weather_moved_far(0.0, 179.9, 0.0, -179.9), "0.2 deg across the line");
-  check(weather_moved_far(0.0, 179.5, 0.0, -179.5), "1 deg across the line");
-
-  group("the distance agrees with the predicate that shares its arithmetic");
-  // Philadelphia to New York is about 130km great-circle; equirectangular at
-  // this separation is within a kilometre of that.
+  group("distances the probe reports");
+  check(weather_move_km(phl_lat, phl_lon, phl_lat, phl_lon) == 0.0, "no distance to here");
   {
-    double d = weather_move_km(phl_lat, phl_lon, 40.71, -74.01);
-    check(d > 125.0 && d < 135.0, "Philadelphia to New York is ~130km, got %.1f", d);
-  }
-  // One degree of latitude, anywhere, is KM_PER_DEG by construction.
-  {
+    // One degree of latitude, anywhere, is KM_PER_DEG by construction.
     double d = weather_move_km(0.0, 0.0, 1.0, 0.0);
     check(d > 111.0 && d < 111.4, "a degree of latitude is ~111km, got %.3f", d);
   }
-  // A degree of longitude at 60 north is half one at the equator.
   {
+    // 0.1 degrees, which is the step the emulator check uses.
+    double d = weather_move_km(phl_lat, phl_lon, phl_lat + 0.1, phl_lon);
+    check(d > 11.0 && d < 11.2, "0.1 deg of latitude is ~11.1km, got %.2f", d);
+  }
+  {
+    // Philadelphia to New York is about 130km great-circle; equirectangular at
+    // this separation is within a kilometre of it.
+    double d = weather_move_km(phl_lat, phl_lon, 40.71, -74.01);
+    check(d > 125.0 && d < 135.0, "Philadelphia to New York is ~130km, got %.1f", d);
+  }
+
+  group("longitude is scaled by latitude");
+  {
+    // A degree of longitude at 60 north is half one at the equator.
     double eq = weather_move_km(0.0, 0.0, 0.0, 1.0);
     double up = weather_move_km(60.0, 0.0, 60.0, 1.0);
     check(up > eq * 0.49 && up < eq * 0.51,
           "%.1fkm at 60 north against %.1fkm at the equator", up, eq);
   }
-  check(weather_move_km(phl_lat, phl_lon, phl_lat, phl_lon) == 0.0, "no distance to here");
-  // The two functions must agree at the threshold from both sides, which is
-  // the whole reason they share sep2_deg().
+
+  group("the measure is symmetric");
+  check(weather_move_km(40.71, -74.01, phl_lat, phl_lon) ==
+            weather_move_km(phl_lat, phl_lon, 40.71, -74.01),
+        "order does not matter");
+
+  group("the antimeridian is crossed the short way");
+  // Two points 0.2 degrees apart with 359.8 between them by the naive
+  // subtraction. Near the equator, where the scaling cannot hide the error.
   {
-    double near_lat = phl_lat + (24.0 / 111.195), far_lat = phl_lat + (26.0 / 111.195);
-    check(weather_move_km(phl_lat, phl_lon, near_lat, phl_lon) < WEATHER_MOVE_KM &&
-              !weather_moved_far(phl_lat, phl_lon, near_lat, phl_lon),
-          "24km: both say inside");
-    check(weather_move_km(phl_lat, phl_lon, far_lat, phl_lon) > WEATHER_MOVE_KM &&
-              weather_moved_far(phl_lat, phl_lon, far_lat, phl_lon),
-          "26km: both say outside");
+    double d = weather_move_km(0.0, 179.9, 0.0, -179.9);
+    check(d > 22.0 && d < 22.5, "0.2 deg across the line is ~22km, got %.1f", d);
   }
 
   group("the poles do not break it");
   // cos() of a mean latitude of 90 is 0, so every longitude collapses to the
   // same point and only the latitude difference is left. That is the right
   // answer there, and it must not be a divide or a NaN.
-  check(!weather_moved_far(90.0, 0.0, 90.0, 180.0), "both at the north pole");
-  check(weather_moved_far(90.0, 0.0, 88.0, 0.0), "two degrees down from it");
+  // Not exactly zero: cos(pi/2) is a rounding error rather than 0, so half the
+  // world of longitude survives as a fraction of a millimetre. Assert that it is
+  // negligible, not that it vanished.
+  {
+    double d = weather_move_km(90.0, 0.0, 90.0, 180.0);
+    check(d < 0.000001, "both at the north pole, got %g km", d);
+  }
+  {
+    double d = weather_move_km(90.0, 0.0, 88.0, 0.0);
+    check(d > 222.0 && d < 223.0, "two degrees down from it, got %.1f", d);
+  }
 }
 
 static void test_shabbat(void) {
@@ -922,7 +900,7 @@ int main(void) {
   test_zmanim();
   test_next_event_ranking();
   test_weather();
-  test_moved_far();
+  test_move_km();
   test_shabbat();
 
   printf("\n%d checks, %d failures\n", g_checks, g_failures);

@@ -8,8 +8,8 @@
 //   * the coordinates the watch is currently computing from
 //   * how long ago they arrived, and how many messages have arrived in all
 //   * a persisted log of the last few, each with how far it moved
-//   * whether each move crossed WEATHER_MOVE_KM, the threshold at which the
-//     face additionally asks the phone for weather
+//   * how old each fix already was when the phone handed it over, which is the
+//     only way to see whether the 30-minute maximumAge is earning anything
 //   * the next sunset those coordinates produce, so a reading here can be held
 //     against the same box on the face
 //
@@ -38,19 +38,17 @@
 typedef struct {
   int32_t at;      // unix time the message arrived
   int32_t dist_m;  // metres from the previous coordinates; 0 if unchanged
-  uint8_t far;     // crossed WEATHER_MOVE_KM
+  int32_t age_s;   // how old the fix was when handed over; -1 if not from a fix
   uint8_t first;   // the first fix of all, which is not a move
-  uint8_t pad[2];
+  uint8_t pad[3];
 } LocEvent;
 
 // Every counter the log cannot reconstruct once it has wrapped.
 typedef struct {
   uint16_t msgs;     // LAT/LON messages received, unchanged ones included
   uint16_t changes;  // those that actually moved the coordinates
-  uint16_t fars;     // those that crossed the threshold
   uint16_t n;        // entries written, capped at LOG_N
   uint16_t head;     // next slot to write
-  uint16_t pad;
   LocEvent ev[LOG_N];
 } LocLog;
 
@@ -89,11 +87,11 @@ static void save_persisted(void) {
   persist_write_data(PERSIST_KEY_LOG, &s_log, sizeof(LocLog));
 }
 
-static void log_event(int32_t dist_m, bool far, bool first) {
+static void log_event(int32_t dist_m, int32_t age_s, bool first) {
   LocEvent *e = &s_log.ev[s_log.head];
   e->at = (int32_t)time(NULL);
   e->dist_m = dist_m;
-  e->far = far ? 1 : 0;
+  e->age_s = age_s;
   e->first = first ? 1 : 0;
   s_log.head = (uint16_t)((s_log.head + 1) % LOG_N);
   if (s_log.n < LOG_N) s_log.n++;
@@ -176,8 +174,8 @@ static void canvas_update(Layer *layer, GContext *ctx) {
   }
   y += 16;
 
-  snprintf(buf, sizeof(buf), "msgs %d  moved %d  far %d", (int)s_log.msgs,
-           (int)s_log.changes, (int)s_log.fars);
+  snprintf(buf, sizeof(buf), "msgs %d  moved %d", (int)s_log.msgs,
+           (int)s_log.changes);
   line(ctx, buf, y, w, false);
   y += 16;
 
@@ -202,17 +200,26 @@ static void canvas_update(Layer *layer, GContext *ctx) {
 
   for (int i = 0; i < s_log.n; i++) {
     const LocEvent *e = &s_log.ev[(s_log.head + LOG_N - 1 - i + LOG_N) % LOG_N];
+    char age[12];
     fmt_clock(c, sizeof(c), (time_t)e->at);
+    // "~" because it is how stale the fix already was when it arrived, not how
+    // long ago it arrived. A high number here with the phone in a pocket means
+    // the 30-minute allowance is buying lag rather than saving a receiver.
+    if (e->age_s < 0) {
+      age[0] = '\0';  // cached coordinates, with no fix behind them
+    } else {
+      snprintf(age, sizeof(age), "  ~%ldm", (long)(e->age_s / 60));
+    }
     if (e->first) {
-      snprintf(buf, sizeof(buf), "%s  first fix", c);
+      snprintf(buf, sizeof(buf), "%s  first fix%s", c, age);
     } else if (e->dist_m == 0) {
       // A message that changed nothing is the useful negative: it says the
       // top-up ran and the wearer had not moved, which is a different fact from
       // no message at all.
-      snprintf(buf, sizeof(buf), "%s  same", c);
+      snprintf(buf, sizeof(buf), "%s  same%s", c, age);
     } else {
       fmt_km(a, sizeof(a), e->dist_m);
-      snprintf(buf, sizeof(buf), "%s  +%s%s", c, a, e->far ? "  FAR" : "");
+      snprintf(buf, sizeof(buf), "%s  +%s%s", c, a, age);
     }
     line(ctx, buf, y, w, false);
     y += 16;
@@ -221,10 +228,14 @@ static void canvas_update(Layer *layer, GContext *ctx) {
 
 // --- messages ---------------------------------------------------------------
 
+// The same hourly wake the face sends, with the same key. WantWx is always 0
+// here: this app displays no weather, so there is nothing for the phone to
+// fetch -- but the position top-up on the far side is ungated, which is exactly
+// the behaviour being probed.
 static void send_request(void) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
-  dict_write_uint8(iter, 0, 0);
+  dict_write_uint8(iter, MESSAGE_KEY_WantWx, 0);
   app_message_outbox_send();
 }
 
@@ -242,7 +253,7 @@ static void outbox_failed(DictionaryIterator *iter, AppMessageResult reason, voi
 
 static void inbox_received(DictionaryIterator *iter, void *context) {
   bool have_lat = false, have_lon = false;
-  int32_t lat_raw = 0, lon_raw = 0;
+  int32_t lat_raw = 0, lon_raw = 0, age_s = -1;
 
   for (Tuple *t = dict_read_first(iter); t; t = dict_read_next(iter)) {
     if (t->key == MESSAGE_KEY_LAT) {
@@ -251,6 +262,8 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     } else if (t->key == MESSAGE_KEY_LON) {
       lon_raw = t->value->int32;
       have_lon = true;
+    } else if (t->key == MESSAGE_KEY_FixAge) {
+      age_s = t->value->int32;
     }
   }
   if (!have_lat || !have_lon) {
@@ -263,20 +276,17 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
 
   const bool first = !s_have;
   int32_t dist_m = 0;
-  bool far = false;
   if (!first && (lat_raw != s_lat_micro || lon_raw != s_lon_micro)) {
     const double lat1 = s_lat_micro / 1000000.0, lon1 = s_lon_micro / 1000000.0;
     const double lat2 = lat_raw / 1000000.0, lon2 = lon_raw / 1000000.0;
     dist_m = (int32_t)(weather_move_km(lat1, lon1, lat2, lon2) * 1000.0);
-    far = weather_moved_far(lat1, lon1, lat2, lon2);
     s_log.changes++;
-    if (far) s_log.fars++;
   }
 
   s_lat_micro = lat_raw;
   s_lon_micro = lon_raw;
   s_have = true;
-  log_event(dist_m, far, first);
+  log_event(dist_m, age_s, first);
   save_persisted();
   if (s_canvas) layer_mark_dirty(s_canvas);
 }
@@ -284,8 +294,8 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
 // --- services ---------------------------------------------------------------
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
-  // The same hourly cadence the face asks weather on, which is what carries the
-  // top-up. Asking across a dead link spends a wake to reach nobody.
+  // The same hourly cadence the face wakes the phone on. Asking across a dead
+  // link spends a wake to reach nobody.
   if (tick_time->tm_min == s_ask_minute && tick_time->tm_sec == 0 &&
       connection_service_peek_pebble_app_connection()) {
     send_request();

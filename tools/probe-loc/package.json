@@ -22,7 +22,9 @@
     ],
     "messageKeys": [
       "LAT",
-      "LON"
+      "LON",
+      "WantWx",
+      "FixAge"
     ],
     "resources": {
       "media": []
