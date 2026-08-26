@@ -804,15 +804,25 @@ screen: a screenshot easily catches the frame before the message arrives.
 
 ## Releases
 
-`dist/` is scp'd to a Nextcloud share and installed from a phone, so it holds
-**only known-good builds and whatever is currently being tested** — nothing
-superseded, nothing known-bad. Every file in it must be distinguishable on a
-phone screen: unique UUID *and* unique `displayName`.
+`dist/` is scp'd to a Nextcloud share and installed from a phone. Three files
+are always there, and `tools/deploy.sh` owns all three:
 
 - `pt2-shaot-watchface.pbw` — the latest build. This is the one to install.
 - `pt2-shaot-watchface-lastgood.pbw` — the rollback: the most recent build
   confirmed working on the watch. Install this if the latest misbehaves.
 - `BUILD.txt` — what is staged: version, commit, and which build the rollback is.
+
+Those two `.pbw`s are the main development path and **share a UUID**, which is
+what makes a rollback a single install rather than a choice. Nothing superseded
+and nothing known-bad joins them.
+
+**Anything else currently useful may sit here too** — a diagnostic probe, a
+comparison build — provided it has its own UUID *and* its own `displayName`, so
+a phone can tell them apart in a list. The rule that matters is not a file count
+but that no two files are confusable at the moment of installing one. Delete
+them when they stop being useful; the directory should not accumulate.
+`BUILD.txt` lists whatever extras it finds, so that manifest cannot drift from
+what is actually in the directory.
 
 The filenames are stable so that installing never involves a choice about which
 file is newest. `tools/deploy.sh` maintains them:

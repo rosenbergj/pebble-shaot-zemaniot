@@ -5,11 +5,20 @@
 #   tools/deploy.sh          build the current commit into dist/
 #   tools/deploy.sh --good   mark what is in dist/ as known good
 #
-# dist/ is scp'd to a file share and installed from a phone, so it holds only
-# two builds and each of them means something:
+# dist/ is scp'd to a file share and installed from a phone. Two files here are
+# the main development path, and this script owns both of them:
 #
 #   pt2-shaot-watchface.pbw           the latest build -- install this one
 #   pt2-shaot-watchface-lastgood.pbw  the rollback -- install this if that fails
+#
+# They share a UUID, which is what makes rollback a single install. Anything
+# else currently useful -- a diagnostic probe, a comparison build -- may sit
+# here too, as long as it has its own UUID and its own displayName so a phone
+# can tell them apart. Delete those when they stop being useful; the directory
+# should not accumulate.
+#
+# BUILD.txt lists whatever else it finds, so that manifest cannot drift from
+# what is actually in the directory.
 #
 # dist/ is gitignored, so nothing here can be restored by git. The rollback is
 # never written except through --good.
@@ -116,6 +125,24 @@ sha=$(git rev-parse HEAD)
   echo "Install pt2-shaot-watchface.pbw. The phone shows the version, so check"
   echo "it reads $v -- that is how you know the new file arrived and installed."
   echo
+  extras=$(find "$DIST" -maxdepth 1 -name '*.pbw' \
+             ! -name "$(basename "$PBW")" ! -name "$(basename "$LASTGOOD")" | sort)
+  if [ -n "$extras" ]; then
+    echo "Also here, and not part of the main build:"
+    echo "$extras" | while read -r f; do
+      # Read the name out of the bundle rather than trusting the filename, since
+      # that is what the phone will show in its list.
+      label=$(unzip -p "$f" appinfo.json 2>/dev/null |
+              python3 -c 'import json,sys
+try:
+    d = json.load(sys.stdin)
+    print("%s %s" % (d.get("longName", "?"), d.get("versionLabel", "")))
+except Exception:
+    print("")' 2>/dev/null)
+      echo "  $(basename "$f")  --  ${label:-unknown bundle}"
+    done
+    echo
+  fi
   if [ -f "$LASTGOOD" ]; then
     lastgood=$(git tag -l 'good-*' --sort=-v:refname | head -1)
     echo "If it misbehaves, install pt2-shaot-watchface-lastgood.pbw, which is"
