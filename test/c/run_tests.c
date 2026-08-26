@@ -655,6 +655,58 @@ static HebrewDate heb_midday(int y, int m, int d) {
   return hebdate_for_now(y, m, d, 12, true);
 }
 
+static void test_moved_far(void) {
+  // Coarse coordinates throughout, as everywhere else in this suite.
+  const double phl_lat = 39.95, phl_lon = -75.17;
+
+  group("a fix landing near the last one is not a move");
+  check(!weather_moved_far(phl_lat, phl_lon, phl_lat, phl_lon), "identical");
+  // ~1.1km north, and ~850m east at this latitude: GPS wander, or a walk.
+  check(!weather_moved_far(phl_lat, phl_lon, phl_lat + 0.01, phl_lon + 0.01),
+        "a kilometre or so");
+  // ~11km, which is one Open-Meteo grid cell: errands across town.
+  check(!weather_moved_far(phl_lat, phl_lon, phl_lat + 0.1, phl_lon),
+        "ten kilometres");
+  // Just inside 25km, north and south alike.
+  check(!weather_moved_far(phl_lat, phl_lon, phl_lat + 0.2, phl_lon), "22km north");
+  check(!weather_moved_far(phl_lat, phl_lon, phl_lat - 0.2, phl_lon), "22km south");
+
+  group("a relocation is");
+  check(weather_moved_far(phl_lat, phl_lon, phl_lat + 0.3, phl_lon), "33km north");
+  check(weather_moved_far(phl_lat, phl_lon, 40.71, -74.01), "Philadelphia to New York");
+  check(weather_moved_far(phl_lat, phl_lon, 34.05, -118.24), "a transcontinental flight");
+  check(weather_moved_far(phl_lat, phl_lon, 51.51, -0.13), "an ocean");
+
+  group("the threshold is symmetric");
+  check(weather_moved_far(40.71, -74.01, phl_lat, phl_lon) ==
+            weather_moved_far(phl_lat, phl_lon, 40.71, -74.01),
+        "order does not matter for a long move");
+  check(weather_moved_far(phl_lat + 0.01, phl_lon, phl_lat, phl_lon) ==
+            weather_moved_far(phl_lat, phl_lon, phl_lat + 0.01, phl_lon),
+        "order does not matter for a short one");
+
+  group("longitude is scaled by latitude");
+  // 0.3 degrees of longitude is ~33km at the equator and ~13km at 68 north.
+  // Unscaled, the northern pair would cross the threshold the southern one does
+  // and the face would refetch every time a fix wobbled inside a Norwegian
+  // town.
+  check(weather_moved_far(0.0, 0.0, 0.0, 0.3), "0.3 deg of longitude at the equator");
+  check(!weather_moved_far(68.0, 15.0, 68.0, 15.3), "the same 0.3 deg at 68 north");
+
+  group("the antimeridian is crossed the short way");
+  // Two points 0.2 degrees apart with 359.8 between them by the naive
+  // subtraction. Near the equator, where the scaling cannot hide the error.
+  check(!weather_moved_far(0.0, 179.9, 0.0, -179.9), "0.2 deg across the line");
+  check(weather_moved_far(0.0, 179.5, 0.0, -179.5), "1 deg across the line");
+
+  group("the poles do not break it");
+  // cos() of a mean latitude of 90 is 0, so every longitude collapses to the
+  // same point and only the latitude difference is left. That is the right
+  // answer there, and it must not be a divide or a NaN.
+  check(!weather_moved_far(90.0, 0.0, 90.0, 180.0), "both at the north pole");
+  check(weather_moved_far(90.0, 0.0, 88.0, 0.0), "two degrees down from it");
+}
+
 static void test_shabbat(void) {
   group("the yom tov table");
   // Every (month, day) a Hebrew year can hold, counted both ways. Months 12 and
@@ -838,6 +890,7 @@ int main(void) {
   test_zmanim();
   test_next_event_ranking();
   test_weather();
+  test_moved_far();
   test_shabbat();
 
   printf("\n%d checks, %d failures\n", g_checks, g_failures);

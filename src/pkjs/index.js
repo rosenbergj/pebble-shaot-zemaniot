@@ -159,7 +159,16 @@ function ymdFromISO(s) {
   return y * 10000 + m * 100 + d;
 }
 
+// Which fetch is the current one. A reply from a superseded fetch is dropped
+// rather than shown: at `ready` the unprompted push goes out against the stored
+// coordinates while the fix that may replace them is still being taken, so
+// after a flight two fetches can be in the air at once -- one for the airport
+// left behind, one for the airport arrived at -- and without this the answer on
+// screen is whichever the network happened to return last.
+var wxSeq = 0;
+
 function fetchWeather(lat, lon) {
+  var seq = ++wxSeq;
   var url =
     "https://api.open-meteo.com/v1/forecast?latitude=" + lat +
     "&longitude=" + lon +
@@ -169,6 +178,7 @@ function fetchWeather(lat, lon) {
 
   var xhr = new XMLHttpRequest();
   xhr.onload = function () {
+    if (seq !== wxSeq) return; // a later fetch has already superseded this one
     var json;
     try {
       json = JSON.parse(this.responseText);

@@ -1816,11 +1816,19 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
   // Both coordinates must be present and in range before either is adopted, so
   // a partial or malformed message cannot pair a new latitude with a stale
   // longitude.
+  //
+  // Unchanged coordinates are not a change. The phone sends its cached pair the
+  // moment its JavaScript starts and then the fresh fix a few seconds later,
+  // and where the wearer has not moved those are the same numbers -- which used
+  // to throw away the bracket and the next-event cache and recompute the lot
+  // for an answer already on screen.
   bool location_changed = false;
+  bool moved_far = false;
   if (have_lat && have_lon) {
     double lat = lat_raw / 1000000.0;
     double lon = lon_raw / 1000000.0;
-    if (coords_sane(lat, lon)) {
+    if (coords_sane(lat, lon) && !(s_have_location && lat == s_lat && lon == s_lon)) {
+      moved_far = s_have_location && weather_moved_far(s_lat, s_lon, lat, lon);
       s_lat = lat;
       s_lon = lon;
       location_changed = true;
@@ -1833,6 +1841,18 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     s_last_day = -1;
     s_next_stale = 0;    // and the next-event cache, which is also per-location
     save_location();
+    // The solar maths is now right for the new place, and the weather is not:
+    // the phone fetches for its stored coordinates, and the fetch it makes when
+    // its JavaScript starts races the fix that produced these and loses. So the
+    // reading on screen after a flight describes the airport left behind, and
+    // nothing would replace it until the hourly slot came round -- up to an
+    // hour of confidently wrong weather. Asking here costs one request, and
+    // only past WEATHER_MOVE_KM so that the everyday case of a fix landing a
+    // few hundred metres from the last one spends nothing.
+    //
+    // The first fix of all is not a move: there is nothing to have moved from,
+    // and init() has already asked.
+    if (moved_far) request_weather();
   }
   if (settings_changed && memcmp(&before, &s_settings, sizeof(Settings)) == 0) {
     settings_changed = false;

@@ -1,5 +1,7 @@
 #include "weather.h"
 
+#include "trig.h"
+
 int32_t weather_ymd(int year, int mon1, int mday) {
   return (int32_t)year * 10000 + (int32_t)mon1 * 100 + (int32_t)mday;
 }
@@ -80,4 +82,33 @@ uint32_t weather_retry_ms(int attempt) {
     case 3: return 60000;
     default: return 0;
   }
+}
+
+// Kilometres in a degree of latitude, near enough anywhere. The threshold this
+// feeds is a judgement about relevance rather than a measurement, so the
+// spheroid's flattening is far below the slack in it.
+#define KM_PER_DEG 111.195
+
+// The Pebble toolchain compiles without the GNU extensions that define M_PI,
+// the same reason solar.c carries its own.
+#define PI 3.14159265358979323846
+#define DEG (PI / 180.0)
+
+bool weather_moved_far(double lat1, double lon1, double lat2, double lon2) {
+  double dlat = lat2 - lat1;
+  double dlon = lon2 - lon1;
+  // The short way round the antimeridian. Without this, crossing it reads as
+  // most of the way round the world, which is true of the number and not of
+  // the journey.
+  if (dlon > 180.0) dlon -= 360.0;
+  else if (dlon < -180.0) dlon += 360.0;
+
+  // A degree of longitude shrinks toward the poles. Left unscaled it would be
+  // counted at its equatorial length everywhere, so a move in the far north
+  // would measure larger than it is and cross the threshold early.
+  const double east = dlon * sz_cos(((lat1 + lat2) * 0.5) * DEG);
+  const double limit = WEATHER_MOVE_KM / KM_PER_DEG;
+  // Equirectangular and compared squared: no sqrt, and flat-earth error over a
+  // few hundred kilometres is nothing against a threshold this coarse.
+  return (east * east + dlat * dlat) > (limit * limit);
 }

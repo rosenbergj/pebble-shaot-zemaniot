@@ -252,6 +252,41 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   phone knows when its JavaScript began running, so this is the one push that
   is better than a pull. It costs a fetch per JS start even where nothing
   displays weather; nothing starts it but the watchface.
+- **Moving asks for weather; standing still does not.** The phone samples
+  position at JS start and then every six hours (`REFRESH_MS`) -- it does not
+  watch it, so a walk, a run or an afternoon of errands produce no location
+  message at all. What arrives is a handful of fixes a day, and the watch
+  compares each against the one it holds: identical coordinates are not a
+  change and do nothing, and a change past `WEATHER_MOVE_KM` (25km) also calls
+  `request_weather()`. Below that the fetch would return the same Open-Meteo
+  grid cell, which is about 11km across, so it would buy nothing.
+
+  This is only ever an *extra* request. The hourly slot is untouched: the
+  temperature and the forecast move whether or not the wearer does, and
+  location is not a reason to ask less often.
+
+  Without it the weather lagged the location by up to an hour. `updateWeather()`
+  fetches for the phone's *stored* coordinates and the `ready` push races the
+  fix that would replace them and loses -- so the first reading after a flight
+  described the airport left behind, and because it arrived stamped with the
+  current time it counted as fresh, which stood the chase down and failed the
+  five-minute catch-up gate. Nothing then replaced it until the hourly minute
+  came round.
+- **Two fetches can be in the air at once, and the later one wins.** `wxSeq` in
+  `index.js` stamps each fetch and the handler drops a reply that is no longer
+  the current one. The `ready` push and the fetch triggered by a big move are
+  the pair that overlap; without the token the answer on screen is whichever
+  the network happened to return last, which after a flight is a coin toss
+  between the two airports.
+- **To force a location update, restart the phone-side JavaScript.** Switching
+  watchfaces and back does it, as does a Bluetooth disconnect and reconnect or
+  a watch reboot: each one gives a fresh `ready`, hence a fresh fix, and both
+  the solar maths and the weather follow within seconds. **Saving settings does
+  not** -- it asks for weather, but the phone answers from its stored
+  coordinates and never takes a fix. Worth knowing on a road trip, where the
+  link never drops and nothing restarts the JavaScript, so an arrival waits out
+  the rest of the six-hour interval. A flight brings the link down and back on
+  its own and needs none of this.
 - **An unanswered request is chased**, since nothing else can tell. The send is
   fire-and-forget and the phone speaks only when it has something, so a request
   that was never heard looks exactly like one whose answer is still coming; the
