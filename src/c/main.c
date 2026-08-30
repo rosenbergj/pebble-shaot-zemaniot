@@ -513,13 +513,18 @@ static int32_t wx_wanted_ymd(const struct tm *lt) {
 }
 
 // The low can come from a different day than the high; see weather_low_ymd().
-// Falls back to the named day when we do not hold the other one, which happens
-// only to a payload fetched before local midnight, and that reading is already
-// old enough to be drawn muted.
-static int wx_low_day(const struct tm *lt, int named_day) {
+// Returns -1 when we do not hold that day, and the box says so with a "?".
+//
+// It used to fall back to the named day's own low instead. That is a pre-dawn
+// reading already hours behind the wearer, drawn in the same glyphs at the same
+// position as a correct one, with nothing but the muted staleness ink to
+// distinguish it -- a wrong number presented as a right one, which is worse
+// than an absent one. Only the low can go missing this way: the low's day is
+// never earlier than the named day, so if the high is unavailable the whole box
+// is already reading "--/--".
+static int wx_low_day(const struct tm *lt) {
   const int32_t ymd = weather_low_ymd(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday, lt->tm_hour);
-  const int day = weather_pick_day(&s_wx, ymd);
-  return (day >= 0) ? day : named_day;
+  return weather_pick_day(&s_wx, ymd);
 }
 
 static int wx_display_temp(int celsius) {
@@ -678,11 +683,16 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
                      ? "today"
                      : kWday[(lt->tm_wday + 1) % 7]);
         if (day >= 0) {
-          // Ordered by when they are due, not by which is larger.
-          const int hi = wx_display_temp(s_wx.day_high_c[day]);
-          const int lo = wx_display_temp(s_wx.day_low_c[wx_low_day(lt, day)]);
+          // Ordered by when they are due, not by which is larger. Either may
+          // be a "?" in principle; in practice only the low ever is, and only
+          // between the two cutoffs on the last day a payload covers.
+          const int low_day = wx_low_day(lt);
+          char hi[8], lo[8];
+          snprintf(hi, sizeof(hi), "%d", wx_display_temp(s_wx.day_high_c[day]));
+          if (low_day >= 0) snprintf(lo, sizeof(lo), "%d", wx_display_temp(s_wx.day_low_c[low_day]));
+          else snprintf(lo, sizeof(lo), "?");
           const bool low_first = weather_low_first(lt->tm_hour);
-          snprintf(value, value_n, "%d/%d", low_first ? lo : hi, low_first ? hi : lo);
+          snprintf(value, value_n, "%s/%s", low_first ? lo : hi, low_first ? hi : lo);
         } else {
           snprintf(value, value_n, "--/--");
         }

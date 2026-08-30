@@ -404,18 +404,26 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   dated assertions, so trimming the third day fails there rather than on
   someone's wrist. The emulator cannot help: its clock will not hold still
   long enough to cross even one cutoff.
-- **A substituted low is the failure worth knowing about.** When
-  `weather_pick_day()` cannot find the low's day, `wx_low_day()` falls back to
-  the named day's own low — which by then is a pre-dawn reading already hours
-  past, presented in exactly the same shape as a correct one. Only the muted
-  staleness ink distinguishes it, and that is a weak signal. It is now confined
-  to the last day a payload covers, but it has not been made self-describing.
-
-  The muted ink at least still covers it after the fade moved to 24h, with room
-  to spare. The fallback cannot fire before hour 6 of D+2 for a payload fetched
-  on D, so the youngest payload that can substitute a low was fetched at 23:59
-  on D and is 30 hours old by then — past `WEATHER_FC_STALE_SECS` even if a
-  spring-forward shortens one of those days.
+- **A low it does not hold reads `?`, not a number.** When
+  `weather_pick_day()` cannot find the low's day, `wx_low_day()` returns -1 and
+  the box shows the pair as `80/?`. It used to substitute the named day's own
+  low instead — a pre-dawn reading already hours behind the wearer, drawn in the
+  same glyphs at the same position as a correct one, with nothing but the muted
+  staleness ink to say so. That is a wrong number presented as a right one,
+  which is worse than an absent one, and the fade was far too weak a signal to
+  carry it.
+- **`?` is a daytime-only state, and that is a property of the two cutoffs
+  rather than a coincidence.** Past `WEATHER_CUTOFF_HOUR` the box names tomorrow
+  and `weather_low_ymd()` also points at tomorrow, so both numbers come from one
+  day: the box either holds it and answers in full, or holds nothing and is
+  already `--/--`. There is no evening half-answer to design for. The `?` can
+  therefore only appear between the two cutoffs, and only on the last day a
+  payload covers. Both facts are asserted in `test/c/run_tests.c` against every
+  hour of every day a payload spans.
+- **Only the low can go missing on its own.** The low's day is never earlier
+  than the named day, so a high that cannot be answered takes the low with it
+  and the box reads `--/--`. `?/80` is unreachable; the ordering code handles it
+  anyway rather than depending on the argument.
 - **Degrading:** never-fetched shows `--°` centred, with no icon. Data too old
   keeps its place but is drawn in a muted ink, icon included — still readable,
   visibly not live. The whole `WeatherData` struct is persisted, so a relaunch

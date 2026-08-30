@@ -540,14 +540,28 @@ static void test_weather(void) {
       const bool have_low = weather_pick_day(&w, lowd) >= 0;
       check(have_high == (want <= last_held), "the named day is answerable exactly while held");
       check(have_low == (lowd <= last_held), "the low's day is answerable exactly while held");
-      // main.c falls back to the named day's low when it cannot get the right
-      // one, which shows a temperature already behind the wearer and says
-      // nothing about it. Pin down when that can happen: only in the window
-      // between the two cutoffs on the very last day the payload covers.
+      // main.c draws the low as "?" when it cannot get the right one, rather
+      // than substituting the named day's own -- a pre-dawn reading already
+      // behind the wearer, shown in the same shape as a correct one. Pin down
+      // when the "?" can appear: only in the window between the two cutoffs,
+      // and only on the very last day the payload covers.
       if (have_high && !have_low) {
         check(want == last_held && h >= WEATHER_LOW_CUTOFF_HOUR && h < WEATHER_CUTOFF_HOUR,
-              "a substituted low happens only on the payload's final day");
+              "a missing low happens only on the payload's final day");
       }
+      // Past the main cutoff the two rules name the same day, which is what
+      // makes "80/?" impossible in the evening: the box either holds that day
+      // and has both numbers, or holds nothing and is already "--/--". The
+      // question this answers is what an evening in that state should show,
+      // and the answer is that there is no such evening.
+      if (h >= WEATHER_CUTOFF_HOUR) {
+        check(want == lowd, "after the cutoff the high and the low are one day");
+        check(have_high == have_low, "so the evening box is never half-answered");
+      }
+      // The only asymmetry that exists: the low's day is never earlier than the
+      // named day, so a missing high always takes the low with it.
+      check(lowd >= want, "the low is never asked of an earlier day than the high");
+      if (!have_high) check(!have_low, "no high means no low, so the box reads --/--");
     }
     cur = weather_next_ymd(cur);
   }
