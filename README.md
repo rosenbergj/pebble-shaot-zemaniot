@@ -648,14 +648,37 @@ placement the pair had when they were fixed: battery left, rune right.
   around them. They are drawn from `canvas_update()` after `draw_face()`
   returns, because `draw_face()` gives up early when the unobstructed area is
   too short for the footer, and an indicator that vanishes under a Timeline
-  Peek is not doing its job. The gutters are dead space at every time of day,
-  since the clock is centred, so nothing has to move to make room.
+  Peek is not doing its job. Nothing is laid out around them, so nothing moves
+  to make room -- but see the next note for why that is not the same as the
+  gutters being empty.
 - **They share one anchor row and never move.** `gutter_top()` measures from
   `layer_get_bounds()`, not from the unobstructed area, so a Timeline Peek does
   not shift them; see the Peek note under "Platform constraints" for what
   anchoring them to the visible area did. Both centre on the same row whichever
   gutter they are in, so the pair reads as a matched set when they happen to
   appear together.
+- **The gutters are not as dead as "the clock is centred" suggests, and the
+  anchor row is lifted 3px to account for it.** Measured on an unobstructed
+  200x228 screen, the civil clock stops painting at row 85 -- but at its widest,
+  `HH:MM:SS`, it paints out to x=195, which is inside the right-hand gutter's
+  columns. Below it the shaot line starts at row 117 and its glyphs advance
+  about 25px, so the eight-glyph reading `HH.MM.CC` spans roughly x=14 to x=186
+  and puts its last digit *under* the rune rather than beside it. Both lines
+  reach across the gutter; only their middles do not.
+
+  The structural midpoint of `BAND_H` to `footer_top` lands 3px below the middle
+  of the gap those two lines actually leave. Before `GUTTER_LIFT` the rune inked
+  rows 92-117 and the shaot line starts at 117, so they shared a row -- six clear
+  rows above and none below, which reads as a rune resting on the shaot line.
+  The lift makes it 3 above and 2 below, and centres the low-battery cell at the
+  same time: it went from rows 98-110 (12 above, 6 below) to 95-107, an even 9
+  and 9. `screenshots/gutter-07-lifted-both-btforced.png` is the reference shot.
+
+  Only five rows are free to share, so generous gaps on both sides are not
+  available at this rune size; even is the best the space allows. The lift is a
+  constant and not a measurement of what is on screen, because making it depend
+  on the clock's width would move the rune at 1:00 and 10:00, when the 12-hour
+  clock gains and loses a digit.
 - **Only one of the two can be checked properly in the emulator.**
   `pebble emu-battery --percent 12` drives the low-battery mark end to end;
   a genuine disconnect cannot be produced at all (see below). Screenshots of

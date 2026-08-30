@@ -1397,9 +1397,24 @@ static void bt_rune(GContext *ctx, int cx, int top, int h) {
 // Timeline Peek appeared. An indicator that moves when unrelated news arrives
 // reads as news itself. The resting rows are far above the peek, so holding
 // still costs no visibility.
+// The band's midpoint is not where the ink is. Between the band and the footer
+// sit two lines of very different heights, and the structural midpoint lands 3px
+// below the middle of the gap they actually leave: measured on an unobstructed
+// screen, the civil clock stops painting at row 85 and the shaot line starts at
+// row 117, while the rune inks rows 92 to 117 -- so it shared a row with the
+// shaot line and had six clear rows above it. That reads as a rune sitting on
+// the shaot line, and the wide reading makes it worse, since HH.MM.CC spans far
+// enough right to put its last digit under the rune rather than beside it.
+//
+// The lift is a constant, not a measurement of what is on screen. Making it
+// depend on the clock's width would move the rune at 1:00 and 10:00, when the
+// 12-hour clock gains and loses a digit -- the same fault as anchoring it to the
+// visible area, on a shorter cycle.
+#define GUTTER_LIFT 3
+
 static int gutter_top(GRect bounds) {
   const int footer_top = bounds.size.h - FOOTER_ZONE_H;
-  return (BAND_H + footer_top) / 2 - GUTTER_W / 2;
+  return (BAND_H + footer_top) / 2 - GUTTER_W / 2 - GUTTER_LIFT;
 }
 
 // The left edge of a gutter's box. Both gutters keep the same margin from their
