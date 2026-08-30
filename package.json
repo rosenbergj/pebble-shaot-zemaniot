@@ -1,7 +1,7 @@
 {
   "name": "shaot",
   "author": "Josh Rosenberg",
-  "version": "1.0.43",
+  "version": "1.0.44",
   "keywords": [
     "pebble-app"
   ],
@@ -57,7 +57,8 @@
       "GutterRight",
       "SecondDays",
       "ShabbatSuppressTaps",
-      "WantWx"
+      "WantWx",
+      "BtVibe"
     ],
     "resources": {
       "media": [

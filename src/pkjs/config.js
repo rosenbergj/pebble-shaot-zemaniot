@@ -185,6 +185,21 @@ module.exports = [
   {
     type: "section",
     items: [
+      { type: "heading", defaultValue: "When the phone goes away" },
+      {
+        type: "toggle",
+        messageKey: "BtVibe",
+        label: "Vibrate on disconnection",
+        description:
+          "Three pulses when the link to the phone drops, and nothing when " +
+          "it comes back. Silent during Quiet Time.",
+        defaultValue: false,
+      },
+    ],
+  },
+  {
+    type: "section",
+    items: [
       { type: "heading", defaultValue: "Shabbat and festivals" },
       {
         type: "toggle",

@@ -69,7 +69,25 @@ typedef enum {
   GUTTER_LOWBATT = 2,  // empty red cell at or below the low mark
 } GutterKind;
 
+// The layout version of the settings blob, checked on load. The size check on
+// its own cannot see a change that padding absorbs: adding bt_vibe left
+// sizeof(Settings) at 24, so a blob written before it would have been accepted
+// and read a byte out of step from gutter_left onward -- every slot shifted one
+// along, slot_right taking whatever was in the padding, and all of it inside
+// the ranges the checks below enforce. That is the same trap that cost key 1.
+//
+// Bump this whenever a field is added, removed or reordered. A mismatch falls
+// back to the defaults, and the phone re-sends the wearer's real choices on the
+// next launch, which is what already happens when the size changes.
+//
+// Starts at 2 rather than 1: byte 0 of an unversioned blob is offset6, which is
+// 0 or 1, so no old blob can pass for a versioned one.
+#define SETTINGS_SCHEMA 2
+
 typedef struct {
+  // The layout this blob was written by; see SETTINGS_SCHEMA. First field on
+  // purpose, so it is read before anything that a shifted layout would corrupt.
+  uint8_t schema;
   bool offset6;
   bool with_minutes;
   bool tick_seconds;
@@ -78,6 +96,7 @@ typedef struct {
   bool metric;     // temperatures in Celsius rather than Fahrenheit
   bool second_days;    // festivals keep their second day
   bool shabbat_no_taps;  // the tap gesture does nothing on Shabbat or yom tov
+  bool bt_vibe;          // buzz when the link to the phone drops
   uint8_t gutter_left, gutter_right;  // GutterKind
   uint8_t slot_band, slot_left, slot_mid, slot_right;
   uint32_t accent;      // 0xRRGGBB
@@ -85,6 +104,7 @@ typedef struct {
 } Settings;
 
 static Settings s_settings = {
+    .schema = SETTINGS_SCHEMA,
     .offset6 = false,
     .with_minutes = true,
     .tick_seconds = true,
@@ -93,6 +113,7 @@ static Settings s_settings = {
     .metric = false,
     .second_days = true,
     .shabbat_no_taps = true,
+    .bt_vibe = false,
     .gutter_left = GUTTER_LOWBATT,
     .gutter_right = GUTTER_BT,
     .slot_band = SLOT_HEBREW,
@@ -114,9 +135,13 @@ static bool s_have_location = false;
 // kinds. That swap left sizeof(Settings) unchanged, so the size check below
 // could not tell the old layout from the new one and would have read a pair of
 // bools as a pair of kinds -- "both marks on" coming back as the Bluetooth rune
-// in both gutters. Moving to a new key retires the old blob instead of
+// in both gutters. Moving to a new key retired the old blob instead of
 // misreading it; load_persisted() deletes it so the flash is not carrying a
 // struct nothing will ever read again.
+//
+// SETTINGS_SCHEMA is the general answer to that, and the reason there is no key
+// 6: the blob now says which layout wrote it, so the next such change is caught
+// by the version rather than by burning another key.
 #define PERSIST_KEY_SETTINGS_V1 1
 #define PERSIST_KEY_LAT 2
 #define PERSIST_KEY_LON 3
@@ -349,7 +374,11 @@ static void load_persisted(void) {
   if (persist_exists(PERSIST_KEY_SETTINGS_V1)) persist_delete(PERSIST_KEY_SETTINGS_V1);
   if (persist_exists(PERSIST_KEY_SETTINGS) &&
       persist_get_size(PERSIST_KEY_SETTINGS) == (int)sizeof(Settings)) {
-    persist_read_data(PERSIST_KEY_SETTINGS, &s_settings, sizeof(Settings));
+    // Into a scratch copy, so a blob that fails the version check cannot leave
+    // the defaults half overwritten.
+    Settings stored;
+    persist_read_data(PERSIST_KEY_SETTINGS, &stored, sizeof(stored));
+    if (stored.schema == SETTINGS_SCHEMA) s_settings = stored;
   }
   // Range-check rather than trust: persistent storage is keyed by app UUID and
   // survives reinstalls, so these ints can predate this build entirely.
@@ -372,6 +401,9 @@ static void load_persisted(void) {
 }
 
 static void save_settings(void) {
+  // Stamped here rather than trusted from the initialiser, so the blob on flash
+  // is always labelled by the build that wrote it.
+  s_settings.schema = SETTINGS_SCHEMA;
   persist_write_data(PERSIST_KEY_SETTINGS, &s_settings, sizeof(Settings));
 }
 
@@ -1672,8 +1704,28 @@ static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
   layer_mark_dirty(s_canvas);
 }
 
+// The buzz when the phone goes away, off by default and opt-in in the settings.
+// Pattern and policy follow TimeStyle's: three pulses, the last one long, so it
+// is not mistaken for a notification, which is a single short one.
+//
+// On the drop only, never on the reconnect. A watch that buzzed both ways would
+// report the phone coming back, which the wearer can already see, and would
+// double the interruption on every walk out of range and back.
+static void bt_vibe(void) {
+  // Quiet Time is a watch-wide "not now" and this is a watchface, not an alarm.
+  if (quiet_time_is_active()) return;
+  static const uint32_t segments[] = {200, 100, 100, 100, 500};
+  const VibePattern pat = {.durations = segments, .num_segments = ARRAY_LENGTH(segments)};
+  vibes_enqueue_custom_pattern(pat);
+}
+
 static void connection_handler(bool connected) {
+  // Compared rather than assumed. The subscription only reports changes, but
+  // the buzz is the one thing here that cannot be taken back if that ever stops
+  // being true, so it is spelled out.
+  const bool was_connected = s_bt_connected;
   s_bt_connected = connected;
+  if (s_settings.bt_vibe && was_connected && !connected) bt_vibe();
   // Reconnecting is the first chance to catch up on whatever was missed while
   // the phone was away, and it costs nothing when the data is already current.
   // Position as well as weather: a link that has been down is exactly when the
@@ -1802,6 +1854,8 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.gutter_right = (uint8_t)v; settings_changed = true; }
     } else if (k == MESSAGE_KEY_SecondDays) {
       if (tuple_to_int(t, &v)) { s_settings.second_days = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_BtVibe) {
+      if (tuple_to_int(t, &v)) { s_settings.bt_vibe = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_ShabbatSuppressTaps) {
       if (tuple_to_int(t, &v)) { s_settings.shabbat_no_taps = (v != 0); settings_changed = true; }
 

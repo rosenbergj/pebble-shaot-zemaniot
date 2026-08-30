@@ -192,9 +192,10 @@ watch.
   fails on `MESSAGE_KEY_<new>` being undeclared while the key sits right there
   in the manifest.
 - **Adding a field to `Settings` makes the watch discard its copy — but the
-  wearer does not normally see that.** `load_persisted()` compares the stored
-  size against `sizeof(Settings)` and falls back to the defaults when they
-  differ, which is what stops an old struct being misread through a new layout.
+  wearer does not normally see that.** `load_persisted()` checks the stored
+  `schema` byte against `SETTINGS_SCHEMA`, and the stored size against
+  `sizeof(Settings)`, falling back to the defaults unless both agree — which is
+  what stops an old struct being misread through a new layout.
   The phone then heals it: `resendSettings()` pushes Clay's stored values on
   every `ready`, so the real choices are back within a second of launch without
   anyone opening the settings page. Do not tell the wearer their settings will
@@ -631,9 +632,10 @@ gesture back.
 Settings live in two places: Clay keeps them on the phone, and the watch keeps
 its own copy as a single `Settings` struct in persistent storage.
 
-**The watch discards its copy whenever the struct's size changes**, which is
-every build that adds a setting — `load_persisted()` compares the stored size
-and falls back to the defaults rather than misreading an old layout. The phone
+**The watch discards its copy whenever the struct's layout changes**, which is
+every build that adds a setting — `load_persisted()` checks the stored version
+and size, and falls back to the defaults rather than misreading an old layout.
+The phone
 does not know that happened, so it goes on showing the wearer's real choices
 while the watch shows defaults, and the two only re-agree when the settings
 page is opened and saved. Each half is behaving as written; together they look
@@ -647,6 +649,20 @@ Two details it depends on:
   been removed — `ClockStyle` was, once — stays behind in Clay's store, and
   would otherwise map to an undefined message key and travel as junk. The
   filter uses `require('message_keys')`, the same mapping Clay itself uses.
+- **The size check alone was not enough, which is why the struct carries a
+  version.** It only sees a layout change that moves the size, and padding can
+  absorb one that does not: adding `bt_vibe` left `sizeof(Settings)` at 24, so
+  an older blob would have been accepted and read a byte out of step from
+  `gutter_left` on — every slot shifted one along, `slot_right` taking whatever
+  was in the padding, and all of it inside the ranges the checks enforce. The
+  same trap cost key 1 when the gutter toggles became gutter kinds; that was
+  answered by burning a persist key, which does not scale. `SETTINGS_SCHEMA` is
+  the general answer, so there is no key 6 and there should never need to be
+  one. Bump it whenever a field is added, removed or reordered. It starts at 2
+  because byte 0 of an unversioned blob is `offset6`, which is 0 or 1, so no old
+  blob can pass for a versioned one. Both halves are checked on the emulator by
+  bumping the constant in a throwaway build and watching the slots return to
+  their defaults.
 - **The watch compares before it writes.** A settings message now arrives on
   every launch, so `inbox_received()` keeps a copy of `Settings` and skips
   `save_settings()` when nothing actually differs. Without that, every launch
@@ -733,6 +749,28 @@ placement the pair had when they were fixed: battery left, rune right.
   `connection_service_peek_pebble_app_connection()`. Verify by inverting the
   test in a probe build, which proves the icon tracks the flag; the genuine
   disconnected case can only be seen on the watch.
+- **Vibrating on disconnection is a watchface's job, not the system's**, which
+  is not obvious — the watch has no setting for it, so a face that does not
+  offer one cannot be made to do it. Off by default here, since a wearer whose
+  phone is routinely away would otherwise be buzzed every time it goes.
+
+  Pattern and policy follow TimeStyle's. `{200, 100, 100, 100, 500}` through
+  `vibes_enqueue_custom_pattern()`: three pulses ending on a long one, so it is
+  not mistaken for a notification, which is a single short one. On the drop
+  only, never on the reconnect — a buzz for the phone coming back reports
+  something the wearer can already see and doubles the interruption on every
+  walk out of range and back. Suppressed by `quiet_time_is_active()`, because
+  Quiet Time is a watch-wide "not now" and this is a watchface, not an alarm.
+
+  `connection_handler()` compares the previous flag rather than assuming the
+  subscription only reports changes. It does, but a buzz cannot be taken back,
+  so the one irreversible thing on this path does not rest on that.
+
+  **Only the trigger can be checked here, and only indirectly.** The emulator
+  cannot produce the disconnect that fires it, and a vibration does not appear
+  in a screenshot, so the buzz itself is verifiable on the watch alone. What
+  the emulator does cover is the setting reaching the struct and surviving a
+  relaunch.
 - **The low-battery cell is drawn empty, and that is the whole point.** A
   proportional fill would be a second, smaller battery gauge arguing with the
   one a footer box may already be showing. This one is not a reading, it is a
