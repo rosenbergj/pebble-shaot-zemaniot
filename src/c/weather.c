@@ -62,12 +62,22 @@ int weather_pick_day(const WeatherData *w, int32_t wanted_ymd) {
   return -1;
 }
 
-bool weather_is_stale(const WeatherData *w, int32_t now) {
-  if (!w->have_current || w->fetched_at == 0) return false;
+static bool aged_past(const WeatherData *w, int32_t now, int32_t limit) {
+  if (w->fetched_at == 0) return false;
   // A clock that has gone backwards -- a manual time change, say -- would make
   // a fresh reading look arbitrarily old. Treat the future as fresh.
   if (now < w->fetched_at) return false;
-  return (now - w->fetched_at) > WEATHER_STALE_SECS;
+  return (now - w->fetched_at) > limit;
+}
+
+bool weather_is_stale(const WeatherData *w, int32_t now) {
+  if (!w->have_current) return false;
+  return aged_past(w, now, WEATHER_STALE_SECS);
+}
+
+bool weather_forecast_is_stale(const WeatherData *w, int32_t now) {
+  if (!w->have_days) return false;
+  return aged_past(w, now, WEATHER_FC_STALE_SECS);
 }
 
 uint32_t weather_retry_ms(int attempt) {

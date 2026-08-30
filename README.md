@@ -410,18 +410,42 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   past, presented in exactly the same shape as a correct one. Only the muted
   staleness ink distinguishes it, and that is a weak signal. It is now confined
   to the last day a payload covers, but it has not been made self-describing.
-- **Degrading:** never-fetched shows `--°` centred, with no icon. Data older
-  than `WEATHER_STALE_SECS` (3h, six missed refreshes) keeps its place but is
-  drawn in a muted ink, icon included — still readable, visibly not live. The
-  whole `WeatherData` struct is persisted, so a relaunch is not blank.
+
+  The muted ink at least still covers it after the fade moved to 24h, with room
+  to spare. The fallback cannot fire before hour 6 of D+2 for a payload fetched
+  on D, so the youngest payload that can substitute a low was fetched at 23:59
+  on D and is 30 hours old by then — past `WEATHER_FC_STALE_SECS` even if a
+  spring-forward shortens one of those days.
+- **Degrading:** never-fetched shows `--°` centred, with no icon. Data too old
+  keeps its place but is drawn in a muted ink, icon included — still readable,
+  visibly not live. The whole `WeatherData` struct is persisted, so a relaunch
+  is not blank.
+- **The two halves fade on different clocks, and that is the point.** The
+  current reading fades past `WEATHER_STALE_SECS` (3h, six missed refreshes);
+  the forecast past `WEATHER_FC_STALE_SECS` (24h). "72 now" three hours old is a
+  claim about a moment that has passed. A high and a low for a named day is the
+  same claim it was when it was fetched, and stays worth reading until the day
+  it names has gone — roughly as long as the payload itself lasts with no phone,
+  which is what set the number. Fading them together meant that after a night
+  with the phone away, which is the ordinary case here and not the unusual one,
+  the box came back muted over a forecast that was fine.
+
+  `weather_forecast_is_stale()` is a separate predicate rather than a limit
+  argument, and only the fade reads it. Everything else stays on `s_wx_stale`:
+  the switch away from "now", the swapped fill, the inert tap and the
+  five-minute catch-up fetch are all about the current reading having gone off.
+  Because that switch fires on the same 3h flag, the "now" half is in fact never
+  on screen while stale, so its arm of the fade is unreachable today — written
+  out regardless, so the fade does not silently depend on two rules happening to
+  share a threshold.
 
   **That fade is a weak signal, and the numbers are on record.** It is a
   contrast reduction and nothing else: white to `#ABABAB`, identical glyphs,
   identical icon, identical position. On the accent fill it drops 6.5:1 to
   2.8:1 and reads as washed out; on the background box it drops 21:1 to
   **8.9:1** -- still nearly twice the threshold for ordinary body text, so it
-  simply reads as text. It says nothing about *how* old either: three hours
-  and twenty-six hours look identical. Not noticed on the wrist, which
+  simply reads as text. It says nothing about *how* old either: on the forecast,
+  a day and a week look identical. Not noticed on the wrist, which
   matches. Replacing it is deferred rather than settled;
   `screenshots/staleness-*.png` are the reference shots.
 - **Stale data stops a "Weather now/forecast" box offering "now" at all.** Past

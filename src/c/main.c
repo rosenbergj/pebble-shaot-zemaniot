@@ -154,6 +154,12 @@ static AppTimer *s_alt_timer = NULL;
 // for itself.
 static bool s_wx_stale = false;
 
+// The forecast's own answer, on the slower clock in WEATHER_FC_STALE_SECS. Only
+// the fade reads it: the switch away from "now", the fill swap, the inert tap
+// and the five-minute catch-up fetch all stay on s_wx_stale, because they are
+// about the current reading having gone off and not about the forecast.
+static bool s_wx_fc_stale = false;
+
 // Long enough to read a two-number forecast, short enough that a tap from a
 // jostled wrist is not still showing it a minute later. Watchfaces get no
 // screen touch, so every tap here is the accelerometer and some of them are
@@ -1040,6 +1046,7 @@ static void refresh(time_t now) {
   // Ahead of every early exit: this one does not depend on having a location,
   // and a weather box is drawn from it whether or not the solar maths worked.
   s_wx_stale = weather_is_stale(&s_wx, (int32_t)now);
+  s_wx_fc_stale = weather_forecast_is_stale(&s_wx, (int32_t)now);
   // The early exits below all mean "not known", and leaving a stale answer
   // behind would be worse than saying so.
   s_shabbat = SHABBAT_NONE;
@@ -1311,9 +1318,15 @@ static void draw_face(Layer *layer, GContext *ctx) {
       // The gauge occupies the label row, which is why the box needs no
       // retuning: the percentage stays exactly where the value always sat.
       if (layout == SLOT_LAYOUT_WEATHER) {
-        const GColor wink = s_wx_stale ? wx_muted(ink) : ink;
-        const GColor lab = s_wx_stale ? wink : (on_fill ? s_on_accent : s_dim);
         const bool fc = kind_shows_forecast(kinds[i]);
+        // Which half is on screen decides which clock it is judged by. As the
+        // code stands the "now" half is never drawn while s_wx_stale -- the
+        // switch to the forecast fires on the same flag -- so the first arm is
+        // unreachable today. It is written out anyway: the alternative is a
+        // fade that silently depends on two rules sharing a threshold.
+        const bool faded = fc ? s_wx_fc_stale : s_wx_stale;
+        const GColor wink = faded ? wx_muted(ink) : ink;
+        const GColor lab = faded ? wink : (on_fill ? s_on_accent : s_dim);
         const int day = fc ? weather_pick_day(&s_wx, wx_wanted_ymd(&lt)) : -1;
         const bool have = fc ? (day >= 0) : (bool)s_wx.have_current;
         GDrawCommandImage *icon = have ? wx_icon(fc ? s_wx.day_cond[day] : s_wx.cond) : NULL;

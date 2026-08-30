@@ -49,8 +49,21 @@ typedef enum {
 #define WEATHER_LOW_CUTOFF_HOUR 6
 
 // Six missed refreshes at TimeStyle's half-hourly cadence. Past this the
-// reading is shown faded rather than as though it were current.
+// current reading is shown faded rather than as though it were current, and
+// a "Weather now/forecast" box gives up offering "now" at all.
 #define WEATHER_STALE_SECS (3 * 60 * 60)
+
+// The forecast fades on a slower clock, because the two age differently. "72
+// now" three hours old is a claim about a moment that has passed. A high and a
+// low for a named day is the same claim it was when it was fetched, and stays
+// worth reading until the day it names has gone. Fading them together said
+// otherwise: after a night with the phone away -- the ordinary case here, not
+// the unusual one -- the box came back faded over a forecast that was fine.
+//
+// A day. That is about how long the payload itself lasts with no phone (see
+// WEATHER_DAYS), so the fade arrives at roughly the point the data runs out
+// rather than long before it.
+#define WEATHER_FC_STALE_SECS (24 * 60 * 60)
 
 
 typedef struct {
@@ -127,9 +140,17 @@ int weather_pick_day(const WeatherData *w, int32_t wanted_ymd);
 // polling loop running behind the first.
 uint32_t weather_retry_ms(int attempt);
 
-// True once the reading is too old to present as current. Never-fetched data
-// is not stale; it is absent, which the caller distinguishes by have_current.
+// True once the current reading is too old to present as current. Never-fetched
+// data is not stale; it is absent, which the caller distinguishes by
+// have_current.
 bool weather_is_stale(const WeatherData *w, int32_t now);
+
+// The same question asked of the forecast, against WEATHER_FC_STALE_SECS. Held
+// apart from weather_is_stale() rather than given a limit argument because the
+// two answer different questions about the same payload, and every caller wants
+// one specific one of them. A forecast that never arrived is absent rather than
+// stale, which the caller sees as have_days.
+bool weather_forecast_is_stale(const WeatherData *w, int32_t now);
 
 // How far apart two positions are, in kilometres. Nothing on the face needs it:
 // coordinates are adopted whatever the distance, and weather is fetched behind

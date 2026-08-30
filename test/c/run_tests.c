@@ -580,6 +580,28 @@ static void test_weather(void) {
   // look arbitrarily old.
   check(!weather_is_stale(&w, 999000), "a clock that went backwards is not stale");
 
+  group("the forecast fades on a slower clock");
+  memset(&w, 0, sizeof(w));
+  check(!weather_forecast_is_stale(&w, 1000000), "no forecast held is absent, not stale");
+  w.have_days = 1;
+  w.fetched_at = 1000000;
+  check(!weather_forecast_is_stale(&w, 1000000), "a fetch just now is fresh");
+  check(!weather_forecast_is_stale(&w, 1000000 + WEATHER_FC_STALE_SECS),
+        "exactly at the threshold is fresh");
+  check(weather_forecast_is_stale(&w, 1000000 + WEATHER_FC_STALE_SECS + 1),
+        "one second past is stale");
+  check(!weather_forecast_is_stale(&w, 999000), "a clock that went backwards is not stale");
+  // The point of the split. A night with the phone away is long past the
+  // current reading's limit and nowhere near the forecast's, and the two
+  // answers have to differ across that whole span or the change did nothing.
+  w.have_current = 1;
+  for (int32_t age = WEATHER_STALE_SECS + 1; age < WEATHER_FC_STALE_SECS; age += 600) {
+    check(weather_is_stale(&w, 1000000 + age) && !weather_forecast_is_stale(&w, 1000000 + age),
+          "between the two limits the reading is stale and the forecast is not");
+  }
+  check(WEATHER_FC_STALE_SECS > WEATHER_STALE_SECS,
+        "the forecast is never the first of the two to fade");
+
   group("chasing an unanswered request");
   // The properties that matter, rather than the numbers themselves: the chase
   // must start, must always end, and must not tighten into a poll.
