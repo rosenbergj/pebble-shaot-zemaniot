@@ -766,6 +766,23 @@ placement the pair had when they were fixed: battery left, rune right.
   subscription only reports changes. It does, but a buzz cannot be taken back,
   so the one irreversible thing on this path does not rest on that.
 
+  **The disconnect takes about 25 seconds to register, and that is not ours.**
+  Measured on the watch: Bluetooth switched off at the phone, and the icon and
+  the buzz both arrive around 25s later. `connection_handler()` vibrates and
+  marks the layer dirty on the same call, so none of that delay is on this side
+  of the SDK. Switching the radio off frequently sends no clean disconnect to
+  the peer, so the watch only learns of it when the BLE supervision timeout
+  expires with no packets received — a connection parameter the firmware
+  negotiates, which an app can neither read nor change. The spec's ceiling is
+  32s, so the number is unremarkable.
+
+  The only lever is inference rather than detection: a failed AppMessage says
+  something before the link times out. That means sending traffic purely to
+  poll for liveness, spending radio wakes on every wearer to shave seconds off
+  a notification. Rejected, not deferred. Reconnection should be quicker
+  regardless, since the phone re-establishes the link actively rather than the
+  watch waiting out a timeout.
+
   **Only the trigger can be checked here, and only indirectly.** The emulator
   cannot produce the disconnect that fires it, and a vibration does not appear
   in a screenshot, so the buzz itself is verifiable on the watch alone. What
