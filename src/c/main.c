@@ -659,6 +659,11 @@ static bool slot_value_is_compact(uint8_t kind) {
     // The secondary date's value is "Aug 31" -- six characters, no wider than a
     // time once the weekday has gone to the label row above it.
     case SLOT_SECDATE:
+    // A temperature, or a pair of them, on a line of its own under the header
+    // the icon shares with the label. Beside the icon these had 38px and fell
+    // to 18pt; with the full width they are the same shape as a clock time.
+    case SLOT_WEATHER:
+    case SLOT_WEATHER_FC:
       return true;
     default:
       return false;
@@ -1403,10 +1408,10 @@ static void draw_face(Layer *layer, GContext *ctx) {
     // A Hebrew month name can only appear in the value row, and only when the
     // wearer has asked for Hebrew script. The label row above it is always
     // Latin ("30th of"), so it stays Gothic.
-    // A weather box gives up the icon's width before the ladder starts fitting
-    // the temperature into what is left.
-    const int value_w =
-        (layout == SLOT_LAYOUT_WEATHER) ? w - WX_ICON_SIZE - WX_ICON_GAP : w;
+    // A weather box keeps its reading on a line of its own, under a header the
+    // icon shares with the label, so the ladder fits it into the whole box less
+    // a hair of margin rather than into what an icon beside it would leave.
+    const int value_w = (layout == SLOT_LAYOUT_WEATHER) ? w - 4 : w;
     BoxFace vf = box_face(value, value_w, s_settings.hebrew_script && slot_has_hebrew(kinds[i]),
                           slot_value_is_compact(kinds[i]));
     if (layout == SLOT_LAYOUT_SPLIT) {
@@ -1437,35 +1442,31 @@ static void draw_face(Layer *layer, GContext *ctx) {
           continue;
         }
 
-        if (!fc) {
-          // Current conditions are one number, which fits beside the icon on a
-          // single line at 18pt.
-          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 4, x, w);
-          const int text_w = measure(value, vf.font).w;
-          const int left = x + (w - (WX_ICON_SIZE + WX_ICON_GAP + text_w)) / 2;
-          if (icon) gdraw_command_image_draw(ctx, icon, GPoint(left, footer_top + 26));
-          draw_at(ctx, value, vf.font, vf.lead, wink, footer_top + 24 + vf.dy,
-                  left + WX_ICON_SIZE + WX_ICON_GAP, w);
-        } else {
-          // The forecast is two numbers, and beside the icon on one line they
-          // drop to 14pt -- too small to read at a glance. Putting the icon and
-          // the day side by side on the top row instead frees the whole width
-          // beneath for one full-size line. Stacking the two temperatures under
-          // a header would read better still, but a header and two 24pt lines
-          // need 62px, which did not fit the 57px box those attempts were measured
-          // in and still does not fit today's 61.
-          //
-          // The day is not decoration: the forecast rolls from today to
-          // tomorrow at the cutoff, so without the word there is no telling
-          // whose high is on screen.
-          if (icon) gdraw_command_image_draw(ctx, icon, GPoint(x + 2, footer_top + 4));
-          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 7,
-                        x + WX_ICON_SIZE + 2, w - WX_ICON_SIZE - 4);
-          // Wide readings -- a three-digit high, or a negative low -- still
-          // outgrow 24pt, and the ladder drops them a size rather than clipping.
-          BoxFace f = box_face(value, w - 4, false, false);
-          draw_centered(ctx, value, f.font, f.lead, wink, footer_top + 32 + f.dy, x, w);
-        }
+        // Both halves are laid out the same way: the icon and the label side by
+        // side on a header row, the reading full width beneath. The forecast
+        // needed that -- its two numbers beside the icon fall to 14pt, too small
+        // to read at a glance -- and current conditions turn out to want it too.
+        // One number beside the icon had 38 of the box's 66px and was drawn at
+        // 18pt, smaller than anything else on the face, for a value that is one
+        // of the two things the box exists to say.
+        //
+        // Nothing tells the halves apart by shape any more, and nothing needs
+        // to: "now" is one temperature with a degree sign, the forecast is two
+        // without one, and the swapped fill says when a box is showing the half
+        // it does not usually show. Stacking the two temperatures under a header
+        // would read better still, but that needs 62px, which did not fit the
+        // 57px box those attempts were measured in and still does not fit
+        // today's 61.
+        //
+        // The label is load-bearing on both halves. The forecast rolls from
+        // today to tomorrow at the cutoff, so without the word there is no
+        // telling whose high is on screen.
+        if (icon) gdraw_command_image_draw(ctx, icon, GPoint(x + 2, footer_top + 4));
+        draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 7,
+                      x + WX_ICON_SIZE + 2, w - WX_ICON_SIZE - 4);
+        // Wide readings -- a three-digit high, or a negative low -- outgrow the
+        // box, and the ladder drops them a size rather than clipping.
+        draw_centered(ctx, value, vf.font, vf.lead, wink, footer_top + 32 + vf.dy, x, w);
         continue;
       }
       if (layout == SLOT_LAYOUT_GAUGE) {

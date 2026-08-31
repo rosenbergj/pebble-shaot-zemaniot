@@ -52,12 +52,13 @@ real fixtures. Keep it that way — it is the only place the maths gets tested.
 
 **Each footer box sizes its own value row.** `box_face()` walks a ladder of
 faces from the largest down, taking the first that measures inside the box.
-Where a box holds a clock time, the battery reading or the secondary date the
-ladder starts at Gothic 28 Bold; everything else starts at 24, because it either
-runs too wide for 28 to survive the fit check or shares its row with an icon.
-The larger size is there for legibility: on an accent fill in low light, 24 is at
-the edge of readable at a glance, and these are the values short enough to have
-the room.
+Where a box holds a clock time, the battery reading, the secondary date or a
+temperature the ladder starts at Gothic 28 Bold; a Hebrew month name, the one
+value that can outgrow its box, starts at 24. The larger size is there for
+legibility: on an accent fill in low light, 24 is at the edge of readable at a
+glance, and these are the values short enough to have the room. Nothing is
+clipped to buy it — a reading too wide for 28 takes the next rung down, which is
+what `106/70` does while `106°` beside it stays large.
 
 Three measurements hold that rung in place, all taken off emulator screenshots
 rather than by eye. A time fits at 28 even in the narrowest box the layout can
@@ -541,13 +542,23 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   tap-driven second face can read the same flag — the solar boxes do, see below.
   It reverts on its own because screen touch does not reach a watchface (see
   above) and some accelerometer taps are a jostled wrist rather than a decision.
-- **The two states are laid out differently, because they have to be.** A
-  footer box is 66x61, and the forecast's two numbers will not fit beside the
-  icon at a readable size. Eight arrangements were built and screenshotted in
-  place; the constraints that killed the rest are recorded where the drawing
-  happens, in `draw_face()`. Anything that keeps a header *and* stacks the two
-  temperatures needs 62px, which did not fit the 57px box those attempts were
-  measured in and still does not fit today's 61.
+- **Both states are laid out the same way**: the icon and the label side by
+  side on a header row, the reading full width beneath. A footer box is 66x61,
+  and the forecast's two numbers will not fit beside the icon at a readable
+  size, so the forecast needed that arrangement. Current conditions took it
+  later and for the same reason in reverse: one number beside the icon had 38 of
+  the box's 66px and was drawn at **18pt**, the smallest type on the face, for
+  one of the two things the box exists to say. Full width, it is 28.
+
+  Eight arrangements were built and screenshotted in place; the constraints that
+  killed the rest are recorded where the drawing happens, in `draw_face()`.
+  Anything that keeps a header *and* stacks the two temperatures needs 62px,
+  which did not fit the 57px box those attempts were measured in and still does
+  not fit today's 61.
+- **Nothing tells the two halves apart by shape now, and nothing needs to.**
+  "Now" is one temperature carrying a degree sign; the forecast is two carrying
+  none; and the swapped fill says when a box is showing the half it does not
+  usually show. Sharing the shape was weighed against the size and the size won.
 - **Inverting a box is the face's way of saying "this block is doing something
   unusual"**, not a weather-specific trick. A box normally on the accent fill
   is drawn on the background, and the middle box, normally on the background,
