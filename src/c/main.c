@@ -233,6 +233,7 @@ static void save_weather(void) {
 // comparing glyph bounding boxes against the JavaScript build.
 #define LEAD_GOTHIC14 2
 #define LEAD_GOTHIC24 4
+#define LEAD_GOTHIC28 5
 #define LEAD_LECO42 8
 #define LEAD_ROBOTO49 9
 // Liberation Sans Bold, the bundled Hebrew-capable face. Tuned by eye against
@@ -240,6 +241,12 @@ static void save_weather(void) {
 #define LEAD_HEB24 5
 #define LEAD_HEB18 4
 #define LEAD_HEB14 3
+
+// A 28pt value row stands 18 rows tall where 24 stands 14, so it is lifted by
+// half the difference: the ink then grows evenly up and down from the centre
+// row the 24pt line already sat on, instead of dropping towards the bottom of
+// the box or crowding the label above it. Measured from emulator screenshots.
+#define DY_BOX28 (-1)
 
 // Footer box widths when one box has to be wider than a third of the screen.
 #define BOX_PAD 8         // breathing room either side of a month name
@@ -284,6 +291,7 @@ static Window *s_window;
 static Layer *s_canvas;
 
 static GFont s_font_shaot;    // Leco 42
+static GFont s_font_bold28;   // Gothic 28 Bold, the top of the box ladder
 static GFont s_font_bold24;   // Gothic 24 Bold
 static GFont s_font_bold18;   // Gothic 18 Bold, for a band line that will not fit
 static GFont s_font_bold14;   // Gothic 14 Bold, likewise
@@ -627,6 +635,24 @@ static bool tap_has_effect(void) {
   return weather_flips || next_flips_somewhere;
 }
 
+// Whether this kind's value row is a short Latin token -- a clock time or a
+// battery reading -- and so can be tried at 28pt. Everything else either runs
+// too wide for the extra size to survive the fit check, or shares its row with
+// something (an icon, a second line of date) that has no room to give.
+static bool slot_value_is_compact(uint8_t kind) {
+  switch (kind) {
+    case SLOT_SUNSET:
+    case SLOT_TZEIT:
+    case SLOT_NEXT_SET_TZEIT:
+    case SLOT_NEXT_RISE_SET:
+    case SLOT_NEXT_RISE_SET_TZEIT:
+    case SLOT_BATTERY:
+      return true;
+    default:
+      return false;
+  }
+}
+
 // Whether this kind's value row can contain a Hebrew month name.
 static bool slot_has_hebrew(uint8_t kind) {
   return kind == SLOT_HEBREW || kind == SLOT_DATES_SEC_HEB || kind == SLOT_DATES_HEB_SEC;
@@ -934,22 +960,32 @@ typedef struct {
 
 // The value row of a footer box, shrunk to fit its third of the screen. Hebrew
 // month names are wider than their transliterations -- "Heshvan" fits at 24
-// where "adar 1" in Hebrew script does not -- and dy keeps the smaller sizes
+// where "adar 1" in Hebrew script does not -- and dy keeps the other sizes
 // sitting on roughly the same optical centre.
+//
+// The 28 rung is the exception: it is offered only to the kinds that pass big,
+// which are the ones whose value is a short Latin token -- a time or a battery
+// percentage. Those are read at a glance in the dark, where 24 on an accent
+// fill is at the edge of legible, and they are narrow enough to have the room.
+// Anything wider, a date or a pair of temperatures, starts at 24 as before.
 typedef struct {
   GFont font;
   int lead;
   int dy;
 } BoxFace;
 
-static BoxFace box_face(const char *text, int width, bool heb) {
+static BoxFace box_face(const char *text, int width, bool heb, bool big) {
   const BoxFace ladder[] = {
+      {s_font_bold28, LEAD_GOTHIC28, DY_BOX28},
       {heb ? s_font_heb24 : s_font_bold24, heb ? LEAD_HEB24 : LEAD_GOTHIC24, 0},
       {heb ? s_font_heb18 : s_font_bold18, heb ? LEAD_HEB18 : 3, 3},
       {heb ? s_font_heb14 : s_font_bold14, heb ? LEAD_HEB14 : LEAD_GOTHIC14, 5},
   };
   const int n = (int)(sizeof(ladder) / sizeof(ladder[0]));
-  for (int i = 0; i < n - 1; i++) {
+  // There is no Hebrew 28: no kind that passes big can hold a month name, so
+  // the rung would never be reachable, and skipping it keeps the two scripts
+  // starting from the same size wherever both are possible.
+  for (int i = (big && !heb) ? 0 : 1; i < n - 1; i++) {
     if (measure(text, ladder[i].font).w <= width) return ladder[i];
   }
   return ladder[n - 1];
@@ -1351,7 +1387,8 @@ static void draw_face(Layer *layer, GContext *ctx) {
     // the temperature into what is left.
     const int value_w =
         (layout == SLOT_LAYOUT_WEATHER) ? w - WX_ICON_SIZE - WX_ICON_GAP : w;
-    BoxFace vf = box_face(value, value_w, s_settings.hebrew_script && slot_has_hebrew(kinds[i]));
+    BoxFace vf = box_face(value, value_w, s_settings.hebrew_script && slot_has_hebrew(kinds[i]),
+                          slot_value_is_compact(kinds[i]));
     if (layout == SLOT_LAYOUT_SPLIT) {
       // A date split over both lines: same size and weight, no label.
       draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 3, x, w);
@@ -1405,7 +1442,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
                         x + WX_ICON_SIZE + 2, w - WX_ICON_SIZE - 4);
           // Wide readings -- a three-digit high, or a negative low -- still
           // outgrow 24pt, and the ladder drops them a size rather than clipping.
-          BoxFace f = box_face(value, w - 4, false);
+          BoxFace f = box_face(value, w - 4, false, false);
           draw_centered(ctx, value, f.font, f.lead, wink, footer_top + 30 + f.dy, x, w);
         }
         continue;
@@ -2004,6 +2041,7 @@ static void init(void) {
   load_persisted();
 
   s_font_shaot = fonts_get_system_font(FONT_KEY_LECO_42_NUMBERS);
+  s_font_bold28 = fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
   s_font_bold24 = fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
   s_font_bold18 = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
   s_font_bold14 = fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
