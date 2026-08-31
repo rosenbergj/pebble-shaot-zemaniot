@@ -542,11 +542,12 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   It reverts on its own because screen touch does not reach a watchface (see
   above) and some accelerometer taps are a jostled wrist rather than a decision.
 - **The two states are laid out differently, because they have to be.** A
-  footer box is 66x57, and the forecast's two numbers will not fit beside the
+  footer box is 66x61, and the forecast's two numbers will not fit beside the
   icon at a readable size. Eight arrangements were built and screenshotted in
   place; the constraints that killed the rest are recorded where the drawing
   happens, in `draw_face()`. Anything that keeps a header *and* stacks the two
-  temperatures needs 62px in a 57px box and will clip.
+  temperatures needs 62px, which did not fit the 57px box those attempts were
+  measured in and still does not fit today's 61.
 - **Inverting a box is the face's way of saying "this block is doing something
   unusual"**, not a weather-specific trick. A box normally on the accent fill
   is drawn on the background, and the middle box, normally on the background,
@@ -737,6 +738,14 @@ placement the pair had when they were fixed: battery left, rune right.
   anchoring them to the visible area did. Both centre on the same row whichever
   gutter they are in, so the pair reads as a matched set when they happen to
   appear together.
+- **The bottom of the span they are measured across is frozen, and must stay
+  that way.** It reads as `GUTTER_ANCHOR_BOTTOM`, not as `footer_top`, which is
+  what it used to be. The gap these two sit in runs from the civil clock down to
+  the shaot line and has nothing to do with the footer, so when the footer boxes
+  grew by 4px the derived version quietly dragged the pair 2px up the screen --
+  spending three of the clock's clear rows to buy a fourth below the rune that
+  nothing needed. Retuning the footer must not move these; that is the whole
+  point of them.
 - **The gutters are not as dead as "the clock is centred" suggests, and the
   anchor row is lifted 3px to account for it.** Measured on an unobstructed
   200x228 screen, the civil clock stops painting at row 85 -- but at its widest,

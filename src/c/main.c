@@ -220,9 +220,17 @@ static void save_weather(void) {
 
 // The footer is anchored to the bottom of the *unobstructed* area rather than
 // to a fixed y, so Timeline Peek does not simply cover it. On an unobstructed
-// 228-high screen this puts the rule back at y=170, the tuned position, and the
-// face is pixel-identical to before.
-#define FOOTER_ZONE_H 58      // the 1px rule plus 57 of boxes
+// 228-high screen this puts the rule at y=166.
+//
+// The zone grew from 58 to 62 when the value rows went to 28pt. A 28pt line
+// stands 18 rows where 24 stood 14, and those extra rows came straight out of
+// the margins: the secondary date was left 10px between its label and its value
+// and 8px below, where the 24pt layout had 12 and 14. Because the footer hangs
+// from the bottom of the screen, a taller zone moves its top edge up and the
+// whole block rides with it, so the four new rows land as margin underneath.
+// They also give the forecast's icon somewhere to sit other than hard against
+// the top edge of its box.
+#define FOOTER_ZONE_H 62      // the 1px rule plus 61 of boxes
 #define SHAOT_INK_BOTTOM 145  // lowest row the Leco line actually paints
 #define FOOTER_MIN_GAP 7      // below that the footer crowds the shaot line
 
@@ -1403,7 +1411,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
                           slot_value_is_compact(kinds[i]));
     if (layout == SLOT_LAYOUT_SPLIT) {
       // A date split over both lines: same size and weight, no label.
-      draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 3, x, w);
+      draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 1, x, w);
       draw_centered(ctx, value, vf.font, vf.lead, ink, footer_top + 29 + vf.dy, x, w);
     } else {
       // The gauge occupies the label row, which is why the box needs no
@@ -1424,7 +1432,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
         if (icon) wx_recolor(icon, wink);
 
         if (!have) {
-          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 6, x, w);
+          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 4, x, w);
           draw_centered(ctx, value, vf.font, vf.lead, wink, footer_top + 24 + vf.dy, x, w);
           continue;
         }
@@ -1432,7 +1440,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
         if (!fc) {
           // Current conditions are one number, which fits beside the icon on a
           // single line at 18pt.
-          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 6, x, w);
+          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 4, x, w);
           const int text_w = measure(value, vf.font).w;
           const int left = x + (w - (WX_ICON_SIZE + WX_ICON_GAP + text_w)) / 2;
           if (icon) gdraw_command_image_draw(ctx, icon, GPoint(left, footer_top + 26));
@@ -1444,26 +1452,27 @@ static void draw_face(Layer *layer, GContext *ctx) {
           // the day side by side on the top row instead frees the whole width
           // beneath for one full-size line. Stacking the two temperatures under
           // a header would read better still, but a header and two 24pt lines
-          // need 62px and the box is 57, which is what clipped every attempt.
+          // need 62px, which did not fit the 57px box those attempts were measured
+          // in and still does not fit today's 61.
           //
           // The day is not decoration: the forecast rolls from today to
           // tomorrow at the cutoff, so without the word there is no telling
           // whose high is on screen.
-          if (icon) gdraw_command_image_draw(ctx, icon, GPoint(x + 2, footer_top + 2));
-          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 9,
+          if (icon) gdraw_command_image_draw(ctx, icon, GPoint(x + 2, footer_top + 4));
+          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 7,
                         x + WX_ICON_SIZE + 2, w - WX_ICON_SIZE - 4);
           // Wide readings -- a three-digit high, or a negative low -- still
           // outgrow 24pt, and the ladder drops them a size rather than clipping.
           BoxFace f = box_face(value, w - 4, false, false);
-          draw_centered(ctx, value, f.font, f.lead, wink, footer_top + 30 + f.dy, x, w);
+          draw_centered(ctx, value, f.font, f.lead, wink, footer_top + 32 + f.dy, x, w);
         }
         continue;
       }
       if (layout == SLOT_LAYOUT_GAUGE) {
-        draw_battery_gauge(ctx, s_battery, s_charging, ink, footer_top + 6, x, w);
+        draw_battery_gauge(ctx, s_battery, s_charging, ink, footer_top + 4, x, w);
       } else {
         draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, on_fill ? s_on_accent : s_dim,
-                      footer_top + 6, x, w);
+                      footer_top + 4, x, w);
       }
       draw_centered(ctx, value, vf.font, vf.lead, ink, footer_top + 24 + vf.dy, x, w);
     }
@@ -1516,9 +1525,18 @@ static void bt_rune(GContext *ctx, int cx, int top, int h) {
 // visible area, on a shorter cycle.
 #define GUTTER_LIFT 3
 
-static int gutter_top(GRect bounds) {
-  const int footer_top = bounds.size.h - FOOTER_ZONE_H;
-  return (BAND_H + footer_top) / 2 - GUTTER_W / 2 - GUTTER_LIFT;
+// The bottom of the span the anchor is measured across. This was footer_top,
+// which read naturally while the footer's height was fixed -- but the gap the
+// indicators actually sit in runs from the civil clock down to the shaot line,
+// and neither of those moves when the footer is retuned. Leaving it derived
+// dragged the pair 2px up the screen the moment the boxes grew, spending three
+// of the clock's clear rows to buy a fourth below the rune that nothing needed.
+// Frozen, so the row survives the next retuning too: the whole point of these
+// two is that they never move.
+#define GUTTER_ANCHOR_BOTTOM 170
+
+static int gutter_top(void) {
+  return (BAND_H + GUTTER_ANCHOR_BOTTOM) / 2 - GUTTER_W / 2 - GUTTER_LIFT;
 }
 
 // The left edge of a gutter's box. Both gutters keep the same margin from their
@@ -1530,7 +1548,7 @@ static int gutter_left_x(GRect bounds, bool left) {
 static void draw_bt_overlay(GContext *ctx, GRect bounds, int x) {
   if (s_bt_connected) return;
 
-  const int y = gutter_top(bounds);
+  const int y = gutter_top();
 
   graphics_context_set_stroke_color(ctx, s_fg);
   graphics_context_set_stroke_width(ctx, 2);
@@ -1565,7 +1583,7 @@ static void draw_lowbatt_overlay(GContext *ctx, GRect bounds, int x) {
   // width in from the box on the right and flush with it on the left; either
   // way the whole icon sits inside the gutter's box.
   x += GUTTER_W - LOWBATT_W - LOWBATT_NUB_W;
-  const int y = gutter_top(bounds) + (GUTTER_W - LOWBATT_H) / 2;
+  const int y = gutter_top() + (GUTTER_W - LOWBATT_H) / 2;
 
   graphics_context_set_stroke_color(ctx, GColorRed);
   graphics_context_set_fill_color(ctx, GColorRed);
