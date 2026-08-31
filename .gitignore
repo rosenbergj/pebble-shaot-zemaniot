@@ -15,6 +15,11 @@ __pycache__/
 # Emulator screenshots (dev-loop churn; force-add milestone shots if wanted)
 screenshots/*.png
 
+# Plan files live here (see .claude/settings.json) but are working documents that
+# drift from the code; the README is the accurate record. The setting is committed,
+# the plans are not.
+.claude/plans/
+
 # Editor/OS noise
 *.swp
 .DS_Store
