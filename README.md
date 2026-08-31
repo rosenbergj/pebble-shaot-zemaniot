@@ -52,21 +52,35 @@ real fixtures. Keep it that way — it is the only place the maths gets tested.
 
 **Each footer box sizes its own value row.** `box_face()` walks a ladder of
 faces from the largest down, taking the first that measures inside the box.
-Where a box holds a clock time or the battery reading the ladder starts at
-Gothic 28 Bold; everything else starts at 24, because it either runs too wide
-for 28 to survive the fit check or shares its row with an icon. The larger size
-is there for legibility: on an accent fill in low light, 24 is at the edge of
-readable at a glance, and these are the values short enough to have the room.
+Where a box holds a clock time, the battery reading or the secondary date the
+ladder starts at Gothic 28 Bold; everything else starts at 24, because it either
+runs too wide for 28 to survive the fit check or shares its row with an icon.
+The larger size is there for legibility: on an accent fill in low light, 24 is at
+the edge of readable at a glance, and these are the values short enough to have
+the room.
 
-Two measurements hold that rung in place, both taken off emulator screenshots
+Three measurements hold that rung in place, all taken off emulator screenshots
 rather than by eye. A time fits at 28 even in the narrowest box the layout can
-produce — 52px, `BOX_NARROW_MIN` — and `chg`, the one value with a descender,
-clears the bottom of the box by 8px. The rung carries a `dy` of -1 because it
-stands 18 rows tall where 24 stands 14: lifting it half the difference grows the
-ink evenly either side of the row the 24pt line was centered on, instead of
-dropping it towards the bottom edge or crowding the label above.
-`screenshots/boxsize-*.png` are the reference shots; the first two are the same
-face ten seconds apart with only that rung changed.
+produce — 52px, `BOX_NARROW_MIN`. `chg`, the one value with a descender, clears
+the bottom of the box by 8px. And **every month fits, which is what keeps the
+date box one size all year**: `May 30` is the widest the secondary date can be
+(`M` is the widest capital in the abbreviations and `y` beats `r`, so `May` beats
+`Mar`, and the digits are the same width either way) and it measures 63px in a
+67px box. A per-string ladder would otherwise have shown May at 24 and August at
+28, which reads as the box changing size when the month turns.
+
+The rung carries a `dy` of -1 because it stands 18 rows tall where 24 stands 14:
+lifting it half the difference grows the ink evenly either side of the row the
+24pt line was centered on, instead of dropping it towards the bottom edge or
+crowding the label above. `screenshots/boxsize-*.png` are the reference shots;
+the first two are the same face ten seconds apart with only that rung changed.
+
+**The box-widening measures with whatever face the ladder will choose.** A
+Hebrew month name is the one value that can outgrow a third of the screen, and
+`draw_face()` gives that box the width the name actually measures. It asks
+`box_face()` for the face rather than naming one, so a kind that later reaches a
+larger size cannot leave the widening reserving the old size's width — which
+would clip the very name the widening exists to fit.
 
 ## Platform constraints
 

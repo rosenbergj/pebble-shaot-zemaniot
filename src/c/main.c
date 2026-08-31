@@ -635,10 +635,11 @@ static bool tap_has_effect(void) {
   return weather_flips || next_flips_somewhere;
 }
 
-// Whether this kind's value row is a short Latin token -- a clock time or a
-// battery reading -- and so can be tried at 28pt. Everything else either runs
-// too wide for the extra size to survive the fit check, or shares its row with
-// something (an icon, a second line of date) that has no room to give.
+// Whether this kind's value row is a short Latin token -- a clock time, a
+// battery reading, a month and day -- and so can be tried at 28pt. Everything
+// else either runs too wide for the extra size to survive the fit check, or
+// shares its row with something (an icon, a second line of date) that has no
+// room to give.
 static bool slot_value_is_compact(uint8_t kind) {
   switch (kind) {
     case SLOT_SUNSET:
@@ -647,6 +648,9 @@ static bool slot_value_is_compact(uint8_t kind) {
     case SLOT_NEXT_RISE_SET:
     case SLOT_NEXT_RISE_SET_TZEIT:
     case SLOT_BATTERY:
+    // The secondary date's value is "Aug 31" -- six characters, no wider than a
+    // time once the weekday has gone to the label row above it.
+    case SLOT_SECDATE:
       return true;
     default:
       return false;
@@ -1327,8 +1331,16 @@ static void draw_face(Layer *layer, GContext *ctx) {
     }
   }
   if (date_boxes == 1) {
-    bool heb = s_settings.hebrew_script;
-    int want = measure(values[date_box], heb ? s_font_heb24 : s_font_bold24).w + BOX_PAD;
+    const bool heb = s_settings.hebrew_script && slot_has_hebrew(kinds[date_box]);
+    // The width to ask for is the width the name will actually be drawn at,
+    // which is the top of that box's ladder. Asking box_face() for it -- at a
+    // width nothing can exceed, so it answers with its first rung -- is what
+    // keeps the two from drifting: naming a font here instead would leave the
+    // widening measuring the old size the day this kind reaches a larger one,
+    // and clip the very name the widening exists to fit.
+    const BoxFace top =
+        box_face(values[date_box], 1000, heb, slot_value_is_compact(kinds[date_box]));
+    int want = measure(values[date_box], top.font).w + BOX_PAD;
     if (want > BOX_WIDE_MAX) want = BOX_WIDE_MAX;
     int narrow = (bounds.size.w - want) / 2;
     if (want > widths[date_box] && narrow >= BOX_NARROW_MIN) {
