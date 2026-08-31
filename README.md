@@ -542,23 +542,32 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   tap-driven second face can read the same flag — the solar boxes do, see below.
   It reverts on its own because screen touch does not reach a watchface (see
   above) and some accelerometer taps are a jostled wrist rather than a decision.
-- **Both states are laid out the same way**: the icon and the label side by
-  side on a header row, the reading full width beneath. A footer box is 66x61,
-  and the forecast's two numbers will not fit beside the icon at a readable
-  size, so the forecast needed that arrangement. Current conditions took it
-  later and for the same reason in reverse: one number beside the icon had 38 of
-  the box's 66px and was drawn at **18pt**, the smallest type on the face, for
-  one of the two things the box exists to say. Full width, it is 28.
+- **Both states put the reading on a full-width line of its own**, under a
+  header row. A footer box is 66x61, and the forecast's two numbers will not fit
+  beside the icon at a readable size, so the forecast needed that. Current
+  conditions took it later and for the same reason in reverse: one number beside
+  the icon had 38 of the box's 66px and was drawn at **18pt**, the smallest type
+  on the face, for one of the two things the box exists to say. Full width, it
+  is 28.
 
   Eight arrangements were built and screenshotted in place; the constraints that
   killed the rest are recorded where the drawing happens, in `draw_face()`.
   Anything that keeps a header *and* stacks the two temperatures needs 62px,
   which did not fit the 57px box those attempts were measured in and still does
   not fit today's 61.
-- **Nothing tells the two halves apart by shape now, and nothing needs to.**
-  "Now" is one temperature carrying a degree sign; the forecast is two carrying
-  none; and the swapped fill says when a box is showing the half it does not
-  usually show. Sharing the shape was weighed against the size and the size won.
+- **The headers differ, because only one of them has a word worth carrying.**
+  The forecast's is the icon and the day side by side: the reading rolls at the
+  cutoff and nothing else says whose high is on screen. Current conditions have
+  no such word -- "now" names what a weather box says by default -- so the icon
+  takes that row alone and is centred over the reading, two centred objects
+  rather than a crowded header above a mostly empty line. That last arrangement
+  was worn before it was changed; `screenshots/nowbox-*.png` are the options it
+  was chosen from.
+- **The halves are still told apart without the word.** "Now" is one temperature
+  carrying a degree sign; the forecast is two carrying none; and the swapped
+  fill says when a box is showing the half it does not usually show. A box with
+  no reading yet keeps its label, since with no icon drawn the word is the only
+  thing naming it.
 - **Inverting a box is the face's way of saying "this block is doing something
   unusual"**, not a weather-specific trick. A box normally on the accent fill
   is drawn on the background, and the middle box, normally on the background,

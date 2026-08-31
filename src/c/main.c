@@ -1461,9 +1461,25 @@ static void draw_face(Layer *layer, GContext *ctx) {
         // The label is load-bearing on both halves. The forecast rolls from
         // today to tomorrow at the cutoff, so without the word there is no
         // telling whose high is on screen.
-        if (icon) gdraw_command_image_draw(ctx, icon, GPoint(x + 2, footer_top + 4));
-        draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 7,
-                      x + WX_ICON_SIZE + 2, w - WX_ICON_SIZE - 4);
+        // The forecast's header is the icon and the day side by side, because
+        // the day is load-bearing there: the reading rolls from today to
+        // tomorrow at the cutoff, and without the word there is no telling whose
+        // high is on screen. Current conditions have no such word to carry --
+        // "now" names the thing a weather box says by default -- so the icon
+        // takes that row alone, centred over the reading. Two centred objects,
+        // where a crowded header sat over a mostly empty line.
+        //
+        // The halves are still told apart without it: "now" is one temperature
+        // carrying a degree sign, the forecast is two carrying none, and the
+        // swapped fill says when a box is showing the half it does not usually
+        // show.
+        if (fc) {
+          if (icon) gdraw_command_image_draw(ctx, icon, GPoint(x + 2, footer_top + 4));
+          draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 7,
+                        x + WX_ICON_SIZE + 2, w - WX_ICON_SIZE - 4);
+        } else if (icon) {
+          gdraw_command_image_draw(ctx, icon, GPoint(x + (w - WX_ICON_SIZE) / 2, footer_top + 4));
+        }
         // Wide readings -- a three-digit high, or a negative low -- outgrow the
         // box, and the ladder drops them a size rather than clipping.
         draw_centered(ctx, value, vf.font, vf.lead, wink, footer_top + 32 + vf.dy, x, w);
