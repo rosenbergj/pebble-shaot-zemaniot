@@ -11,6 +11,13 @@ configurable boxes.
 The sun times are computed **on the watch**, so the face stays correct offline
 indefinitely — the phone only supplies a location.
 
+![The watchface: both dates across the top, the proportional hour under the
+civil time, and sunset, weather, and step and heart-rate readings in the three
+boxes below](media/watchface.png)
+
+*Shown with the band and boxes configured to cover most of what they can hold;
+the defaults are plainer.*
+
 ## What's on the face
 
 - **The shaot line.** The proportional hour, either as hour, minutes, and
