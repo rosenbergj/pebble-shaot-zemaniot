@@ -39,11 +39,9 @@ Hebrew months can be written in Hebrew or transliterated, temperatures in
 Fahrenheit or Celsius, and the accent color is yours to pick. On Shabbat and yom
 tov the face can ignore taps, so a wrist movement changes nothing.
 
-## Installing
-
-**Not published yet.** Until it is, build it yourself — see below — and
-sideload the `.pbw` from the Pebble phone app. The first release will go to the
-Pebble App Store and to this repo's releases page at the same time.
+## Want to try it?
+Download on the Pebble store at the link below:
+https://apps.rePebble.com/9cc1f2cb2f78476f8bcbca70
 
 Built for the Pebble Time 2 (`emery`) only. Weather and the initial location
 need the phone; everything else — the shaot clock, the sun events, the Hebrew
