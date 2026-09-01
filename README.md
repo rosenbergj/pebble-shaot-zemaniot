@@ -39,7 +39,7 @@ src/c/numparse.c    integer parsing (newlib's strtol cannot be used here)
 src/c/weather.c     forecast day choice, unit conversion, staleness
 src/c/shabbat.c     whether it is Shabbat or yom tov at this moment
 resources/fonts/    Liberation Sans Bold, bundled for Hebrew (see below)
-resources/data/     weather icons, from TimeStyle (MIT; license alongside)
+resources/data/     weather icons and health icon licenses (see Health)
 src/pkjs/index.js   phone side: geolocation -> LAT/LON
 src/pkjs/config.js  Clay settings page
 test/c/             host harness for the pure modules
@@ -593,6 +593,73 @@ whose weather icons this uses (MIT, license in `resources/data/`).
 - **Icons are Pebble Draw Commands** (`type: "raw"` in `package.json`, 25x25,
   ~1.8KB for all twelve). They carry their own colors, so `wx_recolor()`
   repaints one before it is drawn in a box whose ink differs.
+
+## Health
+
+Steps and heart rate, in any of the three footer boxes or the band. Three slot
+kinds rather than one with a tap: unlike the weather halves, these two are not
+alternatives, so a wearer who wants both wants them at once.
+
+- **Steps and heart rate are read differently, and mixing them up is silent.**
+  `health_service_peek_current_value()` is for instantaneous metrics and returns
+  **0** if handed an accumulating one, so the step count comes from
+  `health_service_sum_today()`. Read the wrong way, a step box shows a
+  believable zero rather than an error.
+- **Availability is asked per metric.** A watch can count steps while the heart
+  rate sensor has nothing to report, so each box degrades on its own and an
+  unavailable one reads `--`, the same as a sun time with no location. A pulse
+  of 0 is treated as no reading rather than drawn: it is not a plausible number
+  for a living wearer, and it is what the sensor reports when it has not
+  sampled.
+- **The readings are cached, not read at draw time.** `update_health()` runs
+  from the health event handler and once at startup; the update proc only reads
+  what it left. This is the same rule the whole face follows -- see "Never do
+  real work in a layer update proc" above.
+  `HealthEventSignificantUpdate` also arrives on a day change, which is what
+  resets the step count, so midnight needs no separate handling.
+- **No heart-rate sample period is set.** `health_service_set_heart_rate_sample_period()`
+  would buy fresher readings at the cost of running a sensor harder than the
+  wearer asked, and the setting outlives the app. The default sampling is what
+  the watch would be doing anyway.
+- **Subscribing can fail**, since it allocates up to 2KB on the app heap. The
+  cache is filled once at startup regardless, so a face that could not subscribe
+  shows the readings it had at launch rather than nothing.
+
+**The combined box is Gothic 24 where every other value row is 28**, and that is
+a trade rather than an oversight. A footer box is 66px wide and a 28pt digit is
+11px, so five digits is 55px and leaves 11px for an icon and its gap -- which no
+icon that reads survives. The options were measured in place
+(`screenshots/health-*.png`): widening the box to 80px fits both rows at 28,
+abbreviating to `12.3k` fits at 28 in the standard box, and dropping to 24 keeps
+the count exact in the standard box. The last was chosen -- an exact step count
+at 24 beats a rounded one at 28 -- and the first two are recorded here so they
+are not rediscovered.
+
+- **The icons are pixel masks, not resources.** The smallest unit the resource
+  pack offers is a 25x25 Draw Command, and these share a row with a five-digit
+  reading, so they are drawn a row at a time from a bitmask like the Bluetooth
+  rune and the battery cell. They were traced from freely licensed sets and then
+  pixel-fitted, not drawn from scratch: Font Awesome Free's `shoe-prints`
+  (CC BY 4.0) rotated upright, and Bootstrap Icons' `heart-fill` (MIT).
+  Licenses ship in `resources/data/`.
+- **A traced icon needs its symmetry restored by hand.** Rasterizing the heart
+  to 11px left the shape flush against one edge of its bounding box and a column
+  short of the other, which reads on the wrist as a clipped edge. Mirroring the
+  authored left half onto the right fixes it; taking the **union** with the
+  mirror does not -- that fills the cleft between the lobes, which is the one
+  feature separating a heart from a blob at this size.
+- **Icons are centered on the digits' ink, not on the line box.** A Gothic
+  line's ink sits low inside its box, so an icon aligned to the box reads high --
+  5.5px high, measured, which is visible. `HEALTH_STEPS_IDY` and
+  `HEALTH_HEART_IDY` are measured offsets, not derived ones, and want
+  re-measuring if either font size changes.
+- **Only the two single-metric kinds join the 28pt ladder.** The combined kind
+  draws its own rows and never asks `box_face()`.
+- **The emulator drives this properly**, unlike location and weather:
+  `pebble emu-steps <n>` and `pebble emu-heart-rate <bpm>` set real values that
+  the health service reports. Note that a heart rate of 0 does not clear the
+  last reading -- the emulator holds it -- so the `--` path has to be forced in
+  a throwaway build rather than driven.
 
 ## The solar boxes and the tap
 

@@ -24,6 +24,9 @@ var SLOT_OPTIONS = [
   { label: "Battery", value: 5 },
   { label: "Weather now/forecast", value: 12 },
   { label: "Weather forecast", value: 13 },
+  { label: "Steps", value: 14 },
+  { label: "Heart rate", value: 15 },
+  { label: "Steps and heart rate", value: 16 },
 ];
 
 // Both dates at once will not fit a footer box, which is a third of the screen

@@ -56,6 +56,14 @@ typedef enum {
   // means "this box is showing the other half of itself just now", which a box
   // configured this way never is.
   SLOT_WEATHER_FC = 13,
+  // Health. Steps and heart rate each get an ordinary label-over-value box; the
+  // combined kind stacks both as an icon and a reading on two rows, which is
+  // why it needs a layout of its own. Three kinds rather than one with a tap,
+  // because unlike the weather halves these two are not alternatives -- a
+  // wearer who wants both wants them at once.
+  SLOT_STEPS = 14,
+  SLOT_HEART = 15,
+  SLOT_HEALTH = 16,
 } SlotKind;
 
 // What a gutter overlay holds. Either warning can go in either gutter, or
@@ -195,6 +203,20 @@ static bool s_wx_fc_stale = false;
 // startup, as TimeStyle does, so that every watch running this face does not
 // hit the API on the same two ticks of the clock.
 static uint8_t s_wx_minute;
+
+// Health, cached. Read from the health event handler and once at startup, never
+// at draw time: drawing runs inside the firmware's render path, and the rule
+// this face already follows everywhere else is that update procs read a cache
+// and nothing more.
+//
+// Steps and heart rate are read differently, and the header is explicit about
+// why: peek_current_value() is for instantaneous metrics and returns 0 if
+// handed an accumulating one, so the step count has to come from sum_today().
+// Reading both the same way is the mistake this comment exists to prevent.
+static int32_t s_steps;
+static int32_t s_heart;
+static bool s_have_steps;
+static bool s_have_heart;
 
 // Whether the phone is reachable. Peeked at startup and kept current by the
 // connection handler, so the overlay does not have to ask on every frame.
@@ -551,6 +573,7 @@ typedef enum {
   SLOT_LAYOUT_SPLIT,  // one thing broken over both rows, same size, no label
   SLOT_LAYOUT_GAUGE,   // a drawn gauge in place of the label, value below
   SLOT_LAYOUT_WEATHER, // label, then an icon and a temperature side by side
+  SLOT_LAYOUT_HEALTH,  // two rows, each an icon and a reading, no label
 } SlotLayout;
 
 // Which day the forecast half means right now. The rule itself lives in
@@ -656,6 +679,11 @@ static bool slot_value_is_compact(uint8_t kind) {
     case SLOT_NEXT_RISE_SET:
     case SLOT_NEXT_RISE_SET_TZEIT:
     case SLOT_BATTERY:
+    // A step count is at most five digits and a pulse is three, both narrower
+    // than a clock time, so both start where the times do. The combined kind is
+    // absent on purpose: it draws its own rows and never asks the ladder.
+    case SLOT_STEPS:
+    case SLOT_HEART:
     // The secondary date's value is "Aug 31" -- six characters, no wider than a
     // time once the weekday has gone to the label row above it.
     case SLOT_SECDATE:
@@ -715,6 +743,30 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
                hebdate_month_name(s_heb.year, s_heb.month, s_settings.hebrew_script),
                GMONTHS[lt->tm_mon], lt->tm_mday);
       return SLOT_LAYOUT_LABEL;
+    case SLOT_STEPS:
+      snprintf(label, label_n, "steps");
+      if (s_have_steps) snprintf(value, value_n, "%d", (int)s_steps);
+      else snprintf(value, value_n, "--");
+      return SLOT_LAYOUT_LABEL;
+    case SLOT_HEART:
+      snprintf(label, label_n, "heart");
+      if (s_have_heart) snprintf(value, value_n, "%d", (int)s_heart);
+      else snprintf(value, value_n, "--");
+      return SLOT_LAYOUT_LABEL;
+    case SLOT_HEALTH: {
+      // In a box this kind draws its own rows, so the string built here is only
+      // what the band needs: the two readings joined, the same way the combined
+      // date kinds join theirs. The icons do not survive a single line of text
+      // and the band has no room to name both metrics.
+      if (!for_band) return SLOT_LAYOUT_HEALTH;
+      char st[12], hr[8];
+      if (s_have_steps) snprintf(st, sizeof(st), "%d", (int)s_steps);
+      else snprintf(st, sizeof(st), "--");
+      if (s_have_heart) snprintf(hr, sizeof(hr), "%d", (int)s_heart);
+      else snprintf(hr, sizeof(hr), "--");
+      snprintf(value, value_n, "%s / %s", st, hr);
+      return SLOT_LAYOUT_LABEL;
+    }
     case SLOT_SUNSET:
       snprintf(label, label_n, "sunset");
       if (s_have_sunset) format_hhmm(s_sunset_at, value, value_n);
@@ -896,6 +948,47 @@ static void draw_battery_gauge(GContext *ctx, int pct, bool charging, GColor ink
 // the day on the forecast -- and the reading takes the full width beneath, so
 // nothing is measured against what an icon leaves.
 #define WX_ICON_SIZE 25
+
+// The health icons are pixel masks drawn a row at a time, not resources. A
+// weather icon is a 25x25 Draw Command; these share their row with a reading
+// that can be five digits wide, so they have to be a third of that and are
+// hand-fitted at the size they are drawn. Same reasoning as the Bluetooth rune
+// and the battery cell, which are drawn for the same reason.
+//
+// Both were traced from freely licensed sets rather than drawn here, then
+// pixel-fitted: the steps mark is Font Awesome Free 6 "shoe-prints" (CC BY
+// 4.0) rotated to stand upright, and the heart is Bootstrap Icons "heart-fill"
+// (MIT). Licenses ship in resources/data/.
+//
+// The heart's left half is mirrored onto its right. Rasterizing to this size
+// left the shape flush against one edge of its bounding box and a column short
+// of the other, which reads as a clipped edge; mirroring the authored half
+// restores it. Taking the union with the mirror would have filled the cleft
+// between the lobes, which is the feature that makes this heart read as one.
+#define HEALTH_ICON_GAP 3
+
+static const uint16_t ICON_STEPS[] = {
+  0x000E, 0x000E, 0x000F, 0x01CF, 0x03CF, 0x03CF, 0x03C7,
+  0x03C6, 0x03C6, 0x0386, 0x0100, 0x0180, 0x0180
+};
+#define ICON_STEPS_W 10
+#define ICON_STEPS_H 13
+
+static const uint16_t ICON_HEART[] = {
+  0x01DC, 0x03FE, 0x07FF, 0x07FF, 0x07FF, 0x03FE, 0x03FE, 0x01FC, 0x00F8, 0x0070, 0x0020
+};
+#define ICON_HEART_W 11
+#define ICON_HEART_H 11
+
+// Rows of the combined box, and how far each icon drops to sit on its reading.
+// A Gothic line's ink does not fill its line box -- it sits low inside it -- so
+// an icon aligned to the box reads high. These centre the icon on the digits'
+// ink instead, and were measured off the render rather than reasoned about:
+// before them both icons sat 5.5px high, and they land within half a pixel.
+#define HEALTH_ROW1_DY 6      // the first row's top, below footer_top
+#define HEALTH_ROW2_DY 33     // and the second's
+#define HEALTH_STEPS_IDY 6    // the steps icon, below its row
+#define HEALTH_HEART_IDY 7    // the heart, which is two rows shorter
 
 
 static uint32_t wx_resource(uint8_t cond) {
@@ -1137,6 +1230,44 @@ static void update_shabbat(const struct tm *lt, time_t now) {
   s_shabbat = shabbat_kind(&n);
 }
 
+// Re-read the metrics into the cache. Cheap, and called only when the health
+// service says something changed or at startup -- not on the tick, which runs
+// every second when the wearer has asked for seconds.
+//
+// Accessibility is asked per metric rather than once: a watch can perfectly
+// well count steps while the heart rate sensor has nothing to report, and the
+// two boxes should degrade independently. Anything not available reads "--",
+// the same as a sun time with no location.
+static void update_health(void) {
+  const time_t now = time(NULL);
+  const time_t start = time_start_of_today();
+
+  s_have_steps = (health_service_metric_accessible(HealthMetricStepCount, start, now) &
+                  HealthServiceAccessibilityMaskAvailable) != 0;
+  s_steps = s_have_steps ? health_service_sum_today(HealthMetricStepCount) : 0;
+
+  // The heart rate is an instant, so it is asked about the instant, not the
+  // day: a range starting at midnight answers whether the watch holds heart
+  // data at all, which is not the same question as whether it has a reading
+  // now. A sensor that has not sampled recently reports 0, which is not a
+  // plausible pulse and is treated as no reading rather than drawn as one.
+  s_have_heart = (health_service_metric_accessible(HealthMetricHeartRateBPM, now, now) &
+                  HealthServiceAccessibilityMaskAvailable) != 0;
+  s_heart = s_have_heart ? health_service_peek_current_value(HealthMetricHeartRateBPM) : 0;
+  if (s_heart <= 0) s_have_heart = false;
+}
+
+static void health_handler(HealthEventType event, void *context) {
+  // Every event this face cares about ends in the same place: re-read and
+  // redraw. HealthEventSignificantUpdate also arrives on a day change, which is
+  // what resets the step count, so there is nothing separate to do at midnight.
+  if (event == HealthEventSignificantUpdate || event == HealthEventMovementUpdate ||
+      event == HealthEventHeartRateUpdate) {
+    update_health();
+    if (s_canvas) layer_mark_dirty(s_canvas);
+  }
+}
+
 static void refresh(time_t now) {
   // Ahead of every early exit: this one does not depend on having a location,
   // and a weather box is drawn from it whether or not the solar maths worked.
@@ -1173,6 +1304,48 @@ static void refresh(time_t now) {
   // showing happens -- rather than at midnight, and cost three more passes of
   // the solar maths, so they are only computed while one is configured.
   if (any_next_slot() && (now >= s_next_stale || now < s_next_from)) update_next_events(now);
+}
+
+// One row of pixels at a time, from a mask. Small enough that the cost is
+// invisible and it keeps the icons out of the resource pack, where a 25x25
+// Draw Command is the smallest unit on offer.
+static void draw_mask(GContext *ctx, const uint16_t *rows, int h, int w, int x, int y,
+                      GColor color) {
+  graphics_context_set_fill_color(ctx, color);
+  for (int r = 0; r < h; r++) {
+    const uint16_t m = rows[r];
+    for (int b = 0; b < w; b++) {
+      if (m & (1 << b)) graphics_fill_rect(ctx, GRect(x + b, y + r, 1, 1), 0, GCornerNone);
+    }
+  }
+}
+
+// An icon and a reading, centred in the box as a pair. The icon keeps its own
+// left edge rather than sitting in a fixed column, so a three-digit pulse and a
+// five-digit step count each centre on their own width.
+static void draw_icon_row(GContext *ctx, const uint16_t *icon, int ih, int iw,
+                          const char *text, GFont font, int lead, GColor ink, int y, int x,
+                          int w, int icon_dy) {
+  const int left = x + (w - (iw + HEALTH_ICON_GAP + measure(text, font).w)) / 2;
+  draw_mask(ctx, icon, ih, iw, left, y + icon_dy, ink);
+  draw_at(ctx, text, font, lead, ink, y, left + iw + HEALTH_ICON_GAP, w);
+}
+
+// The combined box: steps over heart rate, each an icon and a reading, no label
+// row. Both rows are Gothic 24 rather than 28 -- five digits and an icon do not
+// fit a footer box at 28, and the size was traded for keeping the step count
+// exact rather than abbreviating it past ten thousand.
+static void draw_health_box(GContext *ctx, int x, int top, int w, GColor ink) {
+  char steps[12], heart[8];
+  if (s_have_steps) snprintf(steps, sizeof(steps), "%d", (int)s_steps);
+  else snprintf(steps, sizeof(steps), "--");
+  if (s_have_heart) snprintf(heart, sizeof(heart), "%d", (int)s_heart);
+  else snprintf(heart, sizeof(heart), "--");
+
+  draw_icon_row(ctx, ICON_STEPS, ICON_STEPS_H, ICON_STEPS_W, steps, s_font_bold24,
+                LEAD_GOTHIC24, ink, top + HEALTH_ROW1_DY, x, w, HEALTH_STEPS_IDY);
+  draw_icon_row(ctx, ICON_HEART, ICON_HEART_H, ICON_HEART_W, heart, s_font_bold24,
+                LEAD_GOTHIC24, ink, top + HEALTH_ROW2_DY, x, w, HEALTH_HEART_IDY);
 }
 
 static void draw_face(Layer *layer, GContext *ctx) {
@@ -1414,6 +1587,10 @@ static void draw_face(Layer *layer, GContext *ctx) {
     const int value_w = (layout == SLOT_LAYOUT_WEATHER) ? w - 4 : w;
     BoxFace vf = box_face(value, value_w, s_settings.hebrew_script && slot_has_hebrew(kinds[i]),
                           slot_value_is_compact(kinds[i]));
+    if (layout == SLOT_LAYOUT_HEALTH) {
+      draw_health_box(ctx, x, footer_top, w, ink);
+      continue;
+    }
     if (layout == SLOT_LAYOUT_SPLIT) {
       // A date split over both lines: same size and weight, no label.
       draw_centered(ctx, label, s_font_bold24, LEAD_GOTHIC24, ink, footer_top + 1, x, w);
@@ -2108,6 +2285,13 @@ static void init(void) {
   subscribe_tick();
   battery_state_service_subscribe(battery_handler);
   accel_tap_service_subscribe(accel_tap_handler);
+  // Subscribing allocates up to 2KB on the app heap and can fail; the cache is
+  // filled once here either way, so a face that cannot subscribe still shows
+  // the readings it had at launch rather than nothing. No sample period is set
+  // for the heart rate: raising it costs battery on a sensor the wearer did not
+  // ask to run harder, and the setting outlives the app.
+  health_service_events_subscribe(health_handler, NULL);
+  update_health();
   connection_service_subscribe((ConnectionHandlers){
       .pebble_app_connection_handler = connection_handler,
   });
@@ -2132,6 +2316,7 @@ static void deinit(void) {
   save_weather();
   wx_schedule_retry(0);
   connection_service_unsubscribe();
+  health_service_events_unsubscribe();
   accel_tap_service_unsubscribe();
   battery_state_service_unsubscribe();
   tick_timer_service_unsubscribe();

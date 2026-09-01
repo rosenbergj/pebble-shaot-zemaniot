@@ -1,7 +1,7 @@
 {
   "name": "shaot",
   "author": "Josh Rosenberg",
-  "version": "1.0.50",
+  "version": "1.0.51",
   "keywords": [
     "pebble-app"
   ],
@@ -22,7 +22,8 @@
     },
     "capabilities": [
       "configurable",
-      "location"
+      "location",
+      "health"
     ],
     "messageKeys": [
       "LAT",
