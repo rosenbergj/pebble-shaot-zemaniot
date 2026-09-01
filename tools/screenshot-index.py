@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Regenerate screenshots/index.html: a thumbnail gallery, newest first.
 
+Picks up .png and .gif -- the store preview is an animation.
+
 screenshots/ is served over the LAN by `python3 -m http.server` from inside it,
 which has no way to run anything, so the listing has to be a static file. Run
 this after adding shots.
@@ -55,7 +57,8 @@ TILE = """  <figure>
 
 
 def main():
-    shots = [f for f in os.listdir(SHOTS) if f.lower().endswith(".png")]
+    shots = [f for f in os.listdir(SHOTS)
+             if f.lower().endswith((".png", ".gif"))]
     shots.sort(key=lambda f: os.path.getmtime(os.path.join(SHOTS, f)), reverse=True)
     tiles = "\n".join(
         TILE.format(

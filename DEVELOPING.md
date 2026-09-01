@@ -82,6 +82,15 @@ the tool exits. Bluetooth-drop behavior therefore cannot be watched live. Test
 whatever the drop was going to exercise at app launch instead, which runs the
 same code down the same path.
 
+**Two emulator settings only reach the app when it relaunches**, and both look
+like they worked. `pebble emu-heart-rate <bpm>` sets a value the health
+subscription never sees if it is already running, so the heart reads `--`
+however many times it is sent; `pebble emu-time-format --format 12h` returns
+exit 0 and leaves the face in 24h. Set either one **before** `pebble install`,
+which relaunches the app, and both take. Note the format flag is `--format`,
+not a positional argument — passing `12h` on its own is an argparse error, and
+it is easy to lose down a redirect.
+
 **`pebble emu-set-time HH:MM:SS` does not stick.** The emulator's phone bridge
 pushes the real time back within a few seconds, so it is good for one screenshot
 of a moment and useless for watching anything change across it.
