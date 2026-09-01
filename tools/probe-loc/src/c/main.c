@@ -231,7 +231,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
 // The same hourly wake the face sends, with the same key. WantWx is always 0
 // here: this app displays no weather, so there is nothing for the phone to
 // fetch -- but the position top-up on the far side is ungated, which is exactly
-// the behaviour being probed.
+// the behavior being probed.
 static void send_request(void) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;

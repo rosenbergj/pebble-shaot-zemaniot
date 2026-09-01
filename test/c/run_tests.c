@@ -404,8 +404,8 @@ static void test_numparse(void) {
   check(numparse_int(" 5 ", &v) && v == 5, "surrounding spaces");
   check(numparse_int("007", &v) && v == 7, "leading zeros are decimal, not octal");
 
-  // The colour picker's conventional form.
-  check(numparse_int("0x007882", &v) && v == 0x007882, "hex colour");
+  // The color picker's conventional form.
+  check(numparse_int("0x007882", &v) && v == 0x007882, "hex color");
   check(numparse_int("0X00FF00", &v) && v == 0x00FF00, "capital hex prefix");
   check(numparse_int("0xffffff", &v) && v == 0xFFFFFF, "lowercase hex digits");
 
@@ -469,7 +469,7 @@ static void test_weather(void) {
   check(weather_low_ymd(2026, 8, 18, 0) == 20260818, "just after midnight, tonight's low is still ahead");
   check(weather_low_ymd(2026, 8, 18, 5) == 20260818, "the hour before the low cutoff is today's");
   check(weather_low_ymd(2026, 8, 18, 6) == 20260819, "the low cutoff hour itself is tomorrow's");
-  check(weather_low_ymd(2026, 8, 18, 14) == 20260819, "an afternoon labelled today shows tomorrow's low");
+  check(weather_low_ymd(2026, 8, 18, 14) == 20260819, "an afternoon labeled today shows tomorrow's low");
   check(weather_low_ymd(2026, 8, 18, 17) == 20260819, "the hour before the main cutoff is tomorrow's");
   // Past the main cutoff the box names tomorrow, so the two rules agree and
   // the pair on screen belongs to one day again.

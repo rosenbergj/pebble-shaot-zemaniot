@@ -41,7 +41,7 @@ static void solar_params(double T, double *decl, double *eq_time) {
               0.5 * y * y * sz_sin(4 * L0 * DEG) - 1.25 * e * e * sz_sin(2 * M * DEG));
 }
 
-// Hour angle (deg) at which the sun's centre reaches angle_deg.
+// Hour angle (deg) at which the sun's center reaches angle_deg.
 // False when it never does.
 static bool hour_angle(double lat_deg, double decl_deg, double angle_deg, double *out) {
   double cos_ha = (sz_cos((90.0 - angle_deg) * DEG) -

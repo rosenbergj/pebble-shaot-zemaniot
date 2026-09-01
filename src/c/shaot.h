@@ -33,7 +33,7 @@ void shaot_format(int chalakim, bool offset6, bool with_minutes,
 // narrow as possible. Counts the second in progress, so it reads "0:01" for a
 // second and then stops rather than sitting on "0:00"; a negative remainder
 // formats as "0:01" for the same reason. Minutes are not zero-padded under an
-// hour: the line is centred, so a leading zero would only cost width.
+// hour: the line is centered, so a leading zero would only cost width.
 void shaot_format_countdown(int seconds, char *out, size_t out_size);
 
 #endif

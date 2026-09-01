@@ -6,7 +6,7 @@
 // and check it with plain gcc against the same PyEphem fixtures the JavaScript
 // used.
 //
-// Agreement with PyEphem is ~20s, dominated by refraction modelling near the
+// Agreement with PyEphem is ~20s, dominated by refraction modeling near the
 // horizon; test/c/run_tests.c documents the tolerance.
 
 #ifndef SOLAR_H
@@ -14,7 +14,7 @@
 
 #include <stdbool.h>
 
-// Degrees relative to the geometric horizon, centre of disk.
+// Degrees relative to the geometric horizon, center of disk.
 #define SUNRISE_SET_ANGLE (-0.833)  // refraction 34' + semidiameter 16'
 #define TZEIT_ANGLE (-8.5)
 

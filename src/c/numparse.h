@@ -1,6 +1,6 @@
 // Parse the small integers that arrive from the phone as text.
 //
-// Clay's select components send their value as a string, and its colour picker
+// Clay's select components send their value as a string, and its color picker
 // may send "0xRRGGBB", so the watch has to turn text into a number. This does
 // that without newlib: strtol() behaved inconsistently on the watch, and after
 // newlib's sin() was found to overrun the app stack there is no appetite for

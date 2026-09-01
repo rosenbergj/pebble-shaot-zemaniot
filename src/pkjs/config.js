@@ -8,7 +8,7 @@
 
 // Sunset and nightfall show today's, rolling over at local midnight, so they
 // are steady all day and can name a time already past. The "Next" kinds instead
-// show whichever of their events comes soonest, labelled with its name, so they
+// show whichever of their events comes soonest, labeled with its name, so they
 // change through the day and after nightfall read tomorrow's. A tap moves those
 // on to the event after that one; the fixed kinds above do not respond to it,
 // having nothing to move on to.
@@ -34,7 +34,7 @@ var BAND_OPTIONS = SLOT_OPTIONS.concat([
   { label: "Both dates: Hebrew first", value: 11 },
 ]);
 
-// The two gutters: the dead space either side of the centred clock. Both hold
+// The two gutters: the dead space either side of the centered clock. Both hold
 // the same kinds, and either may hold nothing; picking the same warning twice
 // puts it in both gutters.
 var GUTTER_OPTIONS = [
@@ -222,7 +222,7 @@ module.exports = [
       {
         type: "color",
         messageKey: "AccentColor",
-        label: "Accent colour",
+        label: "Accent color",
         description: "Used for the top band and the two outer boxes.",
         defaultValue: "0x007882",
         sunlight: true,
