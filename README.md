@@ -34,14 +34,13 @@ tov the face can ignore taps, so a wrist movement changes nothing.
 
 ## Installing
 
-Grab the `.pbw` from the [releases page][releases] and install it from the
-Pebble phone app. Weather and the initial location need the phone; everything
-else — the shaot clock, the sun events, the Hebrew date — runs on the watch
-alone and keeps working when the phone is away.
+**Not published yet.** Until it is, build it yourself — see below — and
+sideload the `.pbw` from the Pebble phone app. The first release will go to the
+Pebble App Store and to this repo's releases page at the same time.
 
-Built for the Pebble Time 2 (`emery`) only.
-
-[releases]: https://github.com/rosenbergj/pebble-shaot-zemaniot/releases
+Built for the Pebble Time 2 (`emery`) only. Weather and the initial location
+need the phone; everything else — the shaot clock, the sun events, the Hebrew
+date — runs on the watch alone and keeps working when the phone is away.
 
 ## Building it yourself
 

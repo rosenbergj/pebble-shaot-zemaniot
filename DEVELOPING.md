@@ -239,3 +239,39 @@ that were worn: same source, version and UUID, not byte-identical.
 
 Give a build a distinct `displayName` *and* UUID whenever two are meant to be
 installed at once for comparison, as `tools/probe*` do.
+
+### Publishing a GitHub release
+
+`good-<version>` and `v<version>` are different claims and both are worth
+having on the same commit. `good-` means the build was worn and confirmed;
+`v` means it was published. A build can be good without being published — most
+are — so the tag that gates a release is `good-`, and `v` is only ever added to
+a commit that already carries one.
+
+Needs the `gh` CLI:
+
+```sh
+sudo apt install gh && gh auth login
+```
+
+Then, on a commit that is already tagged `good-<version>`:
+
+```sh
+git tag -a v1.1.0 -m "Release 1.1.0" good-1.1.0
+git push origin main --follow-tags
+gh release create v1.1.0 dist/pt2-shaot-watchface.pbw \
+  --title "1.1.0" --notes-file <notes>
+```
+
+The `.pbw` is the release's only asset and is not in the tree — `dist/` is
+gitignored, so the file is uploaded rather than tagged. Attach the *rollback*
+copy, `pt2-shaot-watchface-lastgood.pbw`, if a newer build has since been
+staged over `pt2-shaot-watchface.pbw`; the same overwrite-in-place trap that
+`--good` has applies here, and `unzip -p <pbw> appinfo.json` settles which
+version a file actually holds before it is uploaded.
+
+Release notes are written for someone deciding whether to install, not for
+someone reading the diff: what changed on screen, what settings are new, and
+anything that will look different without being asked for. A generated commit
+log is the wrong artifact — the history is one commit per measurement, and most
+of them describe work no wearer can see.
