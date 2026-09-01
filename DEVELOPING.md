@@ -240,7 +240,13 @@ that were worn: same source, version and UUID, not byte-identical.
 Give a build a distinct `displayName` *and* UUID whenever two are meant to be
 installed at once for comparison, as `tools/probe*` do.
 
-### Publishing a GitHub release
+### Publishing a release
+
+Three gates, and nothing links them automatically: a git tag, a GitHub release,
+and a store release. A tagged version does not reach the store, and a `.pbw`
+uploaded to the store is not public until it is published there separately. So
+a version can be tagged, pushed, and worn for as long as it takes before
+anyone else can install it.
 
 `good-<version>` and `v<version>` are different claims and both are worth
 having on the same commit. `good-` means the build was worn and confirmed;
@@ -248,27 +254,28 @@ having on the same commit. `good-` means the build was worn and confirmed;
 are — so the tag that gates a release is `good-`, and `v` is only ever added to
 a commit that already carries one.
 
-Needs the `gh` CLI:
-
-```sh
-sudo apt install gh && gh auth login
-```
-
-Then, on a commit that is already tagged `good-<version>`:
+Tag and push the tag by itself:
 
 ```sh
 git tag -a v1.1.0 -m "Release 1.1.0" good-1.1.0
-git push origin main --follow-tags
-gh release create v1.1.0 dist/pt2-shaot-watchface.pbw \
-  --title "1.1.0" --notes-file <notes>
+git push origin v1.1.0
 ```
 
-The `.pbw` is the release's only asset and is not in the tree — `dist/` is
-gitignored, so the file is uploaded rather than tagged. Attach the *rollback*
-copy, `pt2-shaot-watchface-lastgood.pbw`, if a newer build has since been
-staged over `pt2-shaot-watchface.pbw`; the same overwrite-in-place trap that
-`--good` has applies here, and `unzip -p <pbw> appinfo.json` settles which
-version a file actually holds before it is uploaded.
+Push the one tag rather than `--follow-tags`, which would sweep every annotated
+`good-` tag onto the remote as well. Those are a private record of what was
+worn, and they are not interesting to anyone else.
+
+Then, on the repo's Releases page: *Draft a new release*, choose the tag that
+was just pushed, and attach `dist/pt2-shaot-watchface.pbw`. The `.pbw` is the
+release's only asset and is not in the tree — `dist/` is gitignored, so the
+file is uploaded rather than tagged. Attach the *rollback* copy,
+`pt2-shaot-watchface-lastgood.pbw`, if a newer build has since been staged over
+`pt2-shaot-watchface.pbw`; the same overwrite-in-place trap that `--good` has
+applies here, and `unzip -p <pbw> appinfo.json` settles which version a file
+actually holds before it is uploaded.
+
+The store is a third, separate step: upload the same `.pbw` as a release in the
+developer portal, then publish that release. Uploading does not publish it.
 
 Release notes are written for someone deciding whether to install, not for
 someone reading the diff: what changed on screen, what settings are new, and
