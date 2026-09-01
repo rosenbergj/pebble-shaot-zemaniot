@@ -39,6 +39,16 @@ Hebrew months can be written in Hebrew or transliterated, temperatures in
 Fahrenheit or Celsius, and the accent color is yours to pick. On Shabbat and yom
 tov the face can ignore taps, so a wrist movement changes nothing.
 
+## Design note
+
+Folks familiar with *shaot zemaniot* might wonder why this watchface doesn't
+have notifications for or even info about particular *zmanim*. The answer is
+that our goal is to lean into this system as a genuine way of keeping time.
+Perhaps it's more of an art project than a practical tool. If you want more
+*zmanim* or more alerting, there are watch [apps](https://apps.repebble.com/zmanim_8a706e64a4f745cc94398e35)
+for [that](https://apps.repebble.com/smart-zmanim_bc9329d00fac46068a373d71),
+or feel free to fork our code.
+
 ## Want to try it?
 Download on the Pebble store at the link below:
 https://apps.rePebble.com/9cc1f2cb2f78476f8bcbca70
