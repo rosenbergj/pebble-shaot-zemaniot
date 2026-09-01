@@ -39,7 +39,7 @@ src/c/numparse.c    integer parsing (newlib's strtol cannot be used here)
 src/c/weather.c     forecast day choice, unit conversion, staleness
 src/c/shabbat.c     whether it is Shabbat or yom tov at this moment
 resources/fonts/    Liberation Sans Bold, bundled for Hebrew (see below)
-resources/data/     weather icons, from TimeStyle (MIT; licence alongside)
+resources/data/     weather icons, from TimeStyle (MIT; license alongside)
 src/pkjs/index.js   phone side: geolocation -> LAT/LON
 src/pkjs/config.js  Clay settings page
 test/c/             host harness for the pure modules
@@ -167,7 +167,7 @@ watch.
   Bold covers both and is close enough to Gothic to sit beside it; Noto Sans
   Hebrew has **no Latin at all**, which would have forced splitting each line
   into runs and measuring them. `characterRegex` keeps the resource to the two
-  blocks actually used. The licence is in `resources/fonts/`.
+  blocks actually used. The license is in `resources/fonts/`.
 - **Measure text in a box wider than any line it can produce.** `measure()`
   passes a 1000px-wide rect on purpose: `graphics_text_layout_get_content_size`
   *wraps* the text inside the rect it is given, so measuring inside the real
@@ -179,7 +179,7 @@ watch.
   a watchface, but neither `touch_service_subscribe()` nor an attached
   `tap_recognizer` ever fires — with the system touch bridge left alone or
   disabled via `window_set_touch_bridge_disabled()`. Confirmed on hardware
-  2026-08-18 with a throwaway probe watchface, against an accelerometer-tap
+  2026-08-18 with `tools/touch-probe`, against an accelerometer-tap
   counter that incremented normally throughout, and with the launch counter
   unmoved, so the taps were not being consumed as system navigation either.
   **Do not feature-test touch with `touch_service_is_enabled()`** — it is the
@@ -204,8 +204,8 @@ watch.
   keeps only the last pair, which looks exactly like a watch-side bug. The
   coordinates are the case that catches this: `main.c` adopts a location only
   when both arrive in the same message.
-- **`battery_state_service_peek()` is not quantised to 10% on PT2.** That is
-  classic-Pebble behaviour; this watch reports values like 32%, so the gauge can
+- **`battery_state_service_peek()` is not quantized to 10% on PT2.** That is
+  classic-Pebble behavior; this watch reports values like 32%, so the gauge can
   show what it is given.
 - **Judge drawn artwork at 1:1, never zoomed.** Every wrong call in the charging
   icon and disconnect rune came from a 5x crop: vertical stripes look clean
@@ -214,7 +214,7 @@ watch.
   candidates in place, at actual size, before choosing.
 - **`graphics_draw_rect()` ignores the context's stroke width.** Setting it to
   2 and drawing a rect silently gives a 1px outline; only lines and circles
-  honour it. The low-battery cell draws two nested rects instead, so it carries
+  honor it. The low-battery cell draws two nested rects instead, so it carries
   the same weight as the 2px disconnect rune facing it. Measure the ink -- the
   difference is invisible at watch size and obvious in a pixel count.
 - **`M_PI` is not defined** — the toolchain compiles without GNU extensions.
@@ -266,7 +266,7 @@ watch.
 
 The phone fetches from **Open-Meteo** (free, no API key) and sends the result
 over AppMessage; the watch never touches the network. Modelled on TimeStyle,
-whose weather icons this uses (MIT, licence in `resources/data/`).
+whose weather icons this uses (MIT, license in `resources/data/`).
 
 - **The watch asks; the phone does not push.** Only the watch knows whether any
   slot is showing weather, and there is no point spending a radio wake and an
@@ -458,7 +458,7 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   than the named day, so a high that cannot be answered takes the low with it
   and the box reads `--/--`. `?/80` is unreachable; the ordering code handles it
   anyway rather than depending on the argument.
-- **Degrading:** never-fetched shows `--°` centred, with no icon. Data too old
+- **Degrading:** never-fetched shows `--°` centered, with no icon. Data too old
   keeps its place but is drawn in a muted ink, icon included — still readable,
   visibly not live. The whole `WeatherData` struct is persisted, so a relaunch
   is not blank.
@@ -514,10 +514,10 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   is running, with the reading in the on-accent ink. It is sized from the
   measured string but never narrower than `00:00`, so it holds still as the
   minutes drop to one digit and grows rather than clips if a window ever runs
-  past an hour. It is centred, then pushed left only as far as the disconnect
+  past an hour. It is centered, then pushed left only as far as the disconnect
   icon's gutter requires — unconditionally, not only while disconnected, since a
   block that slid sideways when Bluetooth dropped would pull the eye away from
-  the icon that is the actual news. At 200px wide nothing pushes: centring
+  the icon that is the actual news. At 200px wide nothing pushes: centering
   already leaves 5px of gutter.
 
   Its vertical bounds were set by measuring rendered pixels, not by eye. The
@@ -559,10 +559,12 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   The forecast's is the icon and the day side by side: the reading rolls at the
   cutoff and nothing else says whose high is on screen. Current conditions have
   no such word -- "now" names what a weather box says by default -- so the icon
-  takes that row alone and is centred over the reading, two centred objects
+  takes that row alone and is centered over the reading, two centered objects
   rather than a crowded header above a mostly empty line. That last arrangement
   was worn before it was changed; `screenshots/nowbox-*.png` are the options it
-  was chosen from.
+  was chosen from. The day reads `today` or, past the cutoff, the weekday it
+  names (`wed`) — "tomorrow" does not fit the label. Needing it is also what
+  ruled out the arrangements with the largest type.
 - **The halves are still told apart without the word.** "Now" is one temperature
   carrying a degree sign; the forecast is two carrying none; and the swapped
   fill says when a box is showing the half it does not usually show. A box with
@@ -573,12 +575,8 @@ whose weather icons this uses (MIT, licence in `resources/data/`).
   is drawn on the background, and the middle box, normally on the background,
   takes the fill. Reuse it for transient states; do not spend it on anything
   permanent, since its meaning depends on being out of the ordinary.
-- **The day word is load-bearing.** The forecast rolls at the cutoff, so a
-  layout without it leaves no way to tell whose high is on screen — that is what
-  ruled out the arrangements with the largest type. It reads `today` or, past
-  the cutoff, the weekday it names (`wed`); "tomorrow" does not fit the label.
 - **Icons are Pebble Draw Commands** (`type: "raw"` in `package.json`, 25x25,
-  ~1.8KB for all twelve). They carry their own colours, so `wx_recolor()`
+  ~1.8KB for all twelve). They carry their own colors, so `wx_recolor()`
   repaints one before it is drawn in a box whose ink differs.
 
 ## The solar boxes and the tap
@@ -727,7 +725,7 @@ AppMessage buffers.
 
 ## The gutter indicators
 
-Two warnings can live in the dead space either side of the centred clock,
+Two warnings can live in the dead space either side of the centered clock,
 between the band and the shaot line: a struck-through Bluetooth rune while the
 phone is unreachable, and an empty red battery while the charge is low. Which
 one goes in which gutter is a setting -- `GutterLeft` and `GutterRight`, each
@@ -741,21 +739,21 @@ placement the pair had when they were fixed: battery left, rune right.
   whichever way round it is. Nothing stops the same warning being picked twice;
   it then appears on both sides, which is odd but is what was asked for.
 - **The countdown block keeps clear of the right-hand gutter whatever is in
-  it** -- including nothing. The reservation was never about Bluetooth; a block
-  that slid sideways when the state changed would pull the eye off the news.
+  it** -- including nothing. See the countdown note under "Weather" for why the
+  reservation is unconditional.
 - **They are overlays, and deliberately not drawn with the rest of the face.**
   The settings page counts them among the areas the wearer can fill, but they
   are not slots: they hold warnings, not readings, and nothing is laid out
   around them. They are drawn from `canvas_update()` after `draw_face()`
   returns, because `draw_face()` gives up early when the unobstructed area is
   too short for the footer, and an indicator that vanishes under a Timeline
-  Peek is not doing its job. Nothing is laid out around them, so nothing moves
-  to make room -- but see the next note for why that is not the same as the
-  gutters being empty.
+  Peek is not doing its job. Nothing moves to make room for them -- but see the
+  note below on the lift for why that is not the same as the gutters being
+  empty.
 - **They share one anchor row and never move.** `gutter_top()` measures from
   `layer_get_bounds()`, not from the unobstructed area, so a Timeline Peek does
   not shift them; see the Peek note under "Platform constraints" for what
-  anchoring them to the visible area did. Both centre on the same row whichever
+  anchoring them to the visible area did. Both center on the same row whichever
   gutter they are in, so the pair reads as a matched set when they happen to
   appear together.
 - **The bottom of the span they are measured across is frozen, and must stay
@@ -766,7 +764,7 @@ placement the pair had when they were fixed: battery left, rune right.
   spending three of the clock's clear rows to buy a fourth below the rune that
   nothing needed. Retuning the footer must not move these; that is the whole
   point of them.
-- **The gutters are not as dead as "the clock is centred" suggests, and the
+- **The gutters are not as dead as "the clock is centered" suggests, and the
   anchor row is lifted 3px to account for it.** Measured on an unobstructed
   200x228 screen, the civil clock stops painting at row 85 -- but at its widest,
   `HH:MM:SS`, it paints out to x=195, which is inside the right-hand gutter's
@@ -779,7 +777,7 @@ placement the pair had when they were fixed: battery left, rune right.
   of the gap those two lines actually leave. Before `GUTTER_LIFT` the rune inked
   rows 92-117 and the shaot line starts at 117, so they shared a row -- six clear
   rows above and none below, which reads as a rune resting on the shaot line.
-  The lift makes it 3 above and 2 below, and centres the low-battery cell at the
+  The lift makes it 3 above and 2 below, and centers the low-battery cell at the
   same time: it went from rows 98-110 (12 above, 6 below) to 95-107, an even 9
   and 9. `screenshots/gutter-07-lifted-both-btforced.png` is the reference shot.
 
@@ -802,7 +800,7 @@ placement the pair had when they were fixed: battery left, rune right.
   almost everywhere else, and although this one only ever appears when the
   phone is gone, a glance should not have to know that.
 - **An outline PDC needs fill and stroke set separately.** `pdc_recolor()`
-  takes both; `wx_recolor()` passes one colour twice, which is right for the
+  takes both; `wx_recolor()` passes one color twice, which is right for the
   weather icons because they are solid shapes and wrong for anything drawn as
   an outline -- doing it to TimeStyle's disconnect icon turned it into a blob.
 - **The emulator cannot produce a real disconnect.** pypkjs keeps the phone-app
@@ -898,7 +896,7 @@ would not.
 
 **`pebble emu-bt-connection --connected no` kills `pebble logs`.** The log
 stream rides the same emulated phone link, so it disconnects along with it and
-the tool exits. Bluetooth-drop behaviour therefore cannot be watched live. Test
+the tool exits. Bluetooth-drop behavior therefore cannot be watched live. Test
 whatever the drop was going to exercise at app launch instead, which runs the
 same code down the same path.
 
@@ -906,7 +904,7 @@ same code down the same path.
 pushes the real time back within a few seconds, so it is good for one screenshot
 of a moment and useless for watching anything change across it.
 
-**To watch behaviour change across a solar event, move the location, not the
+**To watch behavior change across a solar event, move the location, not the
 clock.** Send a `LAT`/`LON` (scaled by 1e6, as `src/pkjs/index.js` does) chosen
 so the event falls near the real current time; the clock then runs normally and
 successive screenshots are seconds apart, not resynced out from under you. That
@@ -923,8 +921,19 @@ The watch returns no logs, so `tools/` holds diagnostic watchfaces:
 | `tools/probe` | adds libm and the solar maths |
 | `tools/probe-float` | staged: reports exactly which operation failed |
 | `tools/probe-loc` | what the location path is doing, and when |
+| `tools/touch-probe` | whether a watchface gets screen touch; settled, see its README |
 
-Each has `build.sh` and its own UUID so it installs alongside the watchface.
+Each has its own UUID so it installs alongside the watchface. `probe`,
+`probe-float` and `probe-loc` carry a `build.sh`; `probe-int` and
+`touch-probe` are built with `pebble build` in their own directory.
+
+**`probe-float` reaches the shared modules by symlink** — `hebdate`, `shaot`,
+`solar` and `trig` under `tools/probe-float/src/c/` are links into `src/c/`, so
+the probe always builds the code the face is running rather than a copy that
+can drift. Anything that rewrites source files in bulk must skip them or restore
+them afterwards: `sed -i` and friends replace a symlink with a regular file, and
+the link is silently gone. `probe-loc`'s phone side is the deliberate exception,
+a mirror rather than a link, for the reason given below.
 
 `probe-loc` answers a different kind of question from the other three. They ask
 whether the app runs at all; it asks **what the phone has told the watch, and
@@ -932,7 +941,7 @@ when**. The face shows no coordinates, so a position update is invisible on it
 except as a sunset time that moved -- which is the same evidence a new day
 produces. The probe shows the coordinates in force, how long ago they arrived,
 a persisted log of the last six messages with the distance each one moved, and
-and how old each fix already was when the phone handed it over. It reports the
+how old each fix already was when the phone handed it over. It reports the
 distance from the shipping `weather_move_km()` rather than a copy.
 
 That last column is the one to read for tuning. Nothing refreshes position
@@ -979,7 +988,7 @@ names and lies.
 When something works on one build and not another, **bisect with controls** —
 build a known-good third-party watchface with this toolchain, and an
 integer-only version of your own — rather than reasoning about causes. That
-localises a fault in one round of sideloading instead of several.
+localizes a fault in one round of sideloading instead of several.
 
 For settings problems, read the parsed values out of `pebble logs`, not off the
 screen: a screenshot easily catches the frame before the message arrives.
@@ -1045,10 +1054,8 @@ checking the bundle's `versionLabel` first (`unzip -p <pbw> appinfo.json`). The
 rollback is then a faithful rebuild of the worn commit rather than the bytes
 that were worn: same source, version and UUID, not byte-identical.
 
-Both builds display as "Shaot Zemaniot" on the watch and share a UUID, so
-installing one replaces the other. That is what makes rollback a
-single install. Give a build a distinct `displayName` *and* UUID whenever two are
-meant to be installed at once for comparison, as `tools/probe*` do.
+Give a build a distinct `displayName` *and* UUID whenever two are meant to be
+installed at once for comparison, as `tools/probe*` do.
 
 ### History
 
