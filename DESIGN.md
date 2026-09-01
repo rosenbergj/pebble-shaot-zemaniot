@@ -340,14 +340,20 @@ whose weather icons this uses (MIT, license in `resources/data/`).
   trip, where the link never drops and nothing restarts the JavaScript -- but
   it is the way to have it immediately. A flight brings the link down and back
   on its own and needs none of this.
-- **An unanswered request is chased**, since nothing else can tell. The send is
+- **An unanswered request is chased**, whether it wanted weather or only a
+  position top-up, since nothing else can tell. The send is
   fire-and-forget and the phone speaks only when it has something, so a request
   that was never heard looks exactly like one whose answer is still coming; the
   absence of a payload is the only available signal. `weather_retry_ms()` in
   `weather.c` holds the schedule — 10s, 30s, 60s, then stop — and the timer
   lives in `main.c`. Growing gaps because the failures differ in kind: a lost
-  race is answered by the first retry, a busy or offline phone wants room. Any
-  arriving payload stands the chase down, including an unprompted one. It is an
+  race is answered by the first retry, a busy or offline phone wants room. What
+  stands it down depends on what it was waiting for: a weather chase runs until
+  the reading lands, while a chase for position alone is called off by the
+  coordinates arriving at all, moved or not — a wearer who has not moved gets
+  the same numbers back, and a chase ending only on a change would run its full
+  schedule twice an hour for someone sitting still. An unprompted payload counts
+  either way. It is an
   `AppTimer` and not a count of ticks **on purpose** — the tick rate is a user
   setting, and a face on minute ticks would round every delay up to a minute.
 - **The five-minute sweep is the floor under that**, not the mechanism. It runs

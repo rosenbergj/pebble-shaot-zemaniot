@@ -229,8 +229,14 @@ static bool s_bt_connected = true;
 // it. Deliberately an AppTimer rather than a count of ticks: the tick rate is
 // a user setting, and a face set to minute ticks would otherwise round every
 // delay in that schedule up to the next whole minute.
-static AppTimer *s_wx_retry_timer = NULL;
-static uint8_t s_wx_attempts = 0;
+static AppTimer *s_chase_timer = NULL;
+static uint8_t s_chase_attempts = 0;
+// What the armed chase is waiting for, recorded when it is armed. The two
+// answers arrive differently: a face with a weather box hears the coordinates
+// first and the reading only after the fetch, so a coordinate pair calls off a
+// position-only chase and leaves a weather one running for the half of the
+// answer that can still fail.
+static bool s_chase_wants_weather = false;
 
 static void save_weather(void) {
   persist_write_data(PERSIST_KEY_WEATHER, &s_wx, sizeof(s_wx));
@@ -1884,19 +1890,21 @@ static void battery_handler(BatteryChargeState state) {
 // currently showing weather -- there is no point spending a radio wake and an
 // HTTP fetch on a face that is not displaying it. The phone treats any message
 // from us as the request; we send nothing else.
-static void wx_retry(void *data);
+static void chase_timeout(void *data);
 
 // Arm, re-arm or stand down the chase. Called with the number of requests that
-// have gone unanswered so far; 0 stands it down, which is what a payload does.
-static void wx_schedule_retry(uint8_t attempts) {
-  if (s_wx_retry_timer) {
-    app_timer_cancel(s_wx_retry_timer);
-    s_wx_retry_timer = NULL;
+// have gone unanswered so far; 0 stands it down, which is what the payload it
+// was waiting for does.
+static void schedule_chase(uint8_t attempts) {
+  if (s_chase_timer) {
+    app_timer_cancel(s_chase_timer);
+    s_chase_timer = NULL;
   }
-  s_wx_attempts = attempts;
+  s_chase_attempts = attempts;
+  s_chase_wants_weather = any_weather_slot();
   const uint32_t ms = weather_retry_ms(attempts);
   if (ms == 0) return;
-  s_wx_retry_timer = app_timer_register(ms, wx_retry, NULL);
+  s_chase_timer = app_timer_register(ms, chase_timeout, NULL);
 }
 
 // The one message this watch sends. WantWx says whether a weather box is on the
@@ -1921,19 +1929,26 @@ static void send_request(bool want_weather) {
 // those very coordinates -- so the reading is always for where the fix says the
 // wearer is, with no offset between the two to reason about.
 static void scheduled_request(void) {
-  const bool wx = any_weather_slot();
-  send_request(wx);
-  if (wx) wx_schedule_retry(1);
+  // Chased whether or not weather is wanted. The send is fire-and-forget, so a
+  // single ask the phone never answers used to leave position un-refreshed for
+  // the whole half hour -- a probe running this cadence without the chase sat
+  // 36 minutes on coordinates 15km behind where it was. A face with a weather
+  // box never showed it, because every weather ask tops position up too and
+  // those were the asks being chased.
+  send_request(any_weather_slot());
+  schedule_chase(1);
 }
 
-static void wx_retry(void *data) {
-  s_wx_retry_timer = NULL;
+static void chase_timeout(void *data) {
+  s_chase_timer = NULL;
   // Nothing to chase across a dead link. The chase is not resumed here either,
   // because the connection handler starts a fresh one the moment the phone is
   // back, which is sooner than any delay left in this schedule.
-  if (!s_bt_connected || !any_weather_slot()) return;
-  send_request(true);
-  wx_schedule_retry((uint8_t)(s_wx_attempts + 1));
+  if (!s_bt_connected) return;
+  // Re-read rather than carried over from when the chase was armed: a weather
+  // box switched on mid-chase should have the rest of the chase fetch weather.
+  send_request(any_weather_slot());
+  schedule_chase((uint8_t)(s_chase_attempts + 1));
 }
 
 static void request_weather(void) {
@@ -1942,7 +1957,7 @@ static void request_weather(void) {
   // Start the count over. Every caller of this is a fresh reason to want
   // weather -- a reconnect, a settings change, the scheduled slot -- and each
   // deserves the full schedule rather than the tail of an older one.
-  wx_schedule_retry(1);
+  schedule_chase(1);
 }
 
 static void alt_view_timeout(void *data) {
@@ -2206,7 +2221,7 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     // too -- the phone sends one when its JavaScript starts -- which is right:
     // the point of the chase is to have current weather, not to have been the
     // one who asked for it.
-    wx_schedule_retry(0);
+    schedule_chase(0);
   }
 
   // Both coordinates must be present and in range before either is adopted, so
@@ -2242,6 +2257,12 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     // paths were sequenced it had nothing left to catch and only spent a
     // duplicate request.
   }
+
+  // The answer a position-only chase was waiting for. A pair arriving at all is
+  // the answer, changed or not: a wearer who has not moved gets the same numbers
+  // back, and a chase that stood down only on a change would run its full
+  // schedule twice an hour for someone sitting still.
+  if (have_lat && have_lon && !s_chase_wants_weather) schedule_chase(0);
   if (settings_changed && memcmp(&before, &s_settings, sizeof(Settings)) == 0) {
     settings_changed = false;
   }
@@ -2340,7 +2361,7 @@ static void init(void) {
 
 static void deinit(void) {
   save_weather();
-  wx_schedule_retry(0);
+  schedule_chase(0);
   connection_service_unsubscribe();
   health_service_events_unsubscribe();
   accel_tap_service_unsubscribe();
