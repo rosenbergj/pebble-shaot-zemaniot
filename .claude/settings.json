@@ -1,5 +1,4 @@
 {
-  "plansDirectory": "/home/josh/working/pebble/pt2-shaot-watchface/.claude/plans",
   "hooks": {
     "SessionEnd": [
       {
