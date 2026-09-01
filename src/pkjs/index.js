@@ -296,7 +296,7 @@ function updateWeather() {
     fetchWeather(c.lat, c.lon);
     return;
   }
-  // No coordinates yet: take a fix, which also seeds the solar maths.
+  // No coordinates yet: take a fix, which also seeds the solar math.
   navigator.geolocation.getCurrentPosition(
     function (pos) {
       onSuccess(pos);

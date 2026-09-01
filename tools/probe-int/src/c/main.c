@@ -1,7 +1,7 @@
 // Integer-only diagnostic probe.
 //
 // Companion to tools/probe. That one exercises libm and soft-float doubles via
-// the solar and calendar maths; this one contains no floating point at all --
+// the solar and calendar math; this one contains no floating point at all --
 // no double, no float, no math.h, and none of the pure modules, since hebdate.c
 // uses double and floor() as well as solar.c.
 //

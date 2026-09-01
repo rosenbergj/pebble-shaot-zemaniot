@@ -3,7 +3,7 @@
 // Emery is 200x228. Ported from the Alloy/JavaScript build, which could not
 // fit on real hardware: an Alloy mod lives inside a fixed 32KB XS block that
 // cannot be enlarged, and this feature set does not fit in the ~10KB left
-// after startup. C has no such budget, which is also why the solar maths runs
+// after startup. C has no such budget, which is also why the solar math runs
 // here again rather than on the phone.
 //
 // Pure calculation lives in shaot.c, hebdate.c and solar.c, which stay free of
@@ -274,7 +274,7 @@ static void save_weather(void) {
 
 // A 28pt value row stands 18 rows tall where 24 stands 14, so it is lifted by
 // half the difference: the ink then grows evenly up and down from the center
-// row the 24pt line already sat on, instead of dropping towards the bottom of
+// row the 24pt line already sat on, instead of dropping toward the bottom of
 // the box or crowding the label above it. Measured from emulator screenshots.
 #define DY_BOX28 (-1)
 
@@ -399,7 +399,7 @@ static void apply_settings(void) {
 
 // A latitude/longitude pair we are willing to compute from. Anything else is
 // corrupt: a bad value must leave the face saying so rather than propagate
-// through the solar maths into a wild time_t.
+// through the solar math into a wild time_t.
 static bool coords_sane(double lat, double lon) {
   // NaN fails every comparison, so this rejects it too.
   return (lat >= -90.0 && lat <= 90.0) && (lon >= -180.0 && lon <= 180.0);
@@ -982,7 +982,7 @@ static const uint16_t ICON_HEART[] = {
 
 // Rows of the combined box, and how far each icon drops to sit on its reading.
 // A Gothic line's ink does not fill its line box -- it sits low inside it -- so
-// an icon aligned to the box reads high. These centre the icon on the digits'
+// an icon aligned to the box reads high. These center the icon on the digits'
 // ink instead, and were measured off the render rather than reasoned about:
 // before them both icons sat 5.5px high, and they land within half a pixel.
 #define HEALTH_ROW1_DY 4      // the first row's top, below footer_top
@@ -1196,7 +1196,7 @@ static void update_next_events(time_t now) {
 // Recompute the half-day bracket, the sunset/tzeit strings and the Hebrew date
 // when the bracket ends or a new day starts.
 //
-// **Never call this from a layer update proc.** It runs the NOAA solar maths in
+// **Never call this from a layer update proc.** It runs the NOAA solar math in
 // soft-float, several hundred bytes of stack and a good deal of work, and an
 // update proc is already deep inside the firmware's render path with a render
 // watchdog running. Doing it there made the watchface crash intermittently on
@@ -1211,7 +1211,7 @@ static void update_next_events(time_t now) {
 // next day boundary: two of the four clauses turn on the hour and on whether
 // nightfall has passed, so it is recomputed on every tick. That costs a scan of
 // thirteen dates and a few comparisons, which is nothing next to the solar
-// maths beside it -- and like everything else here it stays out of the update
+// math beside it -- and like everything else here it stays out of the update
 // proc, which only ever reads what this leaves behind.
 //
 // With no location, or at a latitude where the sun does not set, the answer is
@@ -1276,7 +1276,7 @@ static void health_handler(HealthEventType event, void *context) {
 
 static void refresh(time_t now) {
   // Ahead of every early exit: this one does not depend on having a location,
-  // and a weather box is drawn from it whether or not the solar maths worked.
+  // and a weather box is drawn from it whether or not the solar math worked.
   s_wx_stale = weather_is_stale(&s_wx, (int32_t)now);
   s_wx_fc_stale = weather_forecast_is_stale(&s_wx, (int32_t)now);
   // The early exits below all mean "not known", and leaving a stale answer
@@ -1308,7 +1308,7 @@ static void refresh(time_t now) {
 
   // The combined slots expire on their own schedule -- when the event they are
   // showing happens -- rather than at midnight, and cost three more passes of
-  // the solar maths, so they are only computed while one is configured.
+  // the solar math, so they are only computed while one is configured.
   if (any_next_slot() && (now >= s_next_stale || now < s_next_from)) update_next_events(now);
 }
 
@@ -1326,9 +1326,9 @@ static void draw_mask(GContext *ctx, const uint16_t *rows, int h, int w, int x, 
   }
 }
 
-// An icon and a reading, centred in the box as a pair. The icon keeps its own
+// An icon and a reading, centered in the box as a pair. The icon keeps its own
 // left edge rather than sitting in a fixed column, so a three-digit pulse and a
-// five-digit step count each centre on their own width.
+// five-digit step count each center on their own width.
 static void draw_icon_row(GContext *ctx, const uint16_t *icon, int ih, int iw,
                           const char *text, GFont font, int lead, GColor ink, int y, int x,
                           int w, int icon_dy) {
@@ -1340,7 +1340,7 @@ static void draw_icon_row(GContext *ctx, const uint16_t *icon, int ih, int iw,
 // The combined box: steps over heart rate, each an icon and a reading, no label
 // row. Both rows are Gothic 28, matching every other value row on the face --
 // which is the point, since a box that dropped to 24 read as smaller than its
-// neighbours. Five digits and an icon do not fit at 28, so the step count
+// neighbors. Five digits and an icon do not fit at 28, so the step count
 // abbreviates past ten thousand instead of the type shrinking.
 // The step count as the combined box draws it: exact while it fits, and to one
 // decimal of a thousand once it does not. Truncated rather than rounded, so the
@@ -1388,7 +1388,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
   GRect vis = layer_get_unobstructed_bounds(layer);
   int vis_bottom = vis.origin.y + vis.size.h;
   time_t now = time(NULL);
-  // Draw only. See refresh(): the solar maths must not run from here.
+  // Draw only. See refresh(): the solar math must not run from here.
 
   graphics_context_set_fill_color(ctx, s_bg);
   graphics_fill_rect(ctx, bounds, 0, GCornerNone);

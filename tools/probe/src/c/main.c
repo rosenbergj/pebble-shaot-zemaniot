@@ -7,8 +7,8 @@
 //
 //   line 1  "stage N"     -- how many stages completed before the last draw
 //   line 2  civil time    -- native C, fonts, text drawing, tick service
-//   line 3  sunset        -- libm, soft-float doubles, the NOAA solar maths
-//   line 4  Hebrew date   -- the integer calendar maths
+//   line 3  sunset        -- libm, soft-float doubles, the NOAA solar math
+//   line 4  Hebrew date   -- the integer calendar math
 //   line 5  battery       -- the real battery service (the emulator fakes 100%)
 //
 // A blank or missing line is the answer: the stage counter shows where it
@@ -55,7 +55,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     stage = 2;
   }
 
-  // Stage 2: libm and the solar maths in soft-float double.
+  // Stage 2: libm and the solar math in soft-float double.
   double now_ms = (double)now * 1000.0;
   SolarBracket br = solar_bracket(now_ms, PROBE_LAT, PROBE_LON);
   stage = 3;
@@ -74,7 +74,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
     stage = 4;
   }
 
-  // Stage 3: the integer calendar maths.
+  // Stage 3: the integer calendar math.
   if (lt) {
     HebrewDate hd = hebdate_for_now(lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
                                     lt->tm_hour, br.valid ? br.is_day : true);
