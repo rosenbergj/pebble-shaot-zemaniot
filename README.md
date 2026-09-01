@@ -625,15 +625,33 @@ alternatives, so a wearer who wants both wants them at once.
   cache is filled once at startup regardless, so a face that could not subscribe
   shows the readings it had at launch rather than nothing.
 
-**The combined box is Gothic 24 where every other value row is 28**, and that is
-a trade rather than an oversight. A footer box is 66px wide and a 28pt digit is
-11px, so five digits is 55px and leaves 11px for an icon and its gap -- which no
-icon that reads survives. The options were measured in place
-(`screenshots/health-*.png`): widening the box to 80px fits both rows at 28,
-abbreviating to `12.3k` fits at 28 in the standard box, and dropping to 24 keeps
-the count exact in the standard box. The last was chosen -- an exact step count
-at 24 beats a rounded one at 28 -- and the first two are recorded here so they
-are not rediscovered.
+**The combined box abbreviates the step count rather than shrinking its type.**
+A footer box is 66px wide and a 28pt digit is 11px, so five digits is 55px and
+leaves 11px for an icon and its gap -- which no icon that reads survives.
+Something has to give, and the options were built and measured in place
+(`screenshots/health-*.png`): widen the box to 80px and both rows fit at 28;
+abbreviate to `12.3k` and both rows fit at 28 in a standard box; or drop to
+Gothic 24 and keep the count exact.
+
+**Abbreviating won, and the reason is the neighbours.** 24 was worn first and
+read as a box smaller than the ones beside it -- every other value row on the
+face is 28, so a box that alone is not looks like a mistake rather than a
+choice. Precision in the last two digits of a step count is worth less than that
+consistency. The widened box stays rejected for a different reason: only one box
+can claim extra width, and the Hebrew month box already can.
+
+- **The threshold is set by the layout, not chosen.** `STEPS_ABBREV_FROM` is
+  10,000 because that is where a step count turns five digits wide, which is
+  exactly where it stops fitting beside an icon at 28pt. That it lands on the
+  number wearers already watch for is a coincidence, and a lucky one: the box
+  changes shape at a moment that already means something.
+- **Truncated, not rounded**, so the box never claims steps that have not been
+  taken -- 12,399 reads `12.3k`. Past 99,999 the decimal goes too; that is not a
+  plausible day's walking, but a box that overflowed would be a worse answer
+  than a blunt one.
+- **Only the combined box abbreviates.** A steps box on its own has the whole
+  width and shows all five digits at 28, which is strictly better. It is sharing
+  the row with an icon that costs the precision, so only that box pays it.
 
 - **The icons are pixel masks, not resources.** The smallest unit the resource
   pack offers is a 25x25 Draw Command, and these share a row with a five-digit
@@ -654,12 +672,16 @@ are not rediscovered.
   `HEALTH_HEART_IDY` are measured offsets, not derived ones, and want
   re-measuring if either font size changes.
 - **Only the two single-metric kinds join the 28pt ladder.** The combined kind
-  draws its own rows and never asks `box_face()`.
+  draws its own rows at 28 directly and never asks `box_face()`, so a reading
+  too wide for its row would overflow rather than drop a size -- which is why
+  the abbreviation is a hard rule there rather than a fallback.
 - **The emulator drives this properly**, unlike location and weather:
   `pebble emu-steps <n>` and `pebble emu-heart-rate <bpm>` set real values that
   the health service reports. Note that a heart rate of 0 does not clear the
   last reading -- the emulator holds it -- so the `--` path has to be forced in
-  a throwaway build rather than driven.
+  a throwaway build rather than driven. After a `pebble wipe` the heart rate can
+  take several sends before it registers, while steps take the first one; a
+  single `--` heart is not evidence of a bug.
 
 ## The solar boxes and the tap
 

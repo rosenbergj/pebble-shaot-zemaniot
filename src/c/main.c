@@ -985,10 +985,16 @@ static const uint16_t ICON_HEART[] = {
 // an icon aligned to the box reads high. These centre the icon on the digits'
 // ink instead, and were measured off the render rather than reasoned about:
 // before them both icons sat 5.5px high, and they land within half a pixel.
-#define HEALTH_ROW1_DY 6      // the first row's top, below footer_top
-#define HEALTH_ROW2_DY 33     // and the second's
-#define HEALTH_STEPS_IDY 6    // the steps icon, below its row
-#define HEALTH_HEART_IDY 7    // the heart, which is two rows shorter
+#define HEALTH_ROW1_DY 4      // the first row's top, below footer_top
+#define HEALTH_ROW2_DY 32     // and the second's
+#define HEALTH_STEPS_IDY 7    // the steps icon, below its row
+#define HEALTH_HEART_IDY 8    // the heart, which is two rows shorter
+
+// Above this the combined box abbreviates rather than shrinking. Ten thousand
+// is where a step count turns five digits wide, which is exactly where it stops
+// fitting beside an icon at 28pt -- so the threshold is set by the layout, not
+// chosen, and it happens to land on the number wearers already watch for.
+#define STEPS_ABBREV_FROM 10000
 
 
 static uint32_t wx_resource(uint8_t cond) {
@@ -1332,20 +1338,40 @@ static void draw_icon_row(GContext *ctx, const uint16_t *icon, int ih, int iw,
 }
 
 // The combined box: steps over heart rate, each an icon and a reading, no label
-// row. Both rows are Gothic 24 rather than 28 -- five digits and an icon do not
-// fit a footer box at 28, and the size was traded for keeping the step count
-// exact rather than abbreviating it past ten thousand.
+// row. Both rows are Gothic 28, matching every other value row on the face --
+// which is the point, since a box that dropped to 24 read as smaller than its
+// neighbours. Five digits and an icon do not fit at 28, so the step count
+// abbreviates past ten thousand instead of the type shrinking.
+// The step count as the combined box draws it: exact while it fits, and to one
+// decimal of a thousand once it does not. Truncated rather than rounded, so the
+// box never claims steps that have not been taken -- 12,399 reads 12.3k, not
+// 12.4k. Past 99,999 the decimal goes too; that is not a plausible day's
+// walking, but a box that overflows would be a worse answer than a blunt one.
+//
+// Only this box abbreviates. A steps box on its own has the whole width and
+// shows all five digits at 28, which is strictly better; it is sharing the row
+// with an icon that costs the precision here.
+static void format_steps_compact(int32_t steps, char *out, size_t out_n) {
+  if (steps < STEPS_ABBREV_FROM) {
+    snprintf(out, out_n, "%d", (int)steps);
+  } else if (steps < 100000) {
+    snprintf(out, out_n, "%d.%dk", (int)(steps / 1000), (int)((steps % 1000) / 100));
+  } else {
+    snprintf(out, out_n, "%dk", (int)(steps / 1000));
+  }
+}
+
 static void draw_health_box(GContext *ctx, int x, int top, int w, GColor ink) {
   char steps[12], heart[8];
-  if (s_have_steps) snprintf(steps, sizeof(steps), "%d", (int)s_steps);
+  if (s_have_steps) format_steps_compact(s_steps, steps, sizeof(steps));
   else snprintf(steps, sizeof(steps), "--");
   if (s_have_heart) snprintf(heart, sizeof(heart), "%d", (int)s_heart);
   else snprintf(heart, sizeof(heart), "--");
 
-  draw_icon_row(ctx, ICON_STEPS, ICON_STEPS_H, ICON_STEPS_W, steps, s_font_bold24,
-                LEAD_GOTHIC24, ink, top + HEALTH_ROW1_DY, x, w, HEALTH_STEPS_IDY);
-  draw_icon_row(ctx, ICON_HEART, ICON_HEART_H, ICON_HEART_W, heart, s_font_bold24,
-                LEAD_GOTHIC24, ink, top + HEALTH_ROW2_DY, x, w, HEALTH_HEART_IDY);
+  draw_icon_row(ctx, ICON_STEPS, ICON_STEPS_H, ICON_STEPS_W, steps, s_font_bold28,
+                LEAD_GOTHIC28, ink, top + HEALTH_ROW1_DY, x, w, HEALTH_STEPS_IDY);
+  draw_icon_row(ctx, ICON_HEART, ICON_HEART_H, ICON_HEART_W, heart, s_font_bold28,
+                LEAD_GOTHIC28, ink, top + HEALTH_ROW2_DY, x, w, HEALTH_HEART_IDY);
 }
 
 static void draw_face(Layer *layer, GContext *ctx) {
