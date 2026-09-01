@@ -55,7 +55,8 @@ module.exports = [
     type: "text",
     defaultValue:
       "Proportional Jewish hours. The daylight half of the day is divided " +
-      "into twelve hours of 1080 chalakim each, and likewise the night.",
+      "into twelve hours of 1080 chalakim (parts) each, and likewise the " +
+      "night.",
   },
   {
     type: "section",
@@ -94,7 +95,7 @@ module.exports = [
       {
         type: "select",
         messageKey: "CivilFont",
-        label: "Clock face for the civil time",
+        label: "Font for the civil time",
         options: [
           { label: "Large (Roboto)", value: 0 },
           { label: "Match the shaot digits (Leco)", value: 1 },
@@ -110,8 +111,8 @@ module.exports = [
       {
         type: "text",
         defaultValue:
-          "Six areas: the band across the top, the 3 boxes across the " +
-          "bottom, and overlays center-left and center-right.",
+          "Six areas: the band across the top, the three boxes across the " +
+          "bottom, and the two gutters either side of the clock.",
       },
       {
         type: "select",
@@ -159,8 +160,8 @@ module.exports = [
         type: "text",
         defaultValue:
           "Tap the watch to swap a box for a few seconds: \"Weather " +
-          "now/forecast\" shows the forecast, and a \"Next sun*\" box " +
-          "shows the sun event after the one it names.",
+          "now/forecast\" shows the forecast, and any \"Next\" box shows " +
+          "the sun event after the one it names.",
       },
       {
         type: "text",
