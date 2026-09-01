@@ -251,15 +251,15 @@ static void save_weather(void) {
 #define LEAD_HEB14 3
 
 // A 28pt value row stands 18 rows tall where 24 stands 14, so it is lifted by
-// half the difference: the ink then grows evenly up and down from the centre
+// half the difference: the ink then grows evenly up and down from the center
 // row the 24pt line already sat on, instead of dropping towards the bottom of
 // the box or crowding the label above it. Measured from emulator screenshots.
 #define DY_BOX28 (-1)
 
 // Footer box widths when one box has to be wider than a third of the screen.
 #define BOX_PAD 8         // breathing room either side of a month name
-#define BOX_WIDE_MAX 96   // past this the neighbours get too cramped to read
-#define BOX_NARROW_MIN 52 // a neighbour narrower than this cannot hold "12:58"
+#define BOX_WIDE_MAX 96   // past this the neighbors get too cramped to read
+#define BOX_NARROW_MIN 52 // a neighbor narrower than this cannot hold "12:58"
 
 
 #define CIVIL_Y 46
@@ -360,9 +360,9 @@ static void apply_settings(void) {
   uint8_t g = (s_settings.accent >> 8) & 0xFF;
   uint8_t b = s_settings.accent & 0xFF;
   s_accent = GColorFromRGB(r, g, b);
-  // Ink on the accent has to follow the accent: white on a pale colour is
+  // Ink on the accent has to follow the accent: white on a pale color is
   // unreadable. Perceived brightness (ITU-R BT.601) picks the dark or light
-  // ink we already have, so any colour in the picker stays legible.
+  // ink we already have, so any color in the picker stays legible.
   s_on_accent = ((r * 299 + g * 587 + b * 114) / 1000 > 140) ? s_bg : s_fg;
   if (s_settings.civil_font) {
     s_font_civil = s_font_shaot;
@@ -417,8 +417,8 @@ static void load_persisted(void) {
 }
 
 static void save_settings(void) {
-  // Stamped here rather than trusted from the initialiser, so the blob on flash
-  // is always labelled by the build that wrote it.
+  // Stamped here rather than trusted from the initializer, so the blob on flash
+  // is always labeled by the build that wrote it.
   s_settings.schema = SETTINGS_SCHEMA;
   persist_write_data(PERSIST_KEY_SETTINGS, &s_settings, sizeof(Settings));
 }
@@ -471,7 +471,7 @@ static const char *ordinal_suffix(int n) {
   }
 }
 
-// Whichever of the requested events comes soonest, labelled with its own name
+// Whichever of the requested events comes soonest, labeled with its own name
 // so the slot says what it is showing. The label is the point: a bare time that
 // silently changes meaning at sunset would be worse than no slot at all.
 static bool kind_needs_next(uint8_t k) {
@@ -659,9 +659,9 @@ static bool slot_value_is_compact(uint8_t kind) {
     // The secondary date's value is "Aug 31" -- six characters, no wider than a
     // time once the weekday has gone to the label row above it.
     case SLOT_SECDATE:
-    // A temperature, or a pair of them, on a line of its own under the header
-    // the icon shares with the label. Beside the icon these had 38px and fell
-    // to 18pt; with the full width they are the same shape as a clock time.
+    // A temperature, or a pair of them, on a full-width line of its own beneath
+    // the header row -- the same shape as a clock time. See draw_face() for why
+    // the reading is not beside the icon any more.
     case SLOT_WEATHER:
     case SLOT_WEATHER_FC:
       return true;
@@ -794,7 +794,7 @@ static SlotLayout slot_content(uint8_t kind, const struct tm *lt, bool for_band,
   }
 }
 
-// The band is a single line, so a labelled slot joins its two parts with a
+// The band is a single line, so a labeled slot joins its two parts with a
 // colon -- "sunset: 7:58" -- where a footer box stacks them. Content that names
 // itself, meaning either date, carries no label and is shown as it stands.
 static void band_content(uint8_t kind, const struct tm *lt, char *out, size_t out_n) {
@@ -815,7 +815,7 @@ static void draw_centered(GContext *ctx, const char *text, GFont font, int lead,
                      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter, NULL);
 }
 
-// As above, but starting at x rather than centred in a box. Used where two runs
+// As above, but starting at x rather than centered in a box. Used where two runs
 // of text in different faces have to sit next to each other on one line.
 static void draw_at(GContext *ctx, const char *text, GFont font, int lead,
                     GColor color, int y, int x, int w) {
@@ -857,10 +857,10 @@ static void draw_battery_gauge(GContext *ctx, int pct, bool charging, GColor ink
   if (pct > 100) pct = 100;
 
   // Red is deliberately not the box's ink: a low battery should shout the same
-  // colour whatever accent the wearer has picked. It is not applied while
+  // color whatever accent the wearer has picked. It is not applied while
   // charging, where a low reading is a state the wearer is already fixing.
   bool low = !charging && pct <= GAUGE_LOW_PCT;
-  // At zero there is no fill left to colour, so the outline carries the warning.
+  // At zero there is no fill left to color, so the outline carries the warning.
   GColor outline = (low && pct == 0) ? GColorRed : ink;
 
   graphics_context_set_stroke_color(ctx, outline);
@@ -891,15 +891,11 @@ static void draw_battery_gauge(GContext *ctx, int pct, bool charging, GColor ink
   }
 }
 
-// The box has to be wider than any line this face can produce, or the text
-// wraps *during measurement* and the width comes back capped at the box -- so a
-// line that does not fit measures as though it does, and every caller that
-// shrinks text to fit is silently defeated.
-// The 25x25 icon and the temperature sit side by side, centred in the box as a
-// pair. The temperature takes whatever width the icon leaves, which is what
-// the size ladder in box_face() is then fitting into.
+// The icon size is fixed by the resources: every weather icon is authored 25x25.
+// It occupies the header row of a weather box -- alone on the "now" half, beside
+// the day on the forecast -- and the reading takes the full width beneath, so
+// nothing is measured against what an icon leaves.
 #define WX_ICON_SIZE 25
-#define WX_ICON_GAP 3
 
 
 static uint32_t wx_resource(uint8_t cond) {
@@ -929,8 +925,8 @@ static GDrawCommandImage *wx_icon(uint8_t cond) {
   return s_wx_icon[cond];
 }
 
-// Pebble Draw Commands carry their own colours, so an icon has to be repainted
-// before it is drawn in a box whose ink is not the colour it was authored in.
+// Pebble Draw Commands carry their own colors, so an icon has to be repainted
+// before it is drawn in a box whose ink is not the color it was authored in.
 // Taken from TimeStyle's util.c (MIT), which is also where the icons come from.
 static bool pdc_recolor_cb(GDrawCommand *command, uint32_t index, void *context) {
   const GColor *c = (const GColor *)context;
@@ -944,17 +940,21 @@ static void pdc_recolor(GDrawCommandImage *img, GColor fill, GColor stroke) {
   gdraw_command_list_iterate(gdraw_command_image_get_command_list(img), pdc_recolor_cb, c);
 }
 
-// The weather icons are solid shapes, so they take one colour throughout.
+// The weather icons are solid shapes, so they take one color throughout.
 static void wx_recolor(GDrawCommandImage *img, GColor ink) { pdc_recolor(img, ink, ink); }
 
 // A stale reading keeps its place but loses its confidence: the same shape in a
 // muted ink, so it reads as information we are no longer standing behind. Which
-// grey depends on what the box's ink would have been, since the accent fill can
+// gray depends on what the box's ink would have been, since the accent fill can
 // be light or dark.
 static GColor wx_muted(GColor normal) {
   return gcolor_equal(normal, s_bg) ? GColorDarkGray : GColorLightGray;
 }
 
+// The box has to be wider than any line this face can produce, or the text
+// wraps *during measurement* and the width comes back capped at the box -- so a
+// line that does not fit measures as though it does, and every caller that
+// shrinks text to fit is silently defeated.
 static GSize measure(const char *text, GFont font) {
   return graphics_text_layout_get_content_size(text, font, GRect(0, 0, 1000, 60),
                                                GTextOverflowModeTrailingEllipsis,
@@ -967,7 +967,7 @@ static GSize measure(const char *text, GFont font) {
 // worse than a small one. Everything else in the band fits at 24 and is
 // unaffected.
 //
-// y and lead differ per size so the line stays optically centred in the 38px
+// y and lead differ per size so the line stays optically centered in the 38px
 // band; 5/LEAD_GOTHIC24 is the value the layout was originally tuned to.
 typedef struct {
   GFont font;
@@ -978,7 +978,7 @@ typedef struct {
 // The value row of a footer box, shrunk to fit its third of the screen. Hebrew
 // month names are wider than their transliterations -- "Heshvan" fits at 24
 // where "adar 1" in Hebrew script does not -- and dy keeps the other sizes
-// sitting on roughly the same optical centre.
+// sitting on roughly the same optical center.
 //
 // The 28 rung is the exception: it is offered only to the kinds that pass big,
 // which are the ones whose value is a short Latin token -- a time or a battery
@@ -1224,7 +1224,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
   // Civil time. Seconds are only shown when they are actually kept up to date:
   // a frozen seconds field is worse than none. Ticking once a minute, the
   // 12-hour clock spends that space on am/pm instead, and the 24-hour clock,
-  // which does not need it, simply centres what is left.
+  // which does not need it, simply centers what is left.
   char civil[16];
   bool h24 = use_24h();
   const char *meridiem = NULL;
@@ -1244,7 +1244,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
   if (meridiem) {
     // The civil faces are numeral subsets with no letters in them at all, so the
     // meridiem has to be set in Gothic beside the clock rather than appended to
-    // it. Both runs are measured and the pair centred together; the boxes are
+    // it. Both runs are measured and the pair centered together; the boxes are
     // bottom-aligned, which keeps the small text sitting on the baseline of the
     // large whichever civil face is selected.
     GSize ts = measure(civil, s_font_civil);
@@ -1289,7 +1289,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
     const int wide_w = measure("00:00", s_font_shaot).w;
     const int bw = (now_w > wide_w ? now_w : wide_w) + 2 * COUNTDOWN_BOX_PAD;
 
-    // Centred, then pushed left only as far as the right-hand gutter requires.
+    // Centered, then pushed left only as far as the right-hand gutter requires.
     // The nudge does not depend on whether an overlay is showing there, or even
     // on one being configured: a block that slid sideways when Bluetooth
     // dropped would draw the eye to the wrong thing, and the icon is the one
@@ -1316,7 +1316,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
   if (footer_top < SHAOT_INK_BOTTOM + FOOTER_MIN_GAP) return;
 
   // The accent fill belongs to the outer slot positions, not to their content:
-  // every slot is user-configurable, only the fill colour is.
+  // every slot is user-configurable, only the fill color is.
   int footer_h = vis_bottom - footer_top - 1;
   int third = bounds.size.w / 3;
   const uint8_t kinds[3] = {s_settings.slot_left, s_settings.slot_mid, s_settings.slot_right};
@@ -1371,7 +1371,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
   //
   // A "Next" box gets the same treatment as a weather one, because a tap does
   // the same thing to it -- and it needs the cue more, since both of its
-  // readings are a labelled time and only the fill says which is which at a
+  // readings are a labeled time and only the fill says which is which at a
   // glance.
   //
   // The pinned forecast never swaps, for the reason the swap exists: it means
@@ -1389,7 +1389,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
   graphics_context_set_fill_color(ctx, s_accent);
   for (int i = 0; i < 3; i++) {
     // The leftmost fill runs one pixel wide to close the seam against its
-    // neighbour; the others start where the previous box ended.
+    // neighbor; the others start where the previous box ended.
     if (filled[i]) {
       graphics_fill_rect(ctx, GRect(xs[i], footer_top + 1, widths[i] + (i == 0 ? 1 : 0), footer_h),
                          0, GCornerNone);
@@ -1442,37 +1442,23 @@ static void draw_face(Layer *layer, GContext *ctx) {
           continue;
         }
 
-        // Both halves are laid out the same way: the icon and the label side by
-        // side on a header row, the reading full width beneath. The forecast
-        // needed that -- its two numbers beside the icon fall to 14pt, too small
-        // to read at a glance -- and current conditions turn out to want it too.
-        // One number beside the icon had 38 of the box's 66px and was drawn at
-        // 18pt, smaller than anything else on the face, for a value that is one
-        // of the two things the box exists to say.
+        // Both halves put the icon on a header row with the reading full
+        // width beneath. The forecast needed that -- its two numbers beside the
+        // icon fall to 14pt, too small to read at a glance -- and current
+        // conditions turned out to want it too: one number beside the icon had
+        // 38 of the box's 66px and drew at 18pt, the smallest type on the face,
+        // for one of the two things a weather box exists to say. Stacking the
+        // two temperatures under a header would read better still, but that
+        // needs 62px and the box is 61.
         //
-        // Nothing tells the halves apart by shape any more, and nothing needs
-        // to: "now" is one temperature with a degree sign, the forecast is two
-        // without one, and the swapped fill says when a box is showing the half
-        // it does not usually show. Stacking the two temperatures under a header
-        // would read better still, but that needs 62px, which did not fit the
-        // 57px box those attempts were measured in and still does not fit
-        // today's 61.
-        //
-        // The label is load-bearing on both halves. The forecast rolls from
-        // today to tomorrow at the cutoff, so without the word there is no
-        // telling whose high is on screen.
-        // The forecast's header is the icon and the day side by side, because
-        // the day is load-bearing there: the reading rolls from today to
-        // tomorrow at the cutoff, and without the word there is no telling whose
-        // high is on screen. Current conditions have no such word to carry --
-        // "now" names the thing a weather box says by default -- so the icon
-        // takes that row alone, centred over the reading. Two centred objects,
-        // where a crowded header sat over a mostly empty line.
-        //
-        // The halves are still told apart without it: "now" is one temperature
-        // carrying a degree sign, the forecast is two carrying none, and the
-        // swapped fill says when a box is showing the half it does not usually
-        // show.
+        // Only the forecast puts a word on that header. Its day is load-bearing
+        // -- the reading rolls from today to tomorrow at the cutoff, and nothing
+        // else says whose high is on screen -- where "now" merely names what a
+        // weather box says by default, so there the icon takes the row alone,
+        // centered over the reading. The halves stay told apart without it:
+        // "now" is one temperature carrying a degree sign, the forecast is two
+        // carrying none, and the swapped fill says when a box is showing the
+        // half it does not usually show.
         if (fc) {
           if (icon) gdraw_command_image_draw(ctx, icon, GPoint(x + 2, footer_top + 4));
           draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, lab, footer_top + 7,
@@ -1498,7 +1484,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
 
 // The disconnect indicator: the Bluetooth rune with a strike through it, drawn
 // in the right-hand gutter between the clock and the shaot line. That gutter is
-// dead space at every time of day because the clock is centred, which is why
+// dead space at every time of day because the clock is centered, which is why
 // the indicator is an overlay and belongs to none of the five regions.
 //
 // The strike is what makes it self-describing. A plain rune is the symbol for
@@ -1576,7 +1562,7 @@ static void draw_bt_overlay(GContext *ctx, GRect bounds, int x) {
 
 // The low-battery indicator: an empty battery outline in whichever gutter it is
 // put in. Red rather than the face's ink, for the same reason the footer gauge
-// goes red -- a flat battery should shout the same colour whatever accent the
+// goes red -- a flat battery should shout the same color whatever accent the
 // wearer has picked.
 //
 // The cell is drawn empty. A proportional fill would be a second, smaller
@@ -1820,7 +1806,7 @@ static void connection_handler(bool connected) {
 
 static void subscribe_tick(void) {
   // SECOND_UNIT is deliberate: per-second chalakim is the point of this face,
-  // and the tick rate is a user setting. Do not "optimise" this to MINUTE_UNIT.
+  // and the tick rate is a user setting. Do not "optimize" this to MINUTE_UNIT.
   //
   // The countdown overrides that setting for as long as it is on screen: it
   // counts wall-clock seconds, and one that only moved once a minute would be
@@ -1980,9 +1966,9 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
 
     } else if (k == MESSAGE_KEY_AccentColor) {
       if (t->type == TUPLE_BYTE_ARRAY && t->length >= 3) {
-        // Clay can hand a colour over as its raw components rather than a
+        // Clay can hand a color over as its raw components rather than a
         // number; take the last three bytes so both RGB and ARGB orderings
-        // land on the same colour.
+        // land on the same color.
         const uint8_t *d = t->value->data + (t->length - 3);
         s_settings.accent = ((uint32_t)d[0] << 16) | ((uint32_t)d[1] << 8) | d[2];
         settings_changed = true;
