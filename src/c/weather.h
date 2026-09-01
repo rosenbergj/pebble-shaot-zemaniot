@@ -48,9 +48,15 @@ typedef enum {
 // hours behind you while tomorrow's is the next one you will actually feel.
 #define WEATHER_LOW_CUTOFF_HOUR 6
 
-// Six missed refreshes at TimeStyle's half-hourly cadence. Past this the
-// current reading is shown faded rather than as though it were current, and
-// a "Weather now/forecast" box gives up offering "now" at all.
+// Six missed refreshes at the half-hourly cadence. Past this the current
+// reading is shown faded rather than as though it were current, and a
+// "Weather now/forecast" box gives up offering "now" at all.
+//
+// The number came from TimeStyle, which polls half-hourly; this face polled
+// hourly for a while, which quietly made it three missed refreshes rather than
+// six. Going half-hourly restored the ratio it was chosen for. Retune it here
+// if the cadence moves again -- the threshold is in absolute time, but the
+// reasoning behind it is in missed refreshes.
 #define WEATHER_STALE_SECS (3 * 60 * 60)
 
 // The forecast fades on a slower clock, because the two age differently. "72
@@ -128,8 +134,8 @@ bool weather_low_first(int hour);
 int weather_pick_day(const WeatherData *w, int32_t wanted_ymd);
 
 // How long to wait before asking the phone again when a request went
-// unanswered, in milliseconds, or 0 to stop chasing and leave it to the hourly
-// schedule. `attempt` is how many requests have already gone out without a
+// unanswered, in milliseconds, or 0 to stop chasing and leave it to the
+// scheduled wake. `attempt` is how many requests have already gone out without a
 // reply, so the first unanswered request asks with attempt = 1.
 //
 // This exists because the watch cannot tell a request that was never heard
@@ -155,7 +161,7 @@ bool weather_forecast_is_stale(const WeatherData *w, int32_t now);
 // How far apart two positions are, in kilometres. Nothing on the face needs it:
 // coordinates are adopted whatever the distance, and weather is fetched behind
 // every fix, so there is no threshold left to test. It exists for
-// tools/probe-loc, which reports how far each hourly fix moved -- and a distance
+// tools/probe-loc, which reports how far each scheduled fix moved -- and a distance
 // is a sharper thing to assert in the host tests than a boolean either side of
 // a cutoff.
 //

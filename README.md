@@ -272,9 +272,19 @@ whose weather icons this uses (MIT, license in `resources/data/`).
   slot is showing weather, and there is no point spending a radio wake and an
   HTTP fetch on a face that is not displaying it. The request is an empty
   message; the phone treats anything from the watch as one. It fires at launch,
-  once an hour at a minute derived from the launch time, and on Bluetooth
-  reconnect. The per-watch minute is TimeStyle's idea: a fixed `tm_min % 30`
+  twice an hour at a minute derived from the launch time, and on Bluetooth
+  reconnect. The per-watch offset is TimeStyle's idea: a fixed `tm_min % 30`
   would have every watch running this face hit the API on the same two ticks.
+
+  **Half-hourly, not hourly, and only one half of the box gains by it.** Current
+  conditions come from 15-minutely model data, so a reading really can change
+  inside the hour; the daily high and low come from models that run every 3 to 6
+  hours and gain nothing. The cost is a doubled radio wake and a doubled
+  position fix, which is what made it a decision rather than a free improvement.
+  Open-Meteo's free tier allows 10,000 calls a day, 5,000 an hour and 600 a
+  minute, so the rate itself was never near a limit: one watch makes at most 48
+  calls a day, and fewer in practice, since the wake is gated on the link being
+  up.
 - **...with one exception, and it earns it.** The phone pushes weather, unasked,
   when its JavaScript starts (`ready` in `src/pkjs/index.js`). The pull races
   that startup and loses: the watch asks the instant the Bluetooth link is up,
@@ -286,7 +296,7 @@ whose weather icons this uses (MIT, license in `resources/data/`).
   phone knows when its JavaScript began running, so this is the one push that
   is better than a pull. It costs a fetch per JS start even where nothing
   displays weather; nothing starts it but the watchface.
-- **The watch sends one message: an hourly wake, and it is ungated.** It carries
+- **The watch sends one message: a half-hourly wake, and it is ungated.** It carries
   `WantWx`, saying whether a weather box is on the face -- the one thing the
   phone cannot know, and the reason weather is pulled rather than pushed. The
   phone answers by taking a fix, sending the coordinates, and *only then*
@@ -304,18 +314,23 @@ whose weather icons this uses (MIT, license in `resources/data/`).
   **Ungating it was a bug fix.** The wake used to be `request_weather()`, which
   returns early on `!any_weather_slot()` -- so a face with no weather box never
   spoke to the phone at all, and sampled position every six hours instead of
-  every hour. The shipped defaults have no weather box. Position is what the
+  every half hour. The shipped defaults have no weather box. Position is what the
   shaot arithmetic runs on and every face needs it; weather is what only some
   faces show. Only the second belongs behind that gate.
 
   The fix asks with a 30-minute `maximumAge`, so most calls are answered from one
   some other app already paid for rather than by powering up the receiver, which
-  is what makes hourly affordable. Startup keeps the tight 60-second
+  is what makes asking this often affordable. That 30 minutes was deliberately
+  left alone when the wake went half-hourly, so it now equals the interval
+  rather than sitting at half of it: a top-up can be served from the previous
+  one, and a position may be a whole interval behind. That is the same bet as
+  before — 10km inside 30 minutes is a car journey, and the startup path's tight
+  options cover that on the next launch. Startup keeps the tight 60-second
   `maximumAge`: a half-hour-old fix at `ready` could still be the departure gate,
   and startup after a flight is the one case that must not come from cache.
 
   **The error path is asymmetric on purpose.** A refused or timed-out fix is
-  answered by the next hour coming round -- escalating would turn a top-up into a
+  answered by the next wake coming round -- escalating would turn a top-up into a
   retry storm -- but it must not cost the weather, so that falls back to the
   stored coordinates rather than being skipped.
 
@@ -338,12 +353,12 @@ whose weather icons this uses (MIT, license in `resources/data/`).
   the stored coordinates while the fix that would replace them was still being
   taken, so after a flight the box showed the departure city, stamped with the
   current time -- not faded, since `fetched_at` was now, so the staleness signal
-  said nothing either. Nothing replaced it until the hourly wake, up to an hour
-  later. A "we have moved, ask again" rule fixed that.
+  said nothing either. Nothing replaced it until the next scheduled wake, up to
+  an hour later. A "we have moved, ask again" rule fixed that.
 
   Then both fetch paths were sequenced behind their fix, and the race was gone
   at the source. Coordinates can only change in two places, `ready` and the
-  hourly wake, and each now fetches weather for the very coordinates it just
+  scheduled wake, and each now fetches weather for the very coordinates it just
   took -- so the rule had nothing left to catch, and fired a duplicate request
   every time it did fire. **Fixing an ordering problem retires the rule that was
   compensating for it.** If a threshold ever looks necessary here again, check
@@ -360,8 +375,8 @@ whose weather icons this uses (MIT, license in `resources/data/`).
   a watch reboot: each one gives a fresh `ready`, hence a fresh fix, and both
   the solar maths and the weather follow within seconds. **Saving settings does
   not** -- it asks for weather, but the phone answers from its stored
-  coordinates and never takes a fix. Rarely needed now that the hourly wake
-  tops position up -- an arrival is picked up within the hour even on a road
+  coordinates and never takes a fix. Rarely needed now that the scheduled wake
+  tops position up -- an arrival is picked up within the half-hour even on a road
   trip, where the link never drops and nothing restarts the JavaScript -- but
   it is the way to have it immediately. A flight brings the link down and back
   on its own and needs none of this.
@@ -379,7 +394,7 @@ whose weather icons this uses (MIT, license in `resources/data/`).
   while the link is up and the box has nothing current — `!have_current ||
   s_wx_stale`. The stale half matters more than the empty half: after a night
   with Bluetooth off the watch *has* weather, just hours-old weather, so a gate
-  reading `have_current` alone left the morning to the hourly schedule. It is
+  reading `have_current` alone left the morning to the scheduled wake. It is
   gated on the link because asking across a dead one spends a wake to reach
   nobody, and the connection handler asks the moment the phone is back.
 - **Saving settings unchanged does not fetch**, which surprised the wearer once.
@@ -945,10 +960,11 @@ how old each fix already was when the phone handed it over. It reports the
 distance from the shipping `weather_move_km()` rather than a copy.
 
 That last column is the one to read for tuning. Nothing refreshes position
-between the hourly wakes, so a fix is only ever fresher than an hour because
-*another app* on the phone asked for one and the OS handed us theirs -- which is
-a fact about how the phone is used, not about this code. `GEO_OPTIONS_CHEAP`
-allows 30 minutes on that bet. The probe is how to find out whether the bet pays
+between the scheduled wakes, so a fix is only ever fresher than the interval
+because *another app* on the phone asked for one and the OS handed us theirs --
+which is a fact about how the phone is used, not about this code.
+`GEO_OPTIONS_CHEAP` allows 30 minutes on that bet, which since the wake went
+half-hourly is the interval itself. The probe is how to find out whether the bet pays
 on a particular phone rather than guessing.
 
 Its phone side is a deliberate **mirror** of the location half of

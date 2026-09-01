@@ -11,7 +11,7 @@ var MAX_FAILURES = 3;
 
 // Startup: the answer has to be about here, so barely any cache is tolerated.
 var GEO_OPTIONS = { timeout: 15000, maximumAge: 60000 };
-// The hourly top-up: a fix taken for some other app is what makes this cheap.
+// The half-hourly top-up: a fix taken for some other app is what makes this cheap.
 var GEO_OPTIONS_CHEAP = { timeout: 15000, maximumAge: 1800000 };
 
 var failures = 0;
@@ -20,7 +20,7 @@ var failures = 0;
 // the fix already was when the phone handed it over, in seconds.
 //
 // It is the only way to tell whether GEO_OPTIONS_CHEAP's 30-minute maximumAge is
-// earning anything. Nothing on this side refreshes position between the hourly
+// earning anything. Nothing on this side refreshes position between the scheduled
 // wakes, so a fix is only ever fresher than an hour because *some other app* on
 // the phone asked for one and the OS handed us theirs. Whether that happens is a
 // fact about how the phone is used, not about this code -- so measure it rather
@@ -84,7 +84,7 @@ function topUpLocation() {
                                            GEO_OPTIONS_CHEAP);
 }
 
-// The watch sends nothing but its hourly wake, carrying WantWx -- always 0 here.
+// The watch sends nothing but its half-hourly wake, carrying WantWx -- always 0 here.
 // The top-up is ungated on the real face too, which is the point: position is
 // refreshed whether or not a weather box exists.
 Pebble.addEventListener("appmessage", function () {
@@ -94,5 +94,5 @@ Pebble.addEventListener("appmessage", function () {
 Pebble.addEventListener("ready", function () {
   sendCached(); // something immediate, then refine
   update();
-  // No interval of this side's own: the watch's hourly wake is the schedule.
+  // No interval of this side's own: the watch's half-hourly wake is the schedule.
 });

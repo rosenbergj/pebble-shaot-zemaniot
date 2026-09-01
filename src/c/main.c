@@ -353,7 +353,7 @@ static TimeUnits s_tick_unit = 0;
 
 static void subscribe_tick(void);
 static void request_weather(void);
-static void hourly_request(void);
+static void scheduled_request(void);
 
 static void apply_settings(void) {
   uint8_t r = (s_settings.accent >> 16) & 0xFF;
@@ -600,7 +600,7 @@ static bool kind_shows_forecast(uint8_t kind) {
 // Whether anything on the face needs a weather payload at all. This gates the
 // fetch, and is deliberately not the same question as whether a tap does
 // something: a face whose only weather box is the pinned forecast wants the
-// data every hour and wants nothing to do with the gesture.
+// data on every wake and wants nothing to do with the gesture.
 static bool any_weather_slot(void) {
   const uint8_t k[4] = {s_settings.slot_band, s_settings.slot_left, s_settings.slot_mid,
                         s_settings.slot_right};
@@ -615,7 +615,7 @@ static bool any_weather_slot(void) {
 //
 // **This is the one to widen** as more things learn to read s_alt_view. Widen
 // this and not any_weather_slot(), which asks a different question: a term
-// added there would spend a radio wake every hour fetching weather that
+// added there would spend a radio wake twice an hour fetching weather that
 // nothing on the face can display.
 //
 // The pinned forecast is deliberately absent from the terms below. It reads
@@ -1636,15 +1636,20 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   // countdown can appear up to a minute after sunset, which is the same lag
   // everything else on the face already has in that mode.
   subscribe_tick();
-  // Once an hour, at a minute of this watch's own choosing -- but every five
+  // Twice an hour, at a minute of this watch's own choosing -- but every five
   // minutes while the phone is reachable and the box has nothing current to
-  // show. Waiting out the rest of the hour to discover that is too long to sit
-  // looking at an empty or hours-old box.
+  // show. Waiting out the rest of the half-hour to discover that is too long to
+  // sit looking at an empty or hours-old box.
+  //
+  // Half-hourly rather than hourly because current conditions come from
+  // 15-minutely model data, so a reading can change inside the hour. The
+  // forecast half gains nothing -- those models run every 3 to 6 hours -- but
+  // it rides the same wake either way.
   //
   // Stale counts as well as empty, and that is the whole point of the second
   // term: after a night with Bluetooth off the watch does have weather, just
   // old weather, so a gate reading only have_current would leave the morning
-  // -- the one time this matters most -- to the hourly schedule. The chase in
+  // -- the one time this matters most -- to the scheduled wake. The chase in
   // request_weather() is what usually catches this within seconds; this is the
   // floor under it, for a reconnect that arrived while the chase was already
   // spent.
@@ -1652,9 +1657,9 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   // Gated on the link, because asking across a dead one spends a wake to reach
   // nobody, and the connection handler already asks the moment it is back.
   if (tick_time->tm_sec == 0 && s_bt_connected) {
-    if (tick_time->tm_min == s_wx_minute) {
+    if (tick_time->tm_min % 30 == s_wx_minute) {
       // Ungated: this is the position top-up, which every face needs.
-      hourly_request();
+      scheduled_request();
     } else if ((!s_wx.have_current || s_wx_stale) && tick_time->tm_min % 5 == 0) {
       // The catch-up, which is about weather alone and stays gated on it.
       request_weather();
@@ -1699,7 +1704,7 @@ static void wx_schedule_retry(uint8_t attempts) {
 // request for weather. That was fine while weather was the only reason to speak
 // -- but position is what the shaot arithmetic runs on, and gating the only
 // message on `any_weather_slot()` left a face with no weather box sampling
-// position every six hours instead of every hour. The default face has no
+// position every six hours instead of every half hour. The default face has no
 // weather box.
 static void send_request(bool want_weather) {
   DictionaryIterator *iter;
@@ -1708,11 +1713,11 @@ static void send_request(bool want_weather) {
   app_message_outbox_send();
 }
 
-// The hourly wake, sent whatever the face is showing. The phone answers it by
+// The scheduled wake, sent whatever the face is showing. The phone answers it by
 // taking a fix, sending the coordinates, and only then fetching weather with
 // those very coordinates -- so the reading is always for where the fix says the
 // wearer is, with no offset between the two to reason about.
-static void hourly_request(void) {
+static void scheduled_request(void) {
   const bool wx = any_weather_slot();
   send_request(wx);
   if (wx) wx_schedule_retry(1);
@@ -1732,7 +1737,7 @@ static void request_weather(void) {
   if (!any_weather_slot()) return;
   send_request(true);
   // Start the count over. Every caller of this is a fresh reason to want
-  // weather -- a reconnect, a settings change, the hourly slot -- and each
+  // weather -- a reconnect, a settings change, the scheduled slot -- and each
   // deserves the full schedule rather than the tail of an older one.
   wx_schedule_retry(1);
 }
@@ -1800,7 +1805,7 @@ static void connection_handler(bool connected) {
   // the phone was away, and it costs nothing when the data is already current.
   // Position as well as weather: a link that has been down is exactly when the
   // watch is most likely to be somewhere new.
-  if (connected) hourly_request();
+  if (connected) scheduled_request();
   layer_mark_dirty(s_canvas);
 }
 
@@ -2028,7 +2033,7 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
     s_next_stale = 0;    // and the next-event cache, which is also per-location
     save_location();
     // Nothing is asked for here. Coordinates only ever change in two places --
-    // the startup fix and the hourly wake -- and both sequence a weather fetch
+    // the startup fix and the scheduled wake -- and both sequence a weather fetch
     // behind the fix, so a payload for these very coordinates is already on its
     // way. A "we have moved, ask again" rule lived here for a while; once both
     // paths were sequenced it had nothing left to catch and only spent a
@@ -2107,10 +2112,12 @@ static void init(void) {
       .pebble_app_connection_handler = connection_handler,
   });
 
-  // Spread the hourly wake across the hour without pulling in rand():
-  // two watches have to have been launched in the same second of the same
-  // minute to collide, and nothing breaks if they do.
-  s_wx_minute = (uint8_t)(time(NULL) % 60);
+  // Spread the wake across the half-hour without pulling in rand(): two watches
+  // have to have been launched in the same second of the same minute to
+  // collide, and nothing breaks if they do. The offset is what matters, not the
+  // interval -- a fixed minute would have every watch running this face hit the
+  // API on the same two ticks of every hour.
+  s_wx_minute = (uint8_t)(time(NULL) % 30);
   s_bt_connected = connection_service_peek_pebble_app_connection();
 
   // Callbacks must be registered before opening. The inbox has to hold eleven
@@ -2118,7 +2125,7 @@ static void init(void) {
   app_message_register_inbox_received(inbox_received);
   app_message_open(512, 64);
 
-  hourly_request();
+  scheduled_request();
 }
 
 static void deinit(void) {

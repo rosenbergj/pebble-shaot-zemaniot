@@ -27,10 +27,19 @@ var MAX_FAILURES = 3;
 // from this side -- a 30-minute-old fix could still be the departure gate.
 var GEO_OPTIONS = { timeout: 15000, maximumAge: 60000 };
 
-// ...and used where being an hour sharper matters more than being minutes
+// ...and used where being roughly right matters more than being minutes
 // fresher. A generous maximumAge is the whole point: the phone hands back a fix
 // some other app already paid for rather than powering up its receiver, which
 // is what makes asking this often affordable at all.
+//
+// Deliberately left at 30 minutes when the wake went half-hourly, so it now
+// equals the interval rather than sitting at half of it. Every scheduled top-up
+// can therefore be answered from cache if anything on the phone -- this app
+// included -- has fixed within the interval, which is the affordability the
+// cheap options exist for. The cost is that a position can be a whole interval
+// behind; that is the same bet as before, and 10km of movement inside 30
+// minutes is a car journey, which the startup path's tight options already
+// cover on the next launch.
 var GEO_OPTIONS_CHEAP = { timeout: 15000, maximumAge: 1800000 }; // 30 min
 
 var failures = 0;
@@ -107,7 +116,7 @@ function initialFix() {
   );
 }
 
-// The answer to the watch's hourly wake: take a fix, send it, and only then
+// The answer to the watch's scheduled wake: take a fix, send it, and only then
 // fetch weather with it.
 //
 // Sequencing is the whole point. The two used to run side by side, so the fetch
@@ -122,11 +131,12 @@ function initialFix() {
 // visible on a face that displays them. That applies at rest as much as in
 // transit, since the face runs on wherever the last fix landed.
 //
-// Asking hourly costs much less than it sounds. It rides a wake the watch is
-// making anyway, and the generous maximumAge means most calls are answered from
-// a fix some other app already paid for rather than by powering up the receiver.
+// Asking twice an hour costs much less than it sounds. It rides a wake the
+// watch is making anyway, and the generous maximumAge means most calls are
+// answered from a fix some other app already paid for rather than by powering
+// up the receiver.
 //
-// No error path for the fix itself: a refusal is answered by the next hour
+// No error path for the fix itself: a refusal is answered by the next wake
 // coming round, and escalating through onError would turn a top-up into a retry
 // storm. A failed fix must not cost the weather, though, so that falls back to
 // the stored coordinates.
@@ -297,7 +307,7 @@ function updateWeather() {
   );
 }
 
-// The watch sends one kind of message: its hourly wake. WantWx says whether a
+// The watch sends one kind of message: its half-hourly wake. WantWx says whether a
 // weather box is on the face, which is the one thing this side cannot know --
 // there is no point spending a fetch on a face that displays no weather. The
 // position top-up happens either way, because every face runs on the sun.
@@ -350,7 +360,7 @@ function resendSettings() {
 // likely to be lost. Only this side knows when it began running. initialFix()
 // carries that push, behind the fix.
 //
-// No interval of this side's own. The watch wakes it every hour, and that wake
+// No interval of this side's own. The watch wakes it twice an hour, and that wake
 // is ungated -- it arrives whether or not a weather box is configured -- so a
 // second schedule here would only duplicate fixes.
 Pebble.addEventListener("ready", function () {

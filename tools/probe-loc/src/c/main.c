@@ -60,9 +60,9 @@ static int32_t s_lon_micro;
 static bool s_have;
 static LocLog s_log;
 
-// The minute of the hour this watch asks on, chosen once per launch, exactly as
-// the face does it -- a fixed minute would have every watch running this hit the
-// same tick.
+// The offset within the half hour this watch asks on, chosen once per launch,
+// exactly as the face does it -- a fixed minute would have every watch running
+// this hit the same tick.
 static int s_ask_minute;
 
 // --- persistence ------------------------------------------------------------
@@ -228,7 +228,7 @@ static void canvas_update(Layer *layer, GContext *ctx) {
 
 // --- messages ---------------------------------------------------------------
 
-// The same hourly wake the face sends, with the same key. WantWx is always 0
+// The same half-hourly wake the face sends, with the same key. WantWx is always 0
 // here: this app displays no weather, so there is nothing for the phone to
 // fetch -- but the position top-up on the far side is ungated, which is exactly
 // the behavior being probed.
@@ -294,9 +294,14 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
 // --- services ---------------------------------------------------------------
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
-  // The same hourly cadence the face wakes the phone on. Asking across a dead
-  // link spends a wake to reach nobody.
-  if (tick_time->tm_min == s_ask_minute && tick_time->tm_sec == 0 &&
+  // The same half-hourly cadence the face wakes the phone on. Asking across a
+  // dead link spends a wake to reach nobody.
+  //
+  // This has to track the face. GEO_OPTIONS_CHEAP's maximumAge now equals the
+  // interval rather than half of it, and whether that allowance buys lag or
+  // saves a receiver is exactly what this probe is here to answer -- which it
+  // cannot do while measuring a cadence the face does not run.
+  if (tick_time->tm_min % 30 == s_ask_minute && tick_time->tm_sec == 0 &&
       connection_service_peek_pebble_app_connection()) {
     send_request();
   }
@@ -342,8 +347,8 @@ static void init(void) {
       .pebble_app_connection_handler = connection_handler,
   });
 
-  // Spread across the hour without pulling in rand(), as the face does.
-  s_ask_minute = (int)(time(NULL) % 60);
+  // Spread across the half hour without pulling in rand(), as the face does.
+  s_ask_minute = (int)(time(NULL) % 30);
 
   tick_timer_service_subscribe(SECOND_UNIT, tick_handler);
   send_request();
