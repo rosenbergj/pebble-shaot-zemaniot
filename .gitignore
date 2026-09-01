@@ -26,6 +26,9 @@ design-idea.txt
 # Machine-specific Claude settings (plansDirectory is an absolute path)
 .claude/settings.local.json
 
+# Personal release tooling: getting a build onto a wrist is a local matter
+tools/local/
+
 # Editor/OS noise
 *.swp
 .DS_Store
