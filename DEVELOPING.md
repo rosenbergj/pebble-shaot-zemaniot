@@ -176,109 +176,16 @@ localizes a fault in one round of sideloading instead of several.
 For settings problems, read the parsed values out of `pebble logs`, not off the
 screen: a screenshot easily catches the frame before the message arrives.
 
-## Releases
+## Producing a `.pbw`
 
-`dist/` is copied to a file share and installed from a phone. Three files
-are always there, and `tools/deploy.sh` owns all three:
+`pebble build` writes `build/pt2-shaot-watchface.pbw`. That is the file to
+sideload from the Pebble phone app; there is no on-device install path, as
+above.
 
-- `pt2-shaot-watchface.pbw` — the latest build. This is the one to install.
-- `pt2-shaot-watchface-lastgood.pbw` — the rollback: the most recent build
-  confirmed working on the watch. Install this if the latest misbehaves.
-- `BUILD.txt` — what is staged: version, commit, and which build the rollback is.
+The version comes from `package.json`, and bumping it also rewrites
+`package-lock.json`, which carries the version in two places. That file turns
+up dirty after a build and looks like churn worth reverting. It is not —
+reverting it strands the lockfile at an old version. Commit both.
 
-Those two `.pbw`s are the main development path and **share a UUID**, which is
-what makes a rollback a single install rather than a choice. Nothing superseded
-and nothing known-bad joins them.
-
-**Anything else currently useful may sit here too** — a diagnostic probe, a
-comparison build — provided it has its own UUID *and* its own `displayName`, so
-a phone can tell them apart in a list. The rule that matters is not a file count
-but that no two files are confusable at the moment of installing one. Delete
-them when they stop being useful; the directory should not accumulate.
-`BUILD.txt` lists whatever extras it finds, so that manifest cannot drift from
-what is actually in the directory.
-
-The filenames are stable so that installing never involves a choice about which
-file is newest. `tools/deploy.sh` maintains them:
-
-```sh
-tools/deploy.sh          # build the current commit into dist/
-tools/deploy.sh --good   # mark what is in dist/ as known good
-```
-
-A build refuses to stage unless the tree is clean and `package.json` carries a
-**new version**. Bumping it also rewrites `package-lock.json`, which carries
-the version in two places — so that file turns up dirty after a build and looks
-like churn worth reverting. It is not; reverting it strands the lockfile at an
-old version. Commit both. The version is the only thing a phone can see: the filename
-never changes, so a build that failed to sync or install is otherwise invisible.
-Check the version the phone reports against `BUILD.txt` before concluding
-anything about a change.
-
-`--good` copies the staged build over the rollback, tags the commit
-`good-<version>`, and rewrites the rollback line in `BUILD.txt` to name the
-build it just promoted. The tags are immutable, one per confirmed build, because
-after a regression the useful question is what changed since the last good one,
-and `git diff good-1.0.4..HEAD` answers it. Nothing is marked good
-automatically — only wearing it says that.
-
-The `BUILD.txt` rewrite matters because that file is read on a phone at the
-moment a rollback is wanted. It used to be written only by the build path, so
-every promotion left it naming the *previous* good build — pointing at a version
-the rollback file no longer held. Promoting twice rewrites the line rather than
-repeating it.
-
-**`--good` promotes what is in `dist/` *now*, not the build being named.** A
-build confirmed after the next one has been staged cannot be promoted with it:
-the staged `.pbw` was overwritten in place, and `--good` would tag the wrong
-version. Promote it by hand instead — `git tag -a good-<v> <sha>`, then rebuild
-that commit in a throwaway `git worktree` and copy the result over the rollback,
-checking the bundle's `versionLabel` first (`unzip -p <pbw> appinfo.json`). The
-rollback is then a faithful rebuild of the worn commit rather than the bytes
-that were worn: same source, version and UUID, not byte-identical.
-
-Give a build a distinct `displayName` *and* UUID whenever two are meant to be
-installed at once for comparison, as `tools/probe*` do.
-
-### Publishing a release
-
-Three gates, and nothing links them automatically: a git tag, a GitHub release,
-and a store release. A tagged version does not reach the store, and a `.pbw`
-uploaded to the store is not public until it is published there separately. So
-a version can be tagged, pushed, and worn for as long as it takes before
-anyone else can install it.
-
-`good-<version>` and `v<version>` are different claims and both are worth
-having on the same commit. `good-` means the build was worn and confirmed;
-`v` means it was published. A build can be good without being published — most
-are — so the tag that gates a release is `good-`, and `v` is only ever added to
-a commit that already carries one.
-
-Tag and push the tag by itself:
-
-```sh
-git tag -a v1.1.0 -m "Release 1.1.0" good-1.1.0
-git push origin v1.1.0
-```
-
-Push the one tag rather than `--follow-tags`, which would sweep every annotated
-`good-` tag onto the remote as well. Those are a private record of what was
-worn, and they are not interesting to anyone else.
-
-Then, on the repo's Releases page: *Draft a new release*, choose the tag that
-was just pushed, and attach `dist/pt2-shaot-watchface.pbw`. The `.pbw` is the
-release's only asset and is not in the tree — `dist/` is gitignored, so the
-file is uploaded rather than tagged. Attach the *rollback* copy,
-`pt2-shaot-watchface-lastgood.pbw`, if a newer build has since been staged over
-`pt2-shaot-watchface.pbw`; the same overwrite-in-place trap that `--good` has
-applies here, and `unzip -p <pbw> appinfo.json` settles which version a file
-actually holds before it is uploaded.
-
-The store is a third, separate step: upload the same `.pbw` as a release in the
-developer portal, then publish that release. Uploading does not publish it.
-
-Release notes are written for someone deciding whether to install, not for
-someone reading the diff: what changed on screen, what settings are new, and
-anything that will look different without being asked for. A generated commit
-log is the wrong artifact — the history is one commit per measurement, and most
-of them describe work no wearer can see.
+Nothing else about releasing lives in this repo. How a given build gets onto a
+given wrist is a local matter and differs per person.
