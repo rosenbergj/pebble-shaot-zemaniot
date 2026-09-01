@@ -196,7 +196,7 @@ static bool s_wx_fc_stale = false;
 // Long enough to read a two-number forecast, short enough that a tap from a
 // jostled wrist is not still showing it a minute later. Watchfaces get no
 // screen touch, so every tap here is the accelerometer and some of them are
-// accidents; see the note in README.md.
+// accidents; see the note in DESIGN.md.
 #define ALT_VIEW_HOLD_MS 8000
 
 // The minute of the hour at which this watch asks for weather. Randomised at
@@ -1952,7 +1952,7 @@ static void alt_view_timeout(void *data) {
 }
 
 // The only input a watchface gets: screen touch is never delivered to one, as
-// README.md records. That is also why the view reverts on its own -- some of
+// DESIGN.md records. That is also why the view reverts on its own -- some of
 // these taps are a jostled wrist rather than a decision, and a latching mode
 // would sit there until the next one.
 // The first thing s_shabbat is actually used for. Kept out of tap_has_effect(),
