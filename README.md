@@ -3,10 +3,10 @@
 A *shaot zemaniot* — proportional Jewish hours — watchface for the Pebble Time 2.
 
 The day is divided into twelve proportional hours between sunrise and sunset,
-and twelve more between sunset and sunrise, so an hour is longer in summer than
-in winter. The face shows the current proportional hour with *chalakim*
-(1/1080th of an hour), the civil time, the Hebrew date, and three configurable
-boxes.
+and twelve more between sunset and sunrise, so a daytime hour is longer in
+summer than in winter. The face shows the current proportional hour with
+*chalakim* (1/1080th of an hour), the civil time, the Hebrew date, and three
+configurable boxes.
 
 The sun times are computed **on the watch**, so the face stays correct offline
 indefinitely — the phone only supplies a location.
@@ -24,9 +24,8 @@ indefinitely — the phone only supplies a location.
   when the phone is away and a battery glyph when the charge is low.
 
 Any band or box can hold: the Hebrew date, the weekday and secular date, today's
-sunset or nightfall, whichever sun event comes next, the battery, the weather
-and forecast, the step count, the heart rate, or both health readings together.
-The band can also hold both dates at once. **Tapping the watch** swaps a weather
+sun data (sunrise, sunset, and nightfall) in various combinations, the battery,
+the weather and forecast, or health data. **Tapping the watch** swaps a weather
 box to its forecast and moves a "next sun event" box on to the one after it.
 
 Hebrew months can be written in Hebrew or transliterated, temperatures in
@@ -57,8 +56,7 @@ emulator, debugging on hardware, and how releases are cut.
 
 ## Patches welcome
 
-Small fixes and additions are welcome. Two things worth knowing before you
-start:
+Fixes and additions are welcome. Two things worth knowing before you start:
 
 - Everything under `src/c/` **except `main.c` is free of `pebble.h`**, so the
   host test harness can compile and check it with plain gcc against real
