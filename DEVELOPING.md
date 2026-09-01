@@ -191,6 +191,13 @@ screen: a screenshot easily catches the frame before the message arrives.
 sideload from the Pebble phone app; there is no on-device install path, as
 above.
 
+**Changing only the version does not rebuild the bundle.** waf regenerates
+`build/appinfo.json` but skips the `app_bundle` step unless a source file
+changed too, so the `.pbw` keeps whatever `versionLabel` it was last built
+with. Delete `build/pt2-shaot-watchface.pbw` before building, or run
+`pebble clean`, whenever a version bump is the only change. `unzip -p <pbw>
+appinfo.json` says what a bundle actually carries.
+
 The version comes from `package.json`, and bumping it also rewrites
 `package-lock.json`, which carries the version in two places. That file turns
 up dirty after a build and looks like churn worth reverting. It is not —
