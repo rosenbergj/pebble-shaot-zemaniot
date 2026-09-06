@@ -30,10 +30,8 @@ void shaot_format(int chalakim, bool offset6, bool with_minutes,
 }
 
 void shaot_format_countdown(int seconds, char *out, size_t out_size) {
-  // The second in progress still counts, so a remainder of 44 reads "0:45".
-  // Without this the display would rest on "0:00" for a whole second, which
-  // reads as arrived rather than about to arrive.
-  seconds += 1;
+  // Callers only invoke this while countdown_active() holds, which requires
+  // now < tzeit, so seconds is already at least 1; the clamp is just a guard.
   if (seconds < 1) seconds = 1;
 
   int mins = seconds / 60;
