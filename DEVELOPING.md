@@ -43,7 +43,7 @@ real fixtures. Keep it that way — it is the only place the math gets tested.
 
 ## Driving settings and time in the emulator
 
-The Clay page needs a browser, so it cannot be used from here. Send settings
+The Clay page needs a browser, so it cannot be driven from here. Send settings
 straight to the app instead:
 
 ```sh
@@ -76,6 +76,18 @@ holding the wearer's real choices.
 path also exercises the real `inbox_received` handler, which a hardcoded default
 would not.
 
+**A new message key needs `pebble clean` before the build.** The generated
+`message_keys.auto.h` is not rebuilt when `package.json` gains a key, so an
+incremental build fails with the new `MESSAGE_KEY_*` undeclared.
+
+**The settings page can be looked at, though not used.**
+`tools/render-settings.js` runs the built phone JS against stubs and writes
+the page Clay would open to an HTML file; a headless Chromium screenshots it at
+phone width. Its header has both commands. `pebble emu-app-config` also works
+from here if `BROWSER` is set to a script that saves its argument: it receives
+a `file://` page wrapping the real one, which is how the live clock-style
+request was checked against the emulator.
+
 **`pebble emu-bt-connection --connected no` kills `pebble logs`.** The log
 stream rides the same emulated phone link, so it disconnects along with it and
 the tool exits. Bluetooth-drop behavior therefore cannot be watched live. Test
@@ -91,6 +103,10 @@ which relaunches the app, and both take. Note the format flag is `--format`,
 not a positional argument — passing `12h` on its own is an argparse error, and
 it is easy to lose down a redirect.
 
+**`pebble emu-steps <n>` sets today's step count** and, like the heart rate,
+reaches the face only on relaunch. The emulator otherwise shows 0 steps, which
+is no good for a store shot.
+
 **`pebble emu-set-time HH:MM:SS` does not stick.** The emulator's phone bridge
 pushes the real time back within a few seconds, so it is good for one screenshot
 of a moment and useless for watching anything change across it.
@@ -101,6 +117,24 @@ so the event falls near the real current time; the clock then runs normally and
 successive screenshots are seconds apart, not resynced out from under you. That
 is how the countdown's per-second ticking was verified. Never use a real home
 location for this — anywhere with the right sun times will do.
+
+## The store preview GIF
+
+`media/watchface-preview.gif` is eight consecutive seconds at 1000 ms a frame,
+straddling a proportional-minute rollover -- chalakim .16, .17, then two frames
+of .00 -- with the civil minute *not* turning over inside it. To remake it:
+
+1. `pebble emu-steps` and `pebble emu-heart-rate`, then `pebble install`.
+2. Wait a minute for the phone side's startup fetches to finish, then send the
+   slots, `LAT`/`LON`, and `WxTemp`/`WxCond` (Celsius; 8 is partly cloudy) with
+   `pebble send-app-message`. Sent earlier, the startup fetch overwrites them.
+3. `tools/capture-frames.py` for 80 seconds, which always spans a rollover.
+4. Collapse identical consecutive frames, pick the run, and write the GIF with
+   one shared palette and no dithering; check it decodes back pixel-identical.
+
+A proportional minute differs from a civil one by only a second or so, so a
+rollover that lands on the civil minute stays near it for many minutes. Move
+the location rather than wait: another coarse city shifts the phase at once.
 
 ## Debugging on hardware
 
