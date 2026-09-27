@@ -59,7 +59,10 @@
       "SecondDays",
       "ShabbatSuppressTaps",
       "WantWx",
-      "BtVibe"
+      "BtVibe",
+      "SecondsFrom",
+      "SecondsUntil",
+      "Clock24"
     ],
     "resources": {
       "media": [

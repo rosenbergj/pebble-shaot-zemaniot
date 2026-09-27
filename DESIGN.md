@@ -261,6 +261,9 @@ whose weather icons this uses (MIT, license in `resources/data/`).
   phone cannot know, and the reason weather is pulled rather than pushed. The
   phone answers by taking a fix, sending the coordinates, and *only then*
   fetching weather with those very coordinates when the flag is set.
+  It also carries `Clock24`, the watch's 12/24-hour setting, which the phone
+  keeps so the settings page labels its hour pickers the way the watch shows
+  time. Nothing else tells the phone which the wearer uses.
 
   **Sequencing is the point.** The fix and the fetch used to run side by side, so
   the fetch went out against whatever was already stored while the fix that would

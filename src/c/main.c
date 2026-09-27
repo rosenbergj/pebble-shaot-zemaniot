@@ -90,7 +90,7 @@ typedef enum {
 //
 // Starts at 2 rather than 1: byte 0 of an unversioned blob is offset6, which is
 // 0 or 1, so no old blob can pass for a versioned one.
-#define SETTINGS_SCHEMA 2
+#define SETTINGS_SCHEMA 3
 
 typedef struct {
   // The layout this blob was written by; see SETTINGS_SCHEMA. First field on
@@ -109,6 +109,9 @@ typedef struct {
   uint8_t slot_band, slot_left, slot_mid, slot_right;
   uint32_t accent;      // 0xRRGGBB
   uint8_t civil_font;   // 0 = Roboto 49, 1 = Leco 42 (matches the shaot face)
+  // The hours tick_seconds applies to, from the first up to but not including
+  // the second, wrapping past midnight. Equal means all day.
+  uint8_t seconds_from, seconds_until;
 } Settings;
 
 static Settings s_settings = {
@@ -130,6 +133,8 @@ static Settings s_settings = {
     .slot_right = SLOT_BATTERY,
     .accent = 0x007882,
     .civil_font = 0,
+    .seconds_from = 0,
+    .seconds_until = 0,
 };
 
 // Supplied by the phone and remembered across launches. Until one arrives the
@@ -378,6 +383,9 @@ static bool s_charging = false;
 // always subscribes; after that subscribe_tick() is a no-op unless the rate
 // really has to change.
 static TimeUnits s_tick_unit = 0;
+// Whether the civil clock shows seconds right now: the setting, narrowed to its
+// hours. Set by subscribe_tick() so drawing only reads it.
+static bool s_seconds_now = true;
 
 static void subscribe_tick(void);
 static void request_weather(void);
@@ -424,6 +432,8 @@ static void load_persisted(void) {
     persist_read_data(PERSIST_KEY_SETTINGS, &stored, sizeof(stored));
     if (stored.schema == SETTINGS_SCHEMA) s_settings = stored;
   }
+  if (s_settings.seconds_from > 23) s_settings.seconds_from = 0;
+  if (s_settings.seconds_until > 23) s_settings.seconds_until = 0;
   // Range-check rather than trust: persistent storage is keyed by app UUID and
   // survives reinstalls, so these ints can predate this build entirely.
   // Weather survives a relaunch so the face is not blank for the first half
@@ -1438,7 +1448,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
     hour %= 12;
     if (hour == 0) hour = 12;
   }
-  if (s_settings.tick_seconds) {
+  if (s_seconds_now) {
     snprintf(civil, sizeof(civil), h24 ? "%02d:%02d:%02d" : "%d:%02d:%02d", hour, lt.tm_min,
              lt.tm_sec);
   } else {
@@ -1481,7 +1491,7 @@ static void draw_face(Layer *layer, GContext *ctx) {
     // stale, always in the same direction; half a minute ahead makes it right on
     // average across the minute it sits unchanged.
     double shaot_ms = (double)now * 1000.0;
-    if (!s_settings.tick_seconds) shaot_ms += 30000.0;
+    if (!s_seconds_now) shaot_ms += 30000.0;
     shaot_format(shaot_chalakim_now(shaot_ms, s_br.start_ms, s_br.end_ms),
                  s_settings.offset6, s_settings.with_minutes, shaot, sizeof(shaot));
   }
@@ -1921,6 +1931,8 @@ static void send_request(bool want_weather) {
   DictionaryIterator *iter;
   if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
   dict_write_uint8(iter, MESSAGE_KEY_WantWx, want_weather ? 1 : 0);
+  // Rides along so the settings page can label hours the way this watch does.
+  dict_write_uint8(iter, MESSAGE_KEY_Clock24, use_24h() ? 1 : 0);
   app_message_outbox_send();
 }
 
@@ -2027,16 +2039,30 @@ static void connection_handler(bool connected) {
   layer_mark_dirty(s_canvas);
 }
 
+// Whether an hour of the day falls inside the wearer's seconds hours. The range
+// wraps past midnight when it ends earlier than it starts, and an empty one --
+// from and until the same hour -- means all day.
+static bool in_seconds_hours(int hour) {
+  const int from = s_settings.seconds_from, until = s_settings.seconds_until;
+  if (from == until) return true;
+  if (from < until) return hour >= from && hour < until;
+  return hour >= from || hour < until;
+}
+
 static void subscribe_tick(void) {
   // SECOND_UNIT is deliberate: per-second chalakim is the point of this face,
   // and the tick rate is a user setting. Do not "optimize" this to MINUTE_UNIT.
+  //
+  // The setting can be limited to certain hours. Every tick calls this, so the
+  // rate changes on the first tick of the hour the window opens or closes.
   //
   // The countdown overrides that setting for as long as it is on screen: it
   // counts wall-clock seconds, and one that only moved once a minute would be
   // worse than not showing it. That is under an hour a day, and only for a
   // wearer who asked for the countdown at all.
-  TimeUnits want = (s_settings.tick_seconds || countdown_active(time(NULL))) ? SECOND_UNIT
-                                                                            : MINUTE_UNIT;
+  const time_t now = time(NULL);
+  s_seconds_now = s_settings.tick_seconds && in_seconds_hours(localtime(&now)->tm_hour);
+  TimeUnits want = (s_seconds_now || countdown_active(now)) ? SECOND_UNIT : MINUTE_UNIT;
   if (s_tick_unit == want) return;
   s_tick_unit = want;
   tick_timer_service_subscribe(want, tick_handler);
@@ -2125,6 +2151,16 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.with_minutes = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_TickSeconds) {
       if (tuple_to_int(t, &v)) { s_settings.tick_seconds = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_SecondsFrom) {
+      if (tuple_to_int(t, &v) && v >= 0 && v <= 23) {
+        s_settings.seconds_from = (uint8_t)v;
+        settings_changed = true;
+      }
+    } else if (k == MESSAGE_KEY_SecondsUntil) {
+      if (tuple_to_int(t, &v) && v >= 0 && v <= 23) {
+        s_settings.seconds_until = (uint8_t)v;
+        settings_changed = true;
+      }
     } else if (k == MESSAGE_KEY_Countdown) {
       if (tuple_to_int(t, &v)) { s_settings.countdown = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_HebrewScript) {

@@ -6,6 +6,8 @@
 // always a string, and converts only numbers and booleans. The watch parses
 // them; see tuple_to_int() in src/c/main.c.
 
+var hourLabel = require("./hours").hourLabel;
+
 // Sunset and nightfall show today's, rolling over at local midnight, so they
 // are steady all day and can name a time already past. The "Next" kinds instead
 // show whichever of their events comes soonest, labeled with its name, so they
@@ -45,6 +47,11 @@ var GUTTER_OPTIONS = [
   { label: "Bluetooth disconnection", value: 1 },
   { label: "Low battery", value: 2 },
 ];
+
+// The hours "Update every second" can be limited to. Labeled for a 12-hour
+// watch here; src/pkjs/index.js relabels them when the watch reports 24-hour.
+var HOUR_OPTIONS = [];
+for (var h = 0; h < 24; h++) HOUR_OPTIONS.push({ label: hourLabel(h, false), value: h });
 
 module.exports = [
   {
@@ -236,9 +243,24 @@ module.exports = [
         messageKey: "TickSeconds",
         label: "Update every second",
         description:
-          "Off updates once a minute instead, which is easier on the " +
-          "battery. The chalakim reading then only changes once a minute.",
+          "Off, or outside these hours, it updates once a minute instead, " +
+          "which is easier on the battery. The chalakim reading then only " +
+          "changes once a minute.",
         defaultValue: true,
+      },
+      {
+        type: "select",
+        messageKey: "SecondsFrom",
+        label: "From",
+        options: HOUR_OPTIONS,
+        defaultValue: 0,
+      },
+      {
+        type: "select",
+        messageKey: "SecondsUntil",
+        label: "Until",
+        options: HOUR_OPTIONS,
+        defaultValue: 0,
       },
     ],
   },

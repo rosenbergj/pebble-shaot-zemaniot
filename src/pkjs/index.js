@@ -13,11 +13,51 @@
 var Clay = require("@rebble/clay");
 var clayConfig = require("./config");
 var messageKeys = require("message_keys");
+var hourLabel = require("./hours").hourLabel;
+
+// Runs inside the settings page, injected by toString(), so it can use nothing
+// from outside its own body. The hour pickers only mean anything while
+// "Update every second" is on, so they are hidden while it is off.
+function clayCustom() {
+  var clayConfig = this;
+  clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function () {
+    var tick = clayConfig.getItemByMessageKey("TickSeconds");
+    var hours = [
+      clayConfig.getItemByMessageKey("SecondsFrom"),
+      clayConfig.getItemByMessageKey("SecondsUntil"),
+    ];
+    function sync() {
+      hours.forEach(function (item) {
+        if (tick.get()) item.show();
+        else item.hide();
+      });
+    }
+    sync();
+    tick.on("change", sync);
+  });
+}
 
 // Auto-handling on: Clay sends one message key per setting, which src/c/main.c
 // reads by key. The old build had to pack everything into a single string
 // because the JavaScript runtime could not afford the per-key memory.
-var clay = new Clay(clayConfig);
+var clay = new Clay(clayConfig, clayCustom);
+
+// The hour pickers follow the watch's 12- or 24-hour setting, which only the
+// watch knows; it reports it with every scheduled wake, and the last report is
+// kept so the page is labeled right even when opened before the next one.
+// Clay builds the page from clay.config when it opens, so relabeling that copy
+// is enough.
+function labelHours(h24) {
+  clay.config.forEach(function (section) {
+    (section.items || []).forEach(function (item) {
+      if (item.messageKey !== "SecondsFrom" && item.messageKey !== "SecondsUntil") return;
+      item.options.forEach(function (o) {
+        o.label = hourLabel(o.value, h24);
+      });
+    });
+  });
+}
+labelHours(localStorage.getItem("clock24") === "1");
 
 var MAX_FAILURES = 3;
 
@@ -311,8 +351,13 @@ function updateWeather() {
 // weather box is on the face, which is the one thing this side cannot know --
 // there is no point spending a fetch on a face that displays no weather. The
 // position top-up happens either way, because every face runs on the sun.
+// Clock24 rides along for the settings page.
 Pebble.addEventListener("appmessage", function (e) {
   var p = (e && e.payload) || {};
+  if (p.Clock24 !== undefined) {
+    localStorage.setItem("clock24", p.Clock24 ? "1" : "0");
+    labelHours(!!p.Clock24);
+  }
   topUpLocation(p.WantWx === 1);
 });
 
