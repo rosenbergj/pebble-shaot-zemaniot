@@ -62,7 +62,8 @@
       "BtVibe",
       "SecondsFrom",
       "SecondsUntil",
-      "Clock24"
+      "Clock24",
+      "WantClock"
     ],
     "resources": {
       "media": [

@@ -1936,6 +1936,16 @@ static void send_request(bool want_weather) {
   app_message_outbox_send();
 }
 
+// The answer to the phone asking, as the settings page opens, which way this
+// watch shows time. Nothing else in it, so the phone does not take it for the
+// scheduled wake and spend a fix.
+static void send_clock_style(void) {
+  DictionaryIterator *iter;
+  if (app_message_outbox_begin(&iter) != APP_MSG_OK) return;
+  dict_write_uint8(iter, MESSAGE_KEY_Clock24, use_24h() ? 1 : 0);
+  app_message_outbox_send();
+}
+
 // The scheduled wake, sent whatever the face is showing. The phone answers it by
 // taking a fix, sending the coordinates, and only then fetching weather with
 // those very coordinates -- so the reading is always for where the fix says the
@@ -2151,6 +2161,8 @@ static void inbox_received(DictionaryIterator *iter, void *context) {
       if (tuple_to_int(t, &v)) { s_settings.with_minutes = (v != 0); settings_changed = true; }
     } else if (k == MESSAGE_KEY_TickSeconds) {
       if (tuple_to_int(t, &v)) { s_settings.tick_seconds = (v != 0); settings_changed = true; }
+    } else if (k == MESSAGE_KEY_WantClock) {
+      send_clock_style();
     } else if (k == MESSAGE_KEY_SecondsFrom) {
       if (tuple_to_int(t, &v) && v >= 0 && v <= 23) {
         s_settings.seconds_from = (uint8_t)v;

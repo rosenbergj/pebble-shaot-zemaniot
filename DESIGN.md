@@ -263,7 +263,12 @@ whose weather icons this uses (MIT, license in `resources/data/`).
   fetching weather with those very coordinates when the flag is set.
   It also carries `Clock24`, the watch's 12/24-hour setting, which the phone
   keeps so the settings page labels its hour pickers the way the watch shows
-  time. Nothing else tells the phone which the wearer uses.
+  time. Nothing else tells the phone which the wearer uses. The wake alone left
+  the labels up to half an hour stale -- and wrong on a fresh install, since the
+  launch wake is usually lost -- so opening the page also sends `WantClock`,
+  which the watch answers with `Clock24` alone. The page waits up to 1.5 s for
+  it, then falls back to the last value kept. That wait is why the phone side
+  handles `showConfiguration` and `webviewclosed` itself instead of Clay.
 
   **Sequencing is the point.** The fix and the fetch used to run side by side, so
   the fetch went out against whatever was already stored while the fix that would

@@ -37,16 +37,18 @@ function clayCustom() {
   });
 }
 
-// Auto-handling on: Clay sends one message key per setting, which src/c/main.c
-// reads by key. The old build had to pack everything into a single string
-// because the JavaScript runtime could not afford the per-key memory.
-var clay = new Clay(clayConfig, clayCustom);
+// Clay sends one message key per setting, which src/c/main.c reads by key. The
+// old build had to pack everything into a single string because the JavaScript
+// runtime could not afford the per-key memory. Opening and closing the page are
+// handled below rather than by Clay, so the page can wait for the watch's clock
+// style.
+var clay = new Clay(clayConfig, clayCustom, { autoHandleEvents: false });
 
 // The hour pickers follow the watch's 12- or 24-hour setting, which only the
-// watch knows; it reports it with every scheduled wake, and the last report is
-// kept so the page is labeled right even when opened before the next one.
-// Clay builds the page from clay.config when it opens, so relabeling that copy
-// is enough.
+// watch knows. It reports it with every scheduled wake, and again when asked as
+// the page opens -- the wake alone left the labels up to half an hour behind a
+// change. The last report is kept for when the watch cannot answer. Clay builds
+// the page from clay.config when it opens, so relabeling that copy is enough.
 function labelHours(h24) {
   clay.config.forEach(function (section) {
     (section.items || []).forEach(function (item) {
@@ -357,8 +359,33 @@ Pebble.addEventListener("appmessage", function (e) {
   if (p.Clock24 !== undefined) {
     localStorage.setItem("clock24", p.Clock24 ? "1" : "0");
     labelHours(!!p.Clock24);
+    openSettings();
   }
-  topUpLocation(p.WantWx === 1);
+  // Only the wake carries WantWx; the answer to WantClock carries nothing else.
+  if (p.WantWx !== undefined) topUpLocation(p.WantWx === 1);
+});
+
+// Waiting to open the settings page for the watch's clock style. Whichever comes
+// first opens it -- the answer, or the timeout if the watch is out of reach, in
+// which case the last known style labels the hours.
+var settingsTimer = null;
+
+function openSettings() {
+  if (!settingsTimer) return;
+  clearTimeout(settingsTimer);
+  settingsTimer = null;
+  Pebble.openURL(clay.generateUrl());
+}
+
+Pebble.addEventListener("showConfiguration", function () {
+  if (settingsTimer) clearTimeout(settingsTimer);
+  settingsTimer = setTimeout(openSettings, 1500);
+  Pebble.sendAppMessage({ WantClock: 1 }, null, openSettings);
+});
+
+Pebble.addEventListener("webviewclosed", function (e) {
+  if (!e || !e.response) return;
+  Pebble.sendAppMessage(clay.getSettings(e.response));
 });
 
 // Clay keeps the settings on the phone. The watch keeps its own copy as a single
