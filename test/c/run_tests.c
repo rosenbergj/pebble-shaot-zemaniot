@@ -151,22 +151,24 @@ static void expect_countdown(int seconds, const char *want) {
 }
 
 static void test_countdown_formatting(void) {
-  group("sunset-to-nightfall countdown counts the second in progress");
-  // The second in progress counts, so every reading is one above the remainder.
-  expect_countdown(0, "0:01");
-  expect_countdown(1, "0:02");
-  expect_countdown(58, "0:59");
-  expect_countdown(59, "1:00");
-  expect_countdown(60, "1:01");
+  group("sunset-to-nightfall countdown reads the whole seconds remaining");
+  // The caller only draws it while now < tzeit, so the remainder is at least 1
+  // and is shown as it is.
+  expect_countdown(1, "0:01");
+  expect_countdown(2, "0:02");
+  expect_countdown(59, "0:59");
+  expect_countdown(60, "1:00");
+  expect_countdown(61, "1:01");
   // A typical ben-hashmashot is around 45 minutes at these latitudes.
-  expect_countdown(44 * 60, "44:01");
-  expect_countdown(59 * 60 + 58, "59:59");
+  expect_countdown(44 * 60, "44:00");
+  expect_countdown(59 * 60 + 59, "59:59");
   // An hour and over gains an hours field rather than running the minutes up.
-  expect_countdown(59 * 60 + 59, "1:00:00");
-  expect_countdown(3600, "1:00:01");
-  expect_countdown(2 * 3600 + 5 * 60 + 9, "2:05:10");
+  expect_countdown(3600, "1:00:00");
+  expect_countdown(3601, "1:00:01");
+  expect_countdown(2 * 3600 + 5 * 60 + 9, "2:05:09");
   // Past the event, and a clock that jumped forward: never a negative or zero
   // reading, because the caller stops drawing it the moment the window closes.
+  expect_countdown(0, "0:01");
   expect_countdown(-1, "0:01");
   expect_countdown(-500, "0:01");
 }
