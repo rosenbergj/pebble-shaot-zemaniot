@@ -1691,7 +1691,9 @@ static void draw_face(Layer *layer, GContext *ctx) {
         continue;
       }
       if (layout == SLOT_LAYOUT_GAUGE) {
-        draw_battery_gauge(ctx, s_battery, s_charging, ink, footer_top + 4, x, w);
+        // Three below the label's y: a label's ink starts under its leading,
+        // so this lines the gauge's top up with a neighboring label's ascenders.
+        draw_battery_gauge(ctx, s_battery, s_charging, ink, footer_top + 7, x, w);
       } else {
         draw_centered(ctx, label, s_font_label, LEAD_GOTHIC14, on_fill ? s_on_accent : s_dim,
                       footer_top + 4, x, w);
